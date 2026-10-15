@@ -12,10 +12,12 @@ import { run } from './db.js';
 import { api } from './routes/api.js';
 import { oauth } from './routes/oauth.js';
 import { metaCb } from './routes/metaCallbacks.js';
+import { webhooks } from './routes/webhooks.js';
 import { mcpHandler } from './mcp.js';
 import { beginConnect, finishConnect } from './services/accounts.js';
 import { startWorker } from './worker.js';
 import { mockRouter } from './meta/mock.js';
+import { audit } from './services/audit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const app = express();
@@ -40,6 +42,7 @@ app.use(['/mcp', '/oauth', '/.well-known'], (req, res, next) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 });
+app.use(webhooks);
 app.use(oauth);
 app.use(metaCb);
 app.all('/mcp', express.json({ limit: '4mb' }), mcpHandler);
@@ -59,8 +62,8 @@ auth.use(express.json());
 auth.get('/state', (req, res) => res.json({ user: publicUser(sessionUser(req)), needs_setup: userCount() === 0, signup_open: config.allowSignup, mock: config.mock }));
 auth.post('/register', (req, res) => {
   const first = userCount() === 0;
-  if (!first && !config.allowSignup) throw err(403, 'signup_closed', 'Pendaftaran ditutup. Minta admin menambahkan akunmu.');
-  const u = createUser({ ...req.body, role: first ? 'admin' : 'member' });
+  if (!first && !config.allowSignup) throw err(403, 'signup_closed', 'Pendaftaran ditutup. Minta Owner menambahkan akunmu.');
+  const u = createUser({ ...req.body, role: first ? 'owner' : 'rep' });
   startSession(res, req, u.id);
   res.status(201).json({ user: u });
 });
@@ -92,6 +95,8 @@ app.get('/connect/:platform/callback', async (req, res) => {
   if (error) return res.redirect(`/#/accounts?error=${encodeURIComponent(ed || error)}`);
   try {
     const r = await finishConnect(req.params.platform, code, state);
+    const who = one('SELECT * FROM users WHERE id=?', r.userId);
+    audit({ user: who, via: 'session' }, r.reconnected ? 'account.reconnect' : 'account.connect', 'account', r.account.id, { username: r.account.username, platform: r.account.platform });
     res.redirect(`/#/accounts?connected=${encodeURIComponent('@' + r.account.username)}`);
   } catch (e) {
     console.warn('[connect]', e.message);

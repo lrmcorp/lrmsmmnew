@@ -238,3 +238,19 @@ export function gcMedia() {
 export const resolveMediaList = (ids) => (ids || []).map((mid) => getMedia(mid));
 export const toPublishMedia = (m) => ({ kind: m.kind, url: mediaUrl(m), alt_text: m.alt_text || undefined, width: m.width, height: m.height, duration_ms: m.duration_ms, size: m.size_bytes });
 export { parseJSON };
+
+/** Which parts of a chunked upload already arrived — lets clients resume after a dropped connection. */
+export function listParts(mediaId) {
+  const m = one('SELECT * FROM media WHERE id=?', mediaId);
+  if (!m) throw err(404, 'not_found', 'Upload tidak ditemukan');
+  if (m.status === 'ready') return { id: m.id, status: 'ready', part_size: m.part_size, part_count: m.part_count, received: [] };
+  const dir = path.join(config.mediaDir, `${mediaId}.parts`);
+  const received = fs.existsSync(dir) ? fs.readdirSync(dir).map(Number).filter(Boolean).sort((a, b) => a - b) : [];
+  return { id: m.id, status: m.status, part_size: m.part_size, part_count: m.part_count, received };
+}
+
+export function usage() {
+  const r = one("SELECT COUNT(*) files, COALESCE(SUM(size_bytes),0) bytes FROM media WHERE status='ready'");
+  const lib = one("SELECT COUNT(*) files, COALESCE(SUM(size_bytes),0) bytes FROM media WHERE status='ready' AND in_library=1");
+  return { files: r.files, used_bytes: r.bytes, library_files: lib.files, library_bytes: lib.bytes };
+}

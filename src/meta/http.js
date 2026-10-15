@@ -12,6 +12,7 @@ export function mapMetaError(status, body) {
   const code = Number(e.code), sub = Number(e.error_subcode);
   const msg = e.error_user_msg || e.message || `HTTP ${status}`;
   if (code === 190 || sub === 463 || sub === 460) return new PlatformError('account_expired', msg, { raw: e });
+  if (sub === 2534022 || sub === 2018278 || /outside of allowed window|outside the allowed window/i.test(msg)) return new PlatformError('messaging_window_closed', msg, { raw: e });
   if (code === 10 || (code >= 200 && code < 300)) return new PlatformError('permission_missing', msg, { raw: e });
   if ([4, 17, 32, 613, 80001, 80002].includes(code)) return new PlatformError('rate_limited', msg, { transient: true, raw: e });
   if (sub === 2207042 || sub === 2207051) return new PlatformError('publish_limit_reached', msg, { raw: e });

@@ -3,9 +3,10 @@
 // Magic strings in captions trigger errors:  #fail-expired  #fail-transient  #fail-permission
 import express from 'express';
 import crypto from 'node:crypto';
+import { config } from '../config.js';
 
 const rid = () => String(BigInt('0x' + crypto.randomBytes(7).toString('hex')));
-const state = { containers: new Map(), media: new Map(), comments: new Map(), transientSeen: new Set() };
+const state = { containers: new Map(), media: new Map(), comments: new Map(), transientSeen: new Set(), convs: new Map(), seeded: new Set() };
 
 function metaError(res, code, message, sub) {
   res.status(400).json({ error: { message, type: 'OAuthException', code, error_subcode: sub, fbtrace_id: 'mock' } });
@@ -137,6 +138,41 @@ export function mockRouter() {
       res.json({ data });
     };
     r.get(`${base}/:uid/media`, recent);
+
+    // ---- Instagram DMs ----
+    if (plat === 'ig') {
+      const ensureSeed = (u, uid) => {
+        if (state.seeded.has(u)) return;
+        state.seeded.add(u);
+        const mk = (who, msgs) => {
+          const cid = `conv_${rid()}`;
+          state.convs.set(cid, { owner: u, ownerId: uid, peer: { id: `ps_${who}`, username: who }, messages: msgs.map(([dir, text, agoMin]) => ({ id: `mid_${rid()}`, dir, text, at: new Date(Date.now() - agoMin * 60000).toISOString() })) });
+        };
+        mk('rina.ardhani', [['in', 'Kak, kelas Sabtu pagi masih ada slot?', 12]]);
+        mk('bayu_w', [['in', 'Harga paket 10x berapa ya?', 40], ['out', 'Halo Kak! Paket 10x Rp1.500.000 ya 🙏', 35]]);
+      };
+      r.get(`${base}/:uid/conversations`, (req, res) => {
+        const u = auth(req, res); if (!u) return;
+        ensureSeed(u, req.params.uid);
+        const data = [...state.convs.entries()].filter(([, c]) => c.owner === u).map(([cid, c]) => ({
+          id: cid, updated_time: c.messages.at(-1)?.at,
+          participants: { data: [{ id: req.params.uid, username: u }, { id: c.peer.id, username: c.peer.username }] },
+        }));
+        res.json({ data });
+      });
+      r.post(`${base}/:uid/messages`, (req, res) => {
+        const u = auth(req, res); if (!u) return;
+        const rec = typeof req.body.recipient === 'string' ? JSON.parse(req.body.recipient) : req.body.recipient;
+        const msg = typeof req.body.message === 'string' ? JSON.parse(req.body.message) : req.body.message;
+        const conv = [...state.convs.values()].find((c) => c.owner === u && c.peer.id === rec?.id);
+        if (!conv) return metaError(res, 100, 'No matching user found', 2018001);
+        const lastIn = [...conv.messages].reverse().find((m) => m.dir === 'in');
+        if (!lastIn || Date.now() - new Date(lastIn.at) > 24 * 3600_000) return metaError(res, 10, 'This message is sent outside of allowed window.', 2534022);
+        const mid = `mid_${rid()}`;
+        conv.messages.push({ id: mid, dir: 'out', text: msg?.text, at: new Date().toISOString() });
+        res.json({ recipient_id: rec.id, message_id: mid });
+      });
+    }
     r.get(`${base}/:uid/threads`, recent);
     r.get(`${base}/:uid/content_publishing_limit`, (req, res) => res.json({ data: [{ quota_usage: 1, config: { quota_total: 100, quota_duration: 86400 } }] }));
     r.get(`${base}/:uid/threads_publishing_limit`, (req, res) => res.json({ data: [{ quota_usage: 1, config: { quota_total: 250, quota_duration: 86400 } }] }));
@@ -169,6 +205,14 @@ export function mockRouter() {
     r.get(`${base}/:uid/threads_insights`, (req, res) => res.json({ data: String(req.query.metric).split(',').map((n) => ({ name: n, total_value: { value: Math.floor(Math.random() * 500) } })) }));
 
     r.get(`${base}/:id`, (req, res) => {
+      const conv = state.convs.get(req.params.id);
+      if (conv) {
+        return res.json({ id: req.params.id, messages: { data: [...conv.messages].reverse().map((m) => ({
+          id: m.id, created_time: m.at, message: m.text,
+          from: m.dir === 'in' ? { id: conv.peer.id, username: conv.peer.username } : { id: conv.ownerId, username: conv.owner },
+          to: { data: [m.dir === 'in' ? { id: conv.ownerId } : { id: conv.peer.id }] },
+        })) } });
+      }
       const c = state.containers.get(req.params.id);
       if (c) {
         c.polls++;
@@ -185,5 +229,17 @@ export function mockRouter() {
       c.hidden = req.body.hide === 'true'; res.json({ success: true });
     });
   }
+  // Test/demo helper: simulate an inbound DM and deliver a signed webhook to the app.
+  r.post('/ig/simulate/dm', async (req, res) => {
+    const { owner, owner_id, from, text } = req.body;
+    let conv = [...state.convs.values()].find((c) => c.owner === owner && c.peer.username === from);
+    if (!conv) { conv = { owner, ownerId: owner_id, peer: { id: `ps_${from}`, username: from }, messages: [] }; state.convs.set(`conv_${rid()}`, conv); }
+    const mid = `mid_${rid()}`;
+    conv.messages.push({ id: mid, dir: 'in', text, at: new Date().toISOString() });
+    const body = JSON.stringify({ object: 'instagram', entry: [{ id: owner_id, time: Date.now(), messaging: [{ sender: { id: conv.peer.id }, recipient: { id: owner_id }, timestamp: Date.now(), message: { mid, text } }] }] });
+    const sig = 'sha256=' + crypto.createHmac('sha256', config.instagram.appSecret).update(body).digest('hex');
+    const w = await fetch(`${config.publicUrl}/webhooks/instagram`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-signature-256': sig }, body });
+    res.json({ ok: true, webhook_status: w.status, mid });
+  });
   return r;
 }

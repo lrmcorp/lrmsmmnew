@@ -2,6 +2,8 @@
 import { one, all, run, id, now } from '../db.js';
 import { err, parseJSON } from '../util.js';
 import { clients, tokenOf, markExpired, getAccount } from './accounts.js';
+import { assertAccount, scopeSql } from './scope.js';
+import { emit } from './events.js';
 
 // ---------------- comments ----------------
 function upsertComment(acc, c, mediaId, targetId) {
@@ -15,6 +17,7 @@ function upsertComment(acc, c, mediaId, targetId) {
       id('c'), acc.id, targetId, acc.platform, c.id, mediaId, c.parent_id, c.username, c.text ?? null, c.timestamp || now(), c.hidden ? 1 : 0, own ? 1 : 0, own ? 'replied' : 'unreplied');
   }
   if (own && c.parent_id) run("UPDATE comments SET reply_status='replied' WHERE platform=? AND platform_comment_id=? AND reply_status='unreplied'", acc.platform, c.parent_id);
+  return !ex && !own;
 }
 
 export async function syncAccountComments(acc) {
@@ -27,16 +30,17 @@ export async function syncAccountComments(acc) {
   }
   try { for (const m of await c.recentMedia(acc.platform_user_id, token, 15)) if (!mediaIds.has(m.id)) mediaIds.set(m.id, null); }
   catch (e) { if (e.code === 'account_expired') { markExpired(acc.id, e.message); return 0; } }
-  let n = 0;
+  let n = 0, fresh = 0;
   for (const [mid, tid] of mediaIds) {
     try {
       const list = acc.platform === 'instagram' ? await c.listComments(mid, token) : await c.listReplies(mid, token);
-      for (const cm of list) { upsertComment(acc, cm, mid, tid); n++; }
+      for (const cm of list) { if (upsertComment(acc, cm, mid, tid)) fresh++; n++; }
     } catch (e) {
       if (e.code === 'account_expired') { markExpired(acc.id, e.message); return n; }
       if (e.code !== 'permission_missing') console.warn(`[comments] ${acc.username}/${mid}: ${e.message}`);
     }
   }
+  if (fresh) emit('comment.new', { account_id: acc.id, count: fresh });
   return n;
 }
 
@@ -56,9 +60,10 @@ export function publicComment(c) {
   };
 }
 
-export function listComments({ account_id, post_id, reply_status, include_own = false, limit = 50, cursor } = {}) {
+export function listComments({ account_id, post_id, reply_status, include_own = false, limit = 50, cursor } = {}, user) {
   limit = Math.min(Math.max(Number(limit) || 50, 1), 100);
   const where = ['1=1']; const p = [];
+  if (user) { const [w, sp] = scopeSql(user, 'account_id'); where.push(w); p.push(...sp); }
   if (account_id) { where.push('account_id=?'); p.push(account_id); }
   if (post_id) { where.push('target_id IN (SELECT id FROM post_targets WHERE post_id=?)'); p.push(post_id); }
   if (reply_status === 'hidden') where.push('hidden=1');
@@ -70,15 +75,16 @@ export function listComments({ account_id, post_id, reply_status, include_own = 
   return { data: page.map(publicComment), next_cursor: more ? page.at(-1).commented_at : null };
 }
 
-function getComment(cid) {
+function getComment(cid, user) {
   const c = one('SELECT * FROM comments WHERE id=?', cid);
   if (!c) throw err(404, 'not_found', `Komentar ${cid} tidak ditemukan`);
+  if (user) assertAccount(user, c.account_id);
   return c;
 }
 
-export async function replyToComment(cid, message) {
+export async function replyToComment(cid, message, user) {
   if (!message || !String(message).trim()) throw err(400, 'validation_failed', 'Teks balasan wajib diisi');
-  const c = getComment(cid);
+  const c = getComment(cid, user);
   const acc = getAccount(c.account_id);
   if (acc.status !== 'active') throw err(422, 'account_expired', `Akun @${acc.username} perlu disambungkan ulang`);
   const token = tokenOf(acc);
@@ -95,8 +101,8 @@ export async function replyToComment(cid, message) {
   return { ok: true, reply_id: String(r.id), comment: publicComment(one('SELECT * FROM comments WHERE id=?', c.id)) };
 }
 
-export async function hideComment(cid, hidden) {
-  const c = getComment(cid);
+export async function hideComment(cid, hidden, user) {
+  const c = getComment(cid, user);
   const acc = getAccount(c.account_id);
   const token = tokenOf(acc);
   try {
@@ -107,9 +113,10 @@ export async function hideComment(cid, hidden) {
   return publicComment(one('SELECT * FROM comments WHERE id=?', c.id));
 }
 
-export function setCommentStatus(cid, status) {
+export function setCommentStatus(cid, status, user) {
+  if (status === 'done') status = 'ignored';
   if (!['unreplied', 'replied', 'ignored'].includes(status)) throw err(400, 'validation_failed', 'reply_status harus unreplied, replied, atau ignored');
-  getComment(cid);
+  getComment(cid, user);
   run('UPDATE comments SET reply_status=? WHERE id=?', status, cid);
   return publicComment(one('SELECT * FROM comments WHERE id=?', cid));
 }

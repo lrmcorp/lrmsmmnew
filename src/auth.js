@@ -6,7 +6,7 @@ const SESSION_COOKIE = 'lrmsmm_sid';
 const SESSION_DAYS = 30;
 
 // ---------- users ----------
-export function createUser({ email, password, name, role = 'member' }) {
+export function createUser({ email, password, name, role = 'rep' }) {
   email = String(email || '').trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(email)) throw err(400, 'validation_failed', 'Email tidak valid');
   if (!password || password.length < 8) throw err(400, 'validation_failed', 'Password minimal 8 karakter');
@@ -100,5 +100,5 @@ export function authenticate(req, _res, next) {
 }
 export const requireWrite = (req, _res, next) =>
   req.auth?.scope === 'write' ? next() : next(err(403, 'insufficient_scope', 'Akses ini hanya baca (read). Butuh scope write.'));
-export const requireAdmin = (req, _res, next) =>
-  req.auth?.user?.role === 'admin' ? next() : next(err(403, 'forbidden', 'Hanya admin'));
+export const requireOwner = (req, _res, next) =>
+  req.auth?.user?.role === 'owner' ? next() : next(err(403, 'forbidden', 'Hanya Owner'));

@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import * as ig from '../meta/instagram.js';
 import * as th from '../meta/threads.js';
 import { refreshPostStatus } from './posts.js';
+import { scopeSql, assignAccount } from './scope.js';
 
 export const clients = { instagram: ig, threads: th };
 export const PLATFORMS = Object.keys(clients);
@@ -19,7 +20,10 @@ export function publicAccount(a) {
   };
 }
 
-export const listAccounts = () => all("SELECT * FROM accounts WHERE status != 'disconnected' ORDER BY platform, username").map(publicAccount);
+export function listAccounts(user) {
+  const [w, p] = user ? scopeSql(user, 'id') : ['1=1', []];
+  return all(`SELECT * FROM accounts WHERE status != 'disconnected' AND ${w} ORDER BY platform, username`, ...p).map(publicAccount);
+}
 
 export function getAccount(accountId) {
   const a = one("SELECT * FROM accounts WHERE id=? AND status != 'disconnected'", accountId);
@@ -50,13 +54,20 @@ export async function finishConnect(platform, code, st) {
     run(`UPDATE accounts SET username=?, name=?, avatar_url=?, token_enc=?, token_expires_at=?, token_issued_at=?, status='active', last_error=NULL,
          followers_count=COALESCE(?, followers_count), updated_at=? WHERE id=?`,
       profile.username, profile.name, profile.avatarUrl, encrypt(accessToken), exp, now(), profile.followers, now(), existing.id);
-    return { account: publicAccount(one('SELECT * FROM accounts WHERE id=?', existing.id)), returnTo: s.returnTo, reconnected: true };
+    assignIfRep(s.userId, existing.id);
+    return { account: publicAccount(one('SELECT * FROM accounts WHERE id=?', existing.id)), returnTo: s.returnTo, reconnected: true, userId: s.userId };
   }
   const aid = id(platform === 'instagram' ? 'ig' : 'th');
   run(`INSERT INTO accounts(id,platform,platform_user_id,username,name,avatar_url,token_enc,token_expires_at,token_issued_at,followers_count,connected_by)
        VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
     aid, platform, profile.platformUserId, profile.username, profile.name, profile.avatarUrl, encrypt(accessToken), exp, now(), profile.followers, s.userId);
-  return { account: publicAccount(one('SELECT * FROM accounts WHERE id=?', aid)), returnTo: s.returnTo, reconnected: false };
+  assignIfRep(s.userId, aid);
+  return { account: publicAccount(one('SELECT * FROM accounts WHERE id=?', aid)), returnTo: s.returnTo, reconnected: false, userId: s.userId };
+}
+
+function assignIfRep(userId, accountId) {
+  const u = one('SELECT role FROM users WHERE id=?', userId);
+  if (u && u.role !== 'owner') assignAccount(userId, accountId);
 }
 
 export function disconnect(accountId) {

@@ -149,3 +149,25 @@ export async function recentMedia(igUserId, token, limit = 15) {
   const r = await gget(G(`/${igUserId}/media`), { fields: 'id,timestamp,permalink,caption', limit, access_token: token });
   return (r.data || []).map((m) => ({ id: m.id, timestamp: m.timestamp, permalink: m.permalink, text: m.caption }));
 }
+
+// ---------------- Direct messages (instagram_business_manage_messages) ----------------
+export async function listConversations(igUserId, token, limit = 25) {
+  const r = await gget(G(`/${igUserId}/conversations`), { platform: 'instagram', fields: 'id,updated_time,participants', limit, access_token: token });
+  return (r.data || []).map((c) => ({
+    id: c.id, updated_time: c.updated_time,
+    participants: (c.participants?.data || []).map((p) => ({ id: String(p.id), username: p.username, name: p.name })),
+  }));
+}
+
+export async function conversationMessages(conversationId, token, limit = 25) {
+  const r = await gget(G(`/${conversationId}`), { fields: `messages.limit(${limit}){id,created_time,from,to,message,attachments}`, access_token: token });
+  return (r.messages?.data || []).map((m) => ({
+    id: m.id, created_time: m.created_time, from_id: String(m.from?.id || ''), from_username: m.from?.username,
+    text: m.message || '', attachments: m.attachments?.data?.map((a) => ({ type: a.mime_type || a.type || 'file', url: a.image_data?.url || a.video_data?.url || a.file_url || null })) || [],
+  }));
+}
+
+export async function sendMessage(igUserId, recipientId, text, token) {
+  const r = await gpost(G(`/${igUserId}/messages`), { recipient: { id: recipientId }, message: { text }, access_token: token });
+  return { id: String(r.message_id || r.id), recipient_id: r.recipient_id };
+}

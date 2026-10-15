@@ -5,6 +5,7 @@ import { getMedia, mediaUrl, toPublishMedia } from './media.js';
 import { refreshPostStatus } from './posts.js';
 import { PlatformError } from '../meta/http.js';
 import { notify } from './notify.js';
+import { emit } from './events.js';
 
 const MAX_ATTEMPTS = 4;
 const BACKOFF_MIN = [1, 3, 10, 30];
@@ -74,7 +75,8 @@ async function publishTarget(t) {
       }
     }
   } finally {
-    refreshPostStatus(t.post_id);
+    const st = refreshPostStatus(t.post_id);
+    emit('post.updated', { post_id: t.post_id, account_id: t.account_id, status: st });
   }
 }
 

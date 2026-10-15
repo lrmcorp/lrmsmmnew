@@ -41,7 +41,7 @@ export const config = {
     tokenUrl: MOCK ? `${PUBLIC_URL}/__mock/ig/oauth/access_token` : 'https://api.instagram.com/oauth/access_token',
     graph: MOCK ? `${PUBLIC_URL}/__mock/ig/graph` : 'https://graph.instagram.com',
     version: env.IG_API_VERSION || 'v23.0',
-    scopes: ['instagram_business_basic', 'instagram_business_content_publish', 'instagram_business_manage_comments', 'instagram_business_manage_insights'],
+    scopes: ['instagram_business_basic', 'instagram_business_content_publish', 'instagram_business_manage_comments', 'instagram_business_manage_insights', 'instagram_business_manage_messages'],
   },
   threads: {
     appId: env.THREADS_APP_ID || 'mock-th-app',
@@ -52,6 +52,8 @@ export const config = {
     scopes: ['threads_basic', 'threads_content_publish', 'threads_read_replies', 'threads_manage_replies', 'threads_manage_insights'],
   },
   smtp: env.SMTP_URL || null,
+  webhookVerifyToken: env.WEBHOOK_VERIFY_TOKEN || 'lrmsmm-verify',
+  unrepliedAlertSeconds: Number(env.UNREPLIED_ALERT_SECONDS || 300),
 };
 
 fs.mkdirSync(config.mediaDir, { recursive: true });

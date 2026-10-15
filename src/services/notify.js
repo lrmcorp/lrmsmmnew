@@ -8,7 +8,7 @@ if (config.smtp) transport = nodemailer.createTransport(config.smtp);
 const FROM = process.env.MAIL_FROM || 'LRMsmm <no-reply@localhost>';
 
 function recipients(account) {
-  const ids = new Set(all("SELECT email FROM users WHERE role='admin'").map((u) => u.email));
+  const ids = new Set(all("SELECT email FROM users WHERE role='owner'").map((u) => u.email));
   if (account?.connected_by) { const u = one('SELECT email FROM users WHERE id=?', account.connected_by); if (u) ids.add(u.email); }
   return [...ids];
 }

@@ -25,6 +25,9 @@ const I = {
   users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.6c2 .8 3.2 2.6 3.6 5.4"/></svg>',
   img: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
   key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-5 4v-4H6a2 2 0 0 1-2-2z"/><path d="m8 9 4 3 4-3"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V4M4 20h16"/><path d="m7 15 4-5 3 3 5-7"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v6c0 4 3 7.5 7 9 4-1.5 7-5 7-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
   instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M8 6l1.5-2.5h5L16 6"/><circle cx="12" cy="13" r="3.5"/></svg>',
   threads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14v9a3 3 0 0 1-3 3h-5l-4 3v-3H5z"/><path d="M9 9h6M9 12.5h4"/></svg>',
 };
@@ -59,10 +62,11 @@ async function api(method, path, body, opts = {}) {
   }
   return j;
 }
-function toast(msg, bad = false) {
-  const el = h('div', { class: bad ? 'bad' : '' }, msg);
+function toast(msg, bad = false, action = null) {
+  const el = h('div', { class: bad ? 'bad' : '' }, msg,
+    action ? h('button', { class: 'toast-act', onclick: () => { el.remove(); action.fn(); } }, action.label) : null);
   document.getElementById('toast').append(el);
-  setTimeout(() => el.remove(), bad ? 6000 : 3200);
+  setTimeout(() => el.remove(), action ? 6000 : bad ? 6000 : 3200);
 }
 const errMsg = (e) => (e.code && ERR[e.code] ? `${ERR[e.code]}. ` : '') + (e.message || 'Gagal');
 const go = (p) => { location.hash = `#${p}`; };
@@ -75,27 +79,80 @@ function modal(title, body, actions = []) {
 }
 
 // ---------------- state & shell ----------------
-const state = { user: null, mock: false, accounts: [], stats: {} };
+const state = { user: null, mock: false, accounts: [], stats: {}, lastOverdue: 0 };
+const isOwner = () => state.user?.role === 'owner';
+const ROLE = { owner: 'Owner', rep: 'Representative' };
 async function loadAccounts() { state.accounts = (await api('GET', '/v1/accounts')).data; return state.accounts; }
+
+function badgeFor(key) {
+  const s = state.stats;
+  if (key === 'messages') return s.messages_overdue ? { n: s.messages_overdue, tone: 'bad', title: `${s.messages_overdue} pesan menunggu lebih dari 5 menit` } : s.messages_waiting ? { n: s.messages_waiting, tone: 'soft', title: `${s.messages_waiting} pesan menunggu balasan` } : null;
+  if (key === 'comments') return s.unreplied ? { n: s.unreplied, tone: 'soft', title: `${s.unreplied} komentar belum dibalas` } : null;
+  return null;
+}
+function badgeEl(key) {
+  const b = badgeFor(key);
+  return h('span', { class: `count ${b?.tone || ''}`, 'data-badge': key, title: b?.title || '', hidden: !b }, b?.n ?? '');
+}
 
 function shell(active, content) {
   const nav = [
     ['/', 'home', 'Beranda'], ['/compose', 'pen', 'Tulis'], ['/calendar', 'cal', 'Kalender'],
-    ['/inbox', 'inbox', 'Komentar', state.stats.unreplied], ['/accounts', 'users', 'Akun'], ['/media', 'img', 'Media'], ['/developer', 'key', 'API & AI'],
+    ['/messages', 'chat', 'Pesan', 'messages'], ['/inbox', 'inbox', 'Komentar', 'comments'], ['/insights', 'chart', 'Insights'],
+    ['/accounts', 'users', 'Akun'], ['/media', 'img', 'Media'], ['/developer', 'key', 'API & AI'],
+    ...(isOwner() ? [['/admin', 'shield', 'Admin']] : []),
   ];
   return h('div', {},
     state.mock ? h('div', { class: 'mock-banner' }, 'Mode simulasi: Instagram & Threads tiruan (META_MOCK=1). Tidak ada yang benar-benar terposting.') : null,
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
         h('a', { class: 'brand', href: '#/' }, 'LRMsmm', h('span', { class: 'wave', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'))),
-        h('nav', { class: 'nav' }, nav.map(([p, ic, label, count]) =>
-          h('a', { href: `#${p}`, class: active === p ? 'on' : '' }, icon(ic), label, count ? h('span', { class: 'count' }, count) : null))),
-        h('div', { class: 'foot' }, h('div', {}, state.user?.email), h('a', { href: '#/team' }, state.user?.role === 'admin' ? 'Tim & akun saya' : 'Akun saya'), ' · ',
-          h('button', { onclick: async () => { await api('POST', '/auth/logout'); state.user = null; go('/login'); } }, 'Keluar'))),
+        h('nav', { class: 'nav' }, nav.map(([p, ic, label, badge]) =>
+          h('a', { href: `#${p}`, class: active === p ? 'on' : '' }, icon(ic), label, badge ? badgeEl(badge) : null))),
+        h('div', { class: 'foot' }, h('div', {}, state.user?.name || state.user?.email), h('div', { class: 'small' }, ROLE[state.user?.role] || ''),
+          h('a', { href: '#/team' }, isOwner() ? 'Tim & akun saya' : 'Akun saya'), ' · ',
+          h('button', { onclick: async () => { await api('POST', '/auth/logout'); state.user = null; live.stop(); go('/login'); } }, 'Keluar'))),
       h('main', { class: 'main' }, content)));
 }
 function pagehead(title, sub, ...actions) {
   return h('div', { class: 'pagehead' }, h('div', {}, h('h1', {}, title), sub ? h('p', { class: 'muted' }, sub) : null), h('div', { class: 'row' }, actions));
+}
+
+// ---------------- live updates: badges, overdue popup, SSE ----------------
+const live = {
+  es: null, timer: null, listeners: new Set(),
+  start() {
+    if (this.es) return;
+    try {
+      this.es = new EventSource('/v1/events');
+      for (const t of ['message.new', 'message.sent', 'message.status', 'comment.new', 'post.updated']) {
+        this.es.addEventListener(t, (e) => { const d = JSON.parse(e.data || '{}'); this.refresh(); for (const fn of this.listeners) fn(t, d); });
+      }
+      this.es.onerror = () => { /* browser reconnects automatically */ };
+    } catch { /* SSE unsupported: polling only */ }
+    this.timer = setInterval(() => this.refresh(), 30000);
+    this.refresh();
+  },
+  stop() { this.es?.close(); this.es = null; clearInterval(this.timer); },
+  on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); },
+  async refresh() {
+    try { state.stats = await api('GET', '/v1/stats'); } catch { return; }
+    for (const el of document.querySelectorAll('[data-badge]')) {
+      const b = badgeFor(el.dataset.badge);
+      el.hidden = !b; el.textContent = b?.n ?? ''; el.className = `count ${b?.tone || ''}`; el.title = b?.title || '';
+    }
+    const o = state.stats.messages_overdue || 0;
+    document.title = o ? `(${o}) LRMsmm` : 'LRMsmm';
+    if (o > state.lastOverdue) overduePopup(o);
+    state.lastOverdue = o;
+  },
+};
+function overduePopup(n) {
+  document.querySelector('.overdue-pop')?.remove();
+  const el = h('a', { class: 'overdue-pop', href: '#/messages', role: 'alert', onclick: () => el.remove() },
+    h('b', {}, n), h('span', {}, n === 1 ? 'pesan belum dibalas lebih dari 5 menit' : 'pesan belum dibalas lebih dari 5 menit'),
+    h('button', { class: 'x', 'aria-label': 'Tutup', onclick: (e) => { e.preventDefault(); e.stopPropagation(); el.remove(); } }, '×'));
+  document.body.append(el);
 }
 
 // ---------------- auth ----------------
@@ -112,8 +169,8 @@ function authPage(mode) {
     } catch (err) { toast(err.message, true); }
   } },
   h('div', { class: 'brand' }, 'LRMsmm', h('span', { class: 'wave' }, h('i'), h('i'), h('i'))),
-  h('h1', {}, setup ? 'Buat akun admin' : 'Masuk'),
-  h('p', { class: 'muted' }, setup ? 'Akun pertama otomatis jadi admin. Anggota tim lain ditambahkan dari menu Tim.' : 'Posting dan jadwalkan Instagram & Threads tim.'),
+  h('h1', {}, setup ? 'Buat akun Owner' : 'Masuk'),
+  h('p', { class: 'muted' }, setup ? 'Akun pertama otomatis jadi Owner. Anggota tim lain ditambahkan dari menu Tim.' : 'Posting dan jadwalkan Instagram & Threads tim.'),
   setup ? h('label', { class: 'field' }, h('span', {}, 'Nama'), h('input', { name: 'name', autocomplete: 'name' })) : null,
   h('label', { class: 'field' }, h('span', {}, 'Email'), h('input', { name: 'email', type: 'email', required: true, autocomplete: 'email' })),
   h('label', { class: 'field' }, h('span', {}, 'Password'), h('input', { name: 'password', type: 'password', required: true, minlength: setup ? 8 : null, autocomplete: setup ? 'new-password' : 'current-password' })),
@@ -135,7 +192,7 @@ async function pageHome() {
     h('div', { class: 'strip' },
       h('a', { href: '#/accounts' }, h('b', {}, stats.accounts), h('span', {}, 'akun aktif')),
       h('a', { href: '#/calendar' }, h('b', {}, stats.scheduled), h('span', {}, 'post terjadwal')),
-      h('a', { href: '#/calendar', class: stats.failed_7d ? 'alert' : '' }, h('b', {}, stats.failed_7d), h('span', {}, 'gagal 7 hari')),
+      h('a', { href: '#/messages', class: stats.messages_overdue ? 'alert' : '' }, h('b', {}, stats.messages_waiting), h('span', {}, stats.messages_overdue ? `pesan menunggu · ${stats.messages_overdue} lewat 5 mnt` : 'pesan menunggu balasan')),
       h('a', { href: '#/inbox' }, h('b', {}, stats.unreplied), h('span', {}, 'komentar belum dibalas'))),
     expired.length ? h('div', { class: 'panel', style: { borderColor: 'var(--bad)', marginBottom: '16px' } },
       h('h3', {}, 'Akun perlu disambungkan ulang'),
@@ -165,6 +222,7 @@ function postList(posts) {
 // ---------------- composer ----------------
 async function pageCompose(editId) {
   await loadAccounts();
+  const atParam = new URLSearchParams(location.hash.split('?')[1] || '').get('at');
   const editing = editId ? await api('GET', `/v1/posts/${editId}`) : null;
   const active = state.accounts.filter((a) => a.status === 'active');
   const s = {
@@ -173,8 +231,8 @@ async function pageCompose(editId) {
     content: editing?.content || '',
     media: editing ? editing.media : [],
     per: {}, // account_id -> { content?, options:{} }
-    when: editing ? 'later' : 'now',
-    at: editing?.scheduled_at ? toLocalInput(editing.scheduled_at) : toLocalInput(new Date(Date.now() + 3600_000).toISOString()),
+    when: editing || atParam ? 'later' : 'now',
+    at: editing?.scheduled_at ? toLocalInput(editing.scheduled_at) : toLocalInput(atParam || new Date(Date.now() + 3600_000).toISOString()),
   };
   if (editing) for (const t of editing.targets) s.per[t.account_id] = { content: t.content ?? undefined, options: t.options || {} };
   const per = (id) => (s.per[id] ||= { options: {} });
@@ -333,7 +391,7 @@ function toLocalInput(iso) {
 
 // ---------------- media picker & uploads ----------------
 async function uploadFile(file, { inLibrary = true, onProgress } = {}) {
-  const BIG = 90 * 1024 * 1024;
+  const BIG = 20 * 1024 * 1024; // above this: resumable chunked upload
   if (file.size <= BIG) {
     return new Promise((res, rej) => {
       const x = new XMLHttpRequest();
@@ -345,12 +403,31 @@ async function uploadFile(file, { inLibrary = true, onProgress } = {}) {
       x.send(file);
     });
   }
-  const up = await api('POST', '/v1/media/uploads', { mime_type: file.type || 'video/mp4', size_bytes: file.size, original_name: file.name, in_library: inLibrary });
-  for (let i = 0; i < up.part_count; i++) {
-    await api('PUT', `/v1/media/${up.id}/parts/${i + 1}`, file.slice(i * up.part_size, (i + 1) * up.part_size), { headers: { 'content-type': 'application/octet-stream' } });
-    onProgress?.((i + 1) / up.part_count);
+  // Resumable chunked upload: retries each part and, after a reload, continues from the parts already received.
+  const key = `lrm-up:${file.name}:${file.size}:${file.lastModified}`;
+  let up = null;
+  try { const saved = JSON.parse(localStorage.getItem(key) || 'null'); if (saved) { const st = await api('GET', `/v1/media/${saved.id}/parts`).catch(() => null); if (st?.status === 'uploading') up = { ...st, received: st.received }; } } catch { /* storage unavailable */ }
+  if (!up) {
+    up = { ...(await api('POST', '/v1/media/uploads', { mime_type: file.type || 'video/mp4', size_bytes: file.size, original_name: file.name, in_library: inLibrary })), received: [] };
+    try { localStorage.setItem(key, JSON.stringify({ id: up.id })); } catch { /* ignore */ }
   }
-  return api('POST', `/v1/media/${up.id}/complete`);
+  const done = new Set(up.received);
+  for (let i = 1; i <= up.part_count; i++) {
+    if (done.has(i)) { onProgress?.(i / up.part_count); continue; }
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await api('PUT', `/v1/media/${up.id}/parts/${i}`, file.slice((i - 1) * up.part_size, i * up.part_size), { headers: { 'content-type': 'application/octet-stream' } });
+        break;
+      } catch (e) {
+        if (attempt >= 5 || (e.code && e.code !== 'internal_error')) throw e;
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+      }
+    }
+    onProgress?.(i / up.part_count);
+  }
+  const m = await api('POST', `/v1/media/${up.id}/complete`);
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+  return m;
 }
 
 async function pickMedia(onDone) {
@@ -426,34 +503,79 @@ async function pagePost(id) {
 }
 
 // ---------------- calendar ----------------
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const mondayOf = (d) => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
+
 async function pageCalendar() {
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
-  const base = q.get('w') ? new Date(q.get('w')) : new Date();
-  const start = new Date(base); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // Monday
-  const end = new Date(start); end.setDate(end.getDate() + 7);
-  const view = q.get('v') || 'week';
+  const view = q.get('v') || 'month';
+  const anchor = q.get('d') ? new Date(`${q.get('d')}T00:00:00`) : new Date();
+  let start, end, label;
+  if (view === 'month') {
+    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    start = mondayOf(first); end = addDays(start, 42);
+    label = first.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  } else if (view === '3day') {
+    start = startOfDay(anchor); end = addDays(start, 3);
+    label = `${start.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} – ${addDays(end, -1).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  } else {
+    start = mondayOf(anchor); end = addDays(start, 7);
+    label = `${start.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} – ${addDays(end, -1).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  }
   const { data } = await api('GET', `/v1/calendar?from=${start.toISOString()}&to=${end.toISOString()}`);
-  const shift = (days) => { const d = new Date(start); d.setDate(d.getDate() + days); go(`/calendar?w=${d.toISOString().slice(0, 10)}&v=${view}`); };
-  const label = `${start.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} – ${new Date(end - 1).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
-  const today = new Date().toDateString();
-  const days = [...Array(7)].map((_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
-  const cal = h('div', { class: 'cal' }, days.map((d) => {
-    const items = data.filter((p) => new Date(p.scheduled_at || p.created_at).toDateString() === d.toDateString());
-    return h('div', { class: `day ${d.toDateString() === today ? 'today' : ''}` },
-      h('div', { class: 'dh' }, d.toLocaleDateString('id-ID', { weekday: 'short' }), h('b', {}, d.getDate())),
-      items.map((p) => h('a', { class: `ev ${p.status}`, href: `#/posts/${p.id}` },
-        h('time', {}, fmtTime(p.scheduled_at || p.created_at)),
-        h('span', { class: 't' }, p.content || '(media)'),
-        h('span', { class: 'icons' }, [...new Set(p.targets.map((t) => t.platform))].map(icon)))));
-  }));
+  const step = view === 'month' ? null : view === '3day' ? 3 : 7;
+  const nav = (dir) => {
+    let d;
+    if (!dir) d = new Date();
+    else if (view === 'month') d = new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1);
+    else d = addDays(anchor, dir * step);
+    go(`/calendar?v=${view}&d=${ymd(d)}`);
+  };
+  const today = startOfDay(new Date()).getTime();
+  const at = (p) => new Date(p.scheduled_at || p.created_at);
+  const dayPosts = (d) => data.filter((p) => startOfDay(at(p)).getTime() === d.getTime());
+  const createAt = (d) => { const x = new Date(d); x.setHours(9, 0, 0, 0); if (x < new Date()) { x.setTime(Date.now() + 3600_000); x.setMinutes(0, 0, 0); } return `/compose?at=${encodeURIComponent(x.toISOString())}`; };
+  const ev = (p) => h('a', { class: `ev ${p.status}`, href: `#/posts/${p.id}`, onclick: (e) => e.stopPropagation() },
+    h('time', {}, fmtTime(at(p).toISOString())), h('span', { class: 't' }, p.content || '(media)'),
+    h('span', { class: 'icons' }, [...new Set(p.targets.map((t) => t.platform))].map(icon)));
+
+  let body;
+  if (view === 'list') {
+    body = data.length ? postList(data) : h('div', { class: 'list empty' }, 'Tidak ada post di rentang ini.');
+  } else if (view === 'month') {
+    const cells = [...Array(42)].map((_, i) => addDays(start, i));
+    body = h('div', { class: 'month' },
+      ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map((d) => h('div', { class: 'mh' }, d)),
+      cells.map((d) => {
+        const ps = dayPosts(d); const past = d.getTime() < today; const other = d.getMonth() !== anchor.getMonth();
+        return h('div', { class: `mc ${other ? 'other' : ''} ${d.getTime() === today ? 'today' : ''} ${past ? 'past' : ''}`,
+          role: past ? null : 'button', tabindex: past ? null : 0, title: past ? null : `Buat post tanggal ${d.getDate()}`,
+          onclick: past ? null : () => go(createAt(d)), onkeydown: past ? null : (e) => { if (e.key === 'Enter') go(createAt(d)); } },
+        h('div', { class: 'mn' }, d.getDate()),
+        ps.slice(0, 3).map(ev),
+        ps.length > 3 ? h('a', { class: 'more', href: `#/calendar?v=3day&d=${ymd(d)}`, onclick: (e) => e.stopPropagation() }, `+${ps.length - 3} lagi`) : null);
+      }));
+  } else {
+    const days = [...Array(step)].map((_, i) => addDays(start, i));
+    body = h('div', { class: 'cal', style: { gridTemplateColumns: `repeat(${step}, minmax(0, 1fr))` } }, days.map((d) => {
+      const past = d.getTime() < today;
+      return h('div', { class: `day ${d.getTime() === today ? 'today' : ''}` },
+        h('div', { class: 'dh' }, d.toLocaleDateString('id-ID', { weekday: 'short' }), h('b', {}, d.getDate()),
+          !past ? h('a', { class: 'add-day', href: `#${createAt(d)}`, 'aria-label': `Buat post tanggal ${d.getDate()}` }, '+') : null),
+        dayPosts(d).map(ev));
+    }));
+  }
   return shell('/calendar', h('div', {},
     pagehead('Kalender', label,
-      h('div', { class: 'seg' }, h('button', { class: view === 'week' ? 'on' : '', onclick: () => go(`/calendar?w=${start.toISOString().slice(0, 10)}&v=week`) }, 'Minggu'), h('button', { class: view === 'list' ? 'on' : '', onclick: () => go(`/calendar?w=${start.toISOString().slice(0, 10)}&v=list`) }, 'Daftar')),
-      h('button', { class: 'btn', onclick: () => shift(-7), 'aria-label': 'Minggu sebelumnya' }, '‹'),
-      h('button', { class: 'btn', onclick: () => go('/calendar') }, 'Minggu ini'),
-      h('button', { class: 'btn', onclick: () => shift(7), 'aria-label': 'Minggu berikutnya' }, '›'),
+      h('div', { class: 'seg' }, [['month', 'Bulan'], ['week', 'Minggu'], ['3day', '3 hari'], ['list', 'Daftar']].map(([v, l]) => h('button', { class: view === v ? 'on' : '', onclick: () => go(`/calendar?v=${v}&d=${ymd(anchor)}`) }, l))),
+      h('button', { class: 'btn', onclick: () => nav(-1), 'aria-label': 'Sebelumnya' }, '‹'),
+      h('button', { class: 'btn', onclick: () => nav(0) }, 'Hari ini'),
+      h('button', { class: 'btn', onclick: () => nav(1), 'aria-label': 'Berikutnya' }, '›'),
       h('a', { class: 'btn primary', href: '#/compose' }, 'Tulis post')),
-    view === 'list' ? (data.length ? postList(data) : h('div', { class: 'list empty' }, 'Tidak ada post minggu ini.')) : cal));
+    body,
+    view === 'month' ? h('p', { class: 'faint small', style: { marginTop: '10px' } }, 'Klik tanggal untuk membuat post di hari itu.') : null));
 }
 
 // ---------------- inbox ----------------
@@ -461,41 +583,235 @@ async function pageInbox() {
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   const filter = q.get('f') || 'unreplied';
   const acc = q.get('a') || '';
+  const group = q.get('g') === 'post';
   await loadAccounts();
-  const [{ data }, all] = await Promise.all([
-    api('GET', `/v1/comments?reply_status=${filter}&limit=100${acc ? `&account_id=${acc}` : ''}`),
-    api('GET', `/v1/comments?reply_status=all&include_own=true&limit=100${acc ? `&account_id=${acc}` : ''}`),
-  ]);
-  const repliesOf = (c) => all.data.filter((x) => x.parent_id === c.id && x.from_self);
   const setQ = (k, v) => { const n = new URLSearchParams(q); v ? n.set(k, v) : n.delete(k); go(`/inbox?${n}`); };
-  const list = h('div', { class: 'list' }, data.length ? data.map((c) => {
-    const accnt = state.accounts.find((a) => a.id === c.account_id);
-    const reply = h('textarea', { placeholder: `Balas sebagai @${c.account_username}…`, 'aria-label': 'Balasan' });
-    const el = h('div', { class: `cmt ${c.hidden ? 'hidden' : ''}` },
-      accnt ? avatar(accnt) : null,
-      h('div', { class: 'body', style: { flex: 1, minWidth: 0 } },
-        h('div', { class: 'row' }, h('span', { class: 'who' }, `@${c.username}`), h('span', { class: 'faint small' }, `${ago(c.commented_at)} · ke @${c.account_username}`), c.hidden ? h('span', { class: 'status' }, 'Disembunyikan') : null),
-        h('div', { class: 'txt' }, c.text || ''),
-        repliesOf(c).map((r) => h('div', { class: 'replies' }, h('b', {}, `@${r.username} `), r.text)),
-        h('div', { class: 'reply-box' }, reply, h('button', { class: 'btn primary sm', onclick: async (e) => {
-          if (!reply.value.trim()) return;
-          e.currentTarget.disabled = true;
-          try { await api('POST', `/v1/comments/${c.id}/reply`, { message: reply.value }); toast('Balasan terkirim'); route(); }
-          catch (err) { e.currentTarget.disabled = false; toast(errMsg(err), true); }
-        } }, 'Balas')),
-        h('div', { class: 'row', style: { marginTop: '6px' } },
-          h('button', { class: 'btn ghost sm', onclick: async () => { try { await api('POST', `/v1/comments/${c.id}/hide`, { hidden: !c.hidden }); toast(c.hidden ? 'Komentar ditampilkan' : 'Komentar disembunyikan'); route(); } catch (err) { toast(errMsg(err), true); } } }, c.hidden ? 'Tampilkan' : 'Sembunyikan'),
-          c.reply_status !== 'ignored' ? h('button', { class: 'btn ghost sm', onclick: async () => { await api('PATCH', `/v1/comments/${c.id}`, { reply_status: 'ignored' }); route(); } }, 'Abaikan') : null,
-          c.reply_status !== 'unreplied' ? h('button', { class: 'btn ghost sm', onclick: async () => { await api('PATCH', `/v1/comments/${c.id}`, { reply_status: 'unreplied' }); route(); } }, 'Tandai belum dibalas') : null,
-          c.post_id ? h('a', { class: 'btn ghost sm', href: `#/posts/${c.post_id}` }, 'Lihat post') : null)));
-    return el;
-  }) : h('div', { class: 'empty' }, filter === 'unreplied' ? 'Semua komentar sudah dibalas.' : 'Tidak ada komentar.'));
+  const listWrap = h('div');
+
+  async function draw() {
+    const [{ data }, all] = await Promise.all([
+      api('GET', `/v1/comments?reply_status=${filter}&limit=100${acc ? `&account_id=${acc}` : ''}`),
+      api('GET', `/v1/comments?reply_status=all&include_own=true&limit=100${acc ? `&account_id=${acc}` : ''}`),
+    ]);
+    const repliesOf = (c) => all.data.filter((x) => x.parent_id === c.id && x.from_self);
+    const row = (c) => {
+      const accnt = state.accounts.find((a) => a.id === c.account_id);
+      const reply = h('textarea', { placeholder: `Balas @${c.username}…`, 'aria-label': `Balas komentar @${c.username}`,
+        onkeydown: (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendBtn.click(); } } });
+      const sendBtn = h('button', { class: 'btn primary sm', onclick: async (e) => {
+        if (!reply.value.trim()) return;
+        e.currentTarget.disabled = true;
+        try { await api('POST', `/v1/comments/${c.id}/reply`, { message: reply.value }); toast('Balasan terkirim'); draw(); live.refresh(); }
+        catch (err) { e.currentTarget.disabled = false; toast(errMsg(err), true); }
+      } }, 'Balas');
+      const setStatus = async (st, msg, undoTo) => {
+        await api('PATCH', `/v1/comments/${c.id}`, { reply_status: st }); draw(); live.refresh();
+        if (msg) toast(msg, false, undoTo ? { label: 'Urungkan', fn: async () => { await api('PATCH', `/v1/comments/${c.id}`, { reply_status: undoTo }); draw(); live.refresh(); } } : null);
+      };
+      return h('div', { class: `cmt ${c.hidden ? 'hidden' : ''}` },
+        accnt ? avatar(accnt) : null,
+        h('div', { class: 'body', style: { flex: 1, minWidth: 0 } },
+          h('div', { class: 'row' }, h('span', { class: 'who' }, `@${c.username}`), h('span', { class: 'faint small' }, `${ago(c.commented_at)} · ke @${c.account_username}`),
+            c.hidden ? h('span', { class: 'status' }, 'Disembunyikan') : null, c.reply_status === 'ignored' ? h('span', { class: 'status' }, 'Selesai') : null),
+          h('div', { class: 'txt' }, c.text || ''),
+          repliesOf(c).map((r) => h('div', { class: 'replies' }, h('b', {}, 'Balasan kamu: '), r.text)),
+          h('div', { class: 'reply-box' }, reply, sendBtn),
+          h('div', { class: 'row', style: { marginTop: '6px' } },
+            c.reply_status !== 'ignored'
+              ? h('button', { class: 'btn ghost sm', title: 'Tandai selesai kalau tidak perlu dibalas', onclick: () => setStatus('ignored', 'Ditandai selesai', c.reply_status) }, 'Tandai selesai')
+              : h('button', { class: 'btn ghost sm', onclick: () => setStatus('unreplied') }, 'Tandai perlu dibalas'),
+            h('button', { class: 'btn ghost sm', onclick: async () => { try { await api('POST', `/v1/comments/${c.id}/hide`, { hidden: !c.hidden }); toast(c.hidden ? 'Komentar ditampilkan' : 'Komentar disembunyikan'); draw(); } catch (err) { toast(errMsg(err), true); } } }, c.hidden ? 'Tampilkan' : 'Sembunyikan'),
+            !group && c.post_id ? h('a', { class: 'btn ghost sm', href: `#/posts/${c.post_id}` }, 'Buka post') : null,
+            h('span', { class: 'faint small' }, 'Ctrl+Enter untuk kirim'))));
+    };
+    if (!data.length) { listWrap.replaceChildren(h('div', { class: 'list empty' }, filter === 'unreplied' ? 'Semua komentar sudah dibalas.' : 'Tidak ada komentar.')); return; }
+    if (!group) { listWrap.replaceChildren(h('div', { class: 'list' }, data.map(row))); return; }
+    const groups = new Map();
+    for (const c of data) { const k = c.post_id || c.platform_media_id; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+    const posts = await Promise.all([...groups.keys()].map((k) => (k?.startsWith('p_') ? api('GET', `/v1/posts/${k}`).catch(() => null) : null)));
+    listWrap.replaceChildren(...[...groups.entries()].map(([k, cs], i) => {
+      const p = posts[i]; const m = p?.media?.[0];
+      return h('div', { class: 'list', style: { marginBottom: '14px' } },
+        h(p ? 'a' : 'div', { class: 'item group-head', href: p ? `#/posts/${p.id}` : null },
+          m ? h('img', { class: 'thumb', src: m.url, alt: '' }) : h('div', { class: 'thumb' }),
+          h('div', { class: 'body' }, h('div', { class: 'title' }, p?.content || 'Post di luar LRMsmm'), h('div', { class: 'meta' }, `${cs.length} komentar · @${cs[0].account_username}`))),
+        cs.map(row));
+    }));
+  }
+  await draw();
+  pageCleanup = live.on((t) => { if (t === 'comment.new' && document.activeElement?.tagName !== 'TEXTAREA') draw(); });
   return shell('/inbox', h('div', {},
-    pagehead('Komentar', 'Komentar Instagram dan balasan Threads dari semua akun. Sinkron otomatis tiap 10 menit.',
+    pagehead('Komentar', 'Komentar Instagram dan balasan Threads di post kamu. Komentar baru masuk otomatis.',
       h('select', { style: { width: 'auto' }, onchange: (e) => setQ('a', e.target.value), 'aria-label': 'Filter akun' }, h('option', { value: '' }, 'Semua akun'), state.accounts.map((a) => h('option', { value: a.id, selected: a.id === acc }, `@${a.username} (${PLAT[a.platform]})`))),
-      h('div', { class: 'seg' }, [['unreplied', 'Belum dibalas'], ['all', 'Semua'], ['hidden', 'Disembunyikan']].map(([v, l]) => h('button', { class: filter === v ? 'on' : '', onclick: () => setQ('f', v) }, l))),
-      h('button', { class: 'btn', onclick: async (e) => { e.currentTarget.disabled = true; const r = await api('POST', '/v1/comments/sync'); toast(`${r.synced} komentar disinkron`); route(); } }, 'Sinkron sekarang')),
-    list));
+      h('div', { class: 'seg' }, [['unreplied', 'Perlu dibalas'], ['all', 'Semua'], ['hidden', 'Disembunyikan']].map(([v, l]) => h('button', { class: filter === v ? 'on' : '', onclick: () => setQ('f', v) }, l))),
+      h('div', { class: 'seg' }, h('button', { class: !group ? 'on' : '', onclick: () => setQ('g', '') }, 'Terbaru'), h('button', { class: group ? 'on' : '', onclick: () => setQ('g', 'post') }, 'Per post')),
+      h('button', { class: 'btn', onclick: async (e) => { e.currentTarget.disabled = true; const r = await api('POST', '/v1/comments/sync'); toast(`${r.synced} komentar dicek`); route(); } }, 'Muat terbaru')),
+    listWrap));
+}
+
+// ---------------- messages (Instagram DM) ----------------
+const drafts = {};
+const initials = (s) => (s || '?').replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase();
+function waitBadge(c) {
+  if (!c.needs_reply || c.waiting_minutes == null) return null;
+  const m = c.waiting_minutes;
+  const late = m >= Math.round((state.stats.overdue_threshold_seconds || 300) / 60);
+  const txt = m < 1 ? 'baru' : m < 60 ? `${m} mnt` : m < 1440 ? `${Math.floor(m / 60)} jam` : `${Math.floor(m / 1440)} hr`;
+  return h('span', { class: `wait ${late ? 'late' : ''}`, title: late ? 'Menunggu lebih dari 5 menit' : 'Menunggu balasan' }, txt);
+}
+async function pageMessages(convId) {
+  await loadAccounts();
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  const filter = q.get('f') || 'needs_reply';
+  const acc = q.get('a') || '';
+  const igAccounts = state.accounts.filter((a) => a.platform === 'instagram');
+  const qs = (extra = {}) => { const n = new URLSearchParams(q); for (const [k, v] of Object.entries(extra)) v ? n.set(k, v) : n.delete(k); const t = n.toString(); return t ? `?${t}` : ''; };
+  const wrap = h('div', { class: `dm ${convId ? 'has-thread' : ''}` });
+  const listEl = h('div', { class: 'dm-list' });
+  const threadEl = h('div', { class: 'dm-thread' });
+  wrap.append(listEl, threadEl);
+
+  async function drawList() {
+    const { data } = await api('GET', `/v1/conversations?filter=${filter}${acc ? `&account_id=${acc}` : ''}`);
+    listEl.replaceChildren(...(data.length ? data.map((c) => h('a', { class: `dm-row ${c.id === convId ? 'on' : ''}`, href: `#/messages/${c.id}${qs()}` },
+      h('span', { class: 'peer' }, initials(c.participant.username)),
+      h('div', { class: 'body' },
+        h('div', { class: 'who' }, `@${c.participant.username || 'pengguna'}`),
+        h('div', { class: 'prev' }, c.last_message.direction === 'out' ? 'Kamu: ' : '', c.last_message.text || ''),
+        h('div', { class: 'faint small' }, `ke @${c.account_username}`)),
+      h('div', { style: { textAlign: 'right' } }, h('div', { class: 'faint small' }, ago(c.last_message.at)), waitBadge(c))))
+      : [h('div', { class: 'dm-empty' }, filter === 'needs_reply' ? 'Semua pesan sudah dibalas.' : 'Belum ada percakapan.')]));
+  }
+  async function drawThread() {
+    if (!convId) { threadEl.replaceChildren(h('div', { class: 'dm-empty' }, igAccounts.length ? 'Pilih percakapan di kiri.' : 'Hubungkan akun Instagram untuk membalas DM.')); return; }
+    let c;
+    try { c = await api('GET', `/v1/conversations/${convId}`); } catch (e) { threadEl.replaceChildren(h('div', { class: 'dm-empty' }, errMsg(e))); return; }
+    const box = h('div', { class: 'dm-msgs' });
+    for (const m of c.messages) {
+      box.append(h('div', { class: `bubble ${m.direction}` }, m.text || (m.attachments?.length ? '[lampiran]' : '')),
+        h('div', { class: `bubble-meta ${m.direction}` }, fmtDT(m.sent_at), m.sent_by ? ` · ${m.sent_by}` : ''));
+    }
+    const ta = h('textarea', { placeholder: `Balas @${c.participant.username}…`, 'aria-label': 'Balasan', oninput: (e) => { drafts[c.id] = e.target.value; },
+      onkeydown: (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } } });
+    ta.value = drafts[c.id] || '';
+    const sendBtn = h('button', { class: 'btn primary', onclick: () => send() }, 'Kirim');
+    async function send() {
+      const text = ta.value.trim(); if (!text) return;
+      sendBtn.disabled = true;
+      try { await api('POST', `/v1/conversations/${c.id}/messages`, { text }); drafts[c.id] = ''; toast('Pesan terkirim'); await Promise.all([drawThread(), drawList()]); live.refresh(); }
+      catch (e) { sendBtn.disabled = false; toast(errMsg(e), true); }
+    }
+    threadEl.replaceChildren(
+      h('div', { class: 'dm-head' },
+        h('a', { class: 'btn sm ghost mobile-only', href: `#/messages${qs()}` }, '‹'),
+        h('span', { class: 'peer' }, initials(c.participant.username)),
+        h('div', {}, h('b', {}, `@${c.participant.username}`), h('div', { class: 'faint small' }, `ke @${c.account_username} · Instagram`)),
+        waitBadge(c), h('span', { class: 'spacer' }),
+        c.status === 'open'
+          ? h('button', { class: 'btn sm', onclick: async () => { await api('PATCH', `/v1/conversations/${c.id}`, { status: 'done' }); toast('Ditandai selesai'); drawList(); drawThread(); live.refresh(); } }, 'Tandai selesai')
+          : h('button', { class: 'btn sm', onclick: async () => { await api('PATCH', `/v1/conversations/${c.id}`, { status: 'open' }); drawList(); drawThread(); live.refresh(); } }, 'Buka lagi')),
+      box,
+      c.can_reply
+        ? h('div', { class: 'dm-compose' }, ta, sendBtn)
+        : h('div', { class: 'dm-closed' }, 'Lewat 24 jam sejak pesan terakhir pelanggan. Instagram tidak mengizinkan balasan dari aplikasi pihak ketiga — balas langsung dari aplikasi Instagram.'));
+    box.scrollTop = box.scrollHeight;
+    if (c.can_reply && document.activeElement?.tagName !== 'TEXTAREA') ta.focus({ preventScroll: true });
+  }
+  await Promise.all([drawList(), drawThread()]);
+  pageCleanup = live.on((t) => { if (t.startsWith('message.')) { drawList(); if (document.activeElement?.tagName !== 'TEXTAREA') drawThread(); } });
+  return shell('/messages', h('div', {},
+    pagehead('Pesan', 'DM Instagram dari semua akun yang kamu pegang. Balasan hanya bisa dalam 24 jam sejak pesan terakhir pelanggan.',
+      h('select', { style: { width: 'auto' }, 'aria-label': 'Filter akun', onchange: (e) => go(`/messages${qs({ a: e.target.value })}`) },
+        h('option', { value: '' }, 'Semua akun Instagram'), igAccounts.map((a) => h('option', { value: a.id, selected: a.id === acc }, `@${a.username}`))),
+      h('div', { class: 'seg' }, [['needs_reply', 'Perlu dibalas'], ['all', 'Semua'], ['done', 'Selesai']].map(([v, l]) => h('button', { class: filter === v ? 'on' : '', onclick: () => go(`/messages${qs({ f: v })}`) }, l))),
+      h('button', { class: 'btn', onclick: async (e) => { e.currentTarget.disabled = true; const r = await api('POST', '/v1/messages/sync'); toast(r.new_messages ? `${r.new_messages} pesan baru` : 'Tidak ada pesan baru'); route(); } }, 'Muat terbaru')),
+    wrap,
+    h('p', { class: 'faint small', style: { marginTop: '10px' } }, 'Threads belum menyediakan API pesan, jadi hanya DM Instagram yang tampil di sini.')));
+}
+
+// ---------------- insights ----------------
+const METRIC = {
+  followers_count: 'Pengikut', views: 'Tayangan', reach: 'Jangkauan', accounts_engaged: 'Akun berinteraksi', total_interactions: 'Total interaksi',
+  likes: 'Suka', comments: 'Komentar', saves: 'Disimpan', shares: 'Dibagikan', replies: 'Balasan', reposts: 'Repost', quotes: 'Kutipan', clicks: 'Klik link',
+};
+const fmtNum = (n) => (n == null ? '–' : Number(n).toLocaleString('id-ID'));
+
+/** Single-series line chart (SVG) with recessive grid, 2px line, hover tooltip. */
+function lineChart(points, label) {
+  const W = 320, H = 120, P = { l: 4, r: 4, t: 10, b: 18 };
+  const vals = points.map((p) => p.v).filter((v) => v != null);
+  const wrap = h('div', { class: 'spark' });
+  if (!vals.length) { wrap.append(h('div', { class: 'faint small spark-empty' }, 'Belum ada data')); return wrap; }
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const lo = min === max ? min - 1 : min, hi = min === max ? max + 1 : max;
+  const x = (i) => P.l + (points.length === 1 ? (W - P.l - P.r) / 2 : (i * (W - P.l - P.r)) / (points.length - 1));
+  const y = (v) => P.t + (1 - (v - lo) / (hi - lo)) * (H - P.t - P.b);
+  const pts = points.map((p, i) => (p.v == null ? null : [x(i), y(p.v), p]));
+  const path = pts.filter(Boolean).map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)},${py.toFixed(1)}`).join(' ');
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = (t, a) => { const n = document.createElementNS(ns, t); for (const [k, v] of Object.entries(a)) n.setAttribute(k, v); return n; };
+  const svgEl = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Grafik ${label}`, preserveAspectRatio: 'none' });
+  for (const g of [0, 0.5, 1]) svgEl.append(el('line', { x1: P.l, x2: W - P.r, y1: P.t + g * (H - P.t - P.b), y2: P.t + g * (H - P.t - P.b), class: 'grid' }));
+  svgEl.append(el('path', { d: path, class: 'line' }));
+  const dot = el('circle', { r: 4.5, class: 'dot', visibility: 'hidden' });
+  const cross = el('line', { y1: P.t, y2: H - P.b, class: 'cross', visibility: 'hidden' });
+  svgEl.append(cross, dot);
+  if (pts.filter(Boolean).length === 1) { const [px, py] = pts.find(Boolean); svgEl.append(el('circle', { cx: px, cy: py, r: 4, class: 'dot solo' })); }
+  const tip = h('div', { class: 'tip', hidden: true });
+  const hit = el('rect', { x: 0, y: 0, width: W, height: H, fill: 'transparent' });
+  hit.addEventListener('mousemove', (e) => {
+    const r = svgEl.getBoundingClientRect();
+    const mx = ((e.clientX - r.left) / r.width) * W;
+    let best = null; for (const p of pts) if (p && (!best || Math.abs(p[0] - mx) < Math.abs(best[0] - mx))) best = p;
+    if (!best) return;
+    dot.setAttribute('cx', best[0]); dot.setAttribute('cy', best[1]); dot.setAttribute('visibility', 'visible');
+    cross.setAttribute('x1', best[0]); cross.setAttribute('x2', best[0]); cross.setAttribute('visibility', 'visible');
+    tip.hidden = false; tip.replaceChildren(h('b', {}, fmtNum(best[2].v)), ' ', new Date(`${best[2].d}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }));
+    tip.style.left = `${(best[0] / W) * 100}%`;
+  });
+  hit.addEventListener('mouseleave', () => { dot.setAttribute('visibility', 'hidden'); cross.setAttribute('visibility', 'hidden'); tip.hidden = true; });
+  svgEl.append(hit);
+  const fmtD = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  wrap.append(svgEl, tip, h('div', { class: 'axis' }, h('span', {}, fmtD(points[0].d)), h('span', {}, fmtD(points.at(-1).d))));
+  return wrap;
+}
+
+async function pageInsights() {
+  await loadAccounts();
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  const days = Number(q.get('r') || 30);
+  const accId = q.get('a') || state.accounts[0]?.id;
+  const setQ = (k, v) => { const n = new URLSearchParams(q); n.set(k, v); go(`/insights?${n}`); };
+  if (!accId) return shell('/insights', h('div', {}, pagehead('Insights'), h('div', { class: 'panel empty' }, 'Belum ada akun terhubung.', h('br'), h('a', { class: 'btn', href: '#/accounts' }, 'Hubungkan akun'))));
+  const from = new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10);
+  const data = await api('GET', `/v1/accounts/${accId}/insights?from=${from}`);
+  const a = state.accounts.find((x) => x.id === accId);
+  const allDays = [...Array(days)].map((_, i) => new Date(Date.now() - (days - 1 - i) * 864e5).toISOString().slice(0, 10));
+  const byDay = Object.fromEntries(data.days.map((d) => [d.date, d]));
+  const keys = [...new Set(data.days.flatMap((d) => Object.keys(d).filter((k) => k !== 'date' && METRIC[k])))];
+  const order = Object.keys(METRIC).filter((k) => keys.includes(k));
+  const tiles = order.map((k) => {
+    const pts = allDays.map((d) => ({ d, v: byDay[d]?.[k] ?? null }));
+    const latest = [...pts].reverse().find((p) => p.v != null)?.v;
+    const first = pts.find((p) => p.v != null)?.v;
+    const delta = latest != null && first != null && k === 'followers_count' ? latest - first : null;
+    return h('div', { class: 'panel metric' },
+      h('div', { class: 'muted small' }, METRIC[k]),
+      h('div', { class: 'big' }, fmtNum(latest), delta ? h('span', { class: `delta ${delta > 0 ? 'up' : 'down'}` }, `${delta > 0 ? '+' : ''}${fmtNum(delta)}`) : null),
+      lineChart(pts, METRIC[k]));
+  });
+  const table = h('details', { class: 'panel', style: { marginTop: '16px' } }, h('summary', {}, 'Lihat sebagai tabel'),
+    h('div', { style: { overflowX: 'auto', marginTop: '10px' } }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Tanggal'), order.map((k) => h('th', {}, METRIC[k])))),
+      h('tbody', {}, data.days.slice().reverse().map((d) => h('tr', {}, h('td', {}, d.date), order.map((k) => h('td', {}, fmtNum(d[k])))))))));
+  return shell('/insights', h('div', {},
+    pagehead('Insights', 'Perkembangan akun dari hari ke hari. Diperbarui otomatis tiap 6 jam; Meta bisa telat hingga 48 jam.',
+      h('select', { style: { width: 'auto' }, 'aria-label': 'Akun', onchange: (e) => setQ('a', e.target.value) }, state.accounts.map((x) => h('option', { value: x.id, selected: x.id === accId }, `@${x.username} (${PLAT[x.platform]})`))),
+      h('div', { class: 'seg' }, [7, 30, 90].map((r) => h('button', { class: r === days ? 'on' : '', onclick: () => setQ('r', String(r)) }, `${r} hari`))),
+      h('button', { class: 'btn', onclick: async (e) => { e.currentTarget.disabled = true; try { await api('POST', '/v1/insights/sync'); toast('Statistik diperbarui'); route(); } catch (err) { toast(errMsg(err), true); e.currentTarget.disabled = false; } } }, 'Perbarui')),
+    a?.status === 'expired' ? h('div', { class: 'err-box', style: { marginBottom: '14px' } }, 'Akun perlu dihubungkan ulang; statistik berhenti diperbarui. ', h('a', { href: `/connect/${a.platform}` }, 'Hubungkan ulang')) : null,
+    tiles.length ? h('div', { class: 'metrics' }, tiles) : h('div', { class: 'panel empty' }, 'Belum ada data untuk rentang ini. Klik Perbarui atau tunggu sinkron berikutnya.'),
+    tiles.length ? table : null));
 }
 
 // ---------------- accounts ----------------
@@ -518,7 +834,7 @@ async function pageAccounts() {
         a.last_error && a.status !== 'active' ? h('div', { class: 'err-box', style: { marginTop: '6px' } }, a.last_error) : null),
       status(a.status),
       h('a', { class: 'btn sm', href: `/connect/${a.platform}` }, a.status === 'expired' ? 'Sambungkan ulang' : 'Perbarui'),
-      h('button', { class: 'btn sm ghost danger', onclick: async () => {
+      isOwner() && h('button', { class: 'btn sm ghost danger', onclick: async () => {
         if (!confirm(`Putuskan @${a.username}? Post terjadwal ke akun ini dibatalkan.`)) return;
         await api('DELETE', `/v1/accounts/${a.id}`); toast(`@${a.username} diputus`); route();
       } }, 'Putuskan'))) : h('div', { class: 'empty' }, 'Belum ada akun tersambung.')),
@@ -527,7 +843,7 @@ async function pageAccounts() {
 
 // ---------------- media library ----------------
 async function pageMedia() {
-  const { data } = await api('GET', '/v1/media?limit=100');
+  const [{ data }, use] = await Promise.all([api('GET', '/v1/media?limit=100'), api('GET', '/v1/media/usage')]);
   const prog = h('div', { class: 'progress' }, h('i'));
   const input = h('input', { type: 'file', multiple: true, hidden: true, accept: 'image/jpeg,image/png,video/mp4,video/quicktime', onchange: () => upload([...input.files]) });
   async function upload(files) {
@@ -543,7 +859,7 @@ async function pageMedia() {
   h('p', {}, 'Tarik foto/video ke sini, atau'), h('button', { class: 'btn primary', onclick: () => input.click() }, 'Pilih file'), input,
   h('p', { class: 'faint small', style: { marginTop: '8px' } }, 'JPEG/PNG maks 8 MB (PNG otomatis jadi JPEG). MP4/MOV maks 300 MB. Instagram feed butuh rasio 4:5 sampai 1.91:1.'), prog);
   return shell('/media', h('div', {},
-    pagehead('Media', 'Pustaka foto dan video tim. AI bisa memakai media dari sini lewat list_media.'),
+    pagehead('Media', 'Pustaka foto dan video tim. AI bisa memakai media dari sini lewat list_media.', h('span', { class: 'muted small' }, `Penyimpanan: ${fmtBytes(use.used_bytes)} · ${use.files} file`)),
     drop,
     data.length ? h('div', { class: 'mgrid' }, data.map((m) => h('div', { class: 'mcell' },
       h('div', { class: 'pic' }, m.type === 'video' ? h('video', { src: m.url, muted: true, controls: true, preload: 'metadata' }) : h('img', { src: m.url, alt: m.alt_text || '', loading: 'lazy' })),
@@ -587,10 +903,25 @@ async function pageDeveloper() {
         h('button', { class: 'btn sm ghost danger', onclick: async () => { await api('DELETE', `/v1/apps/${a.id}`); toast('Akses dicabut'); route(); } }, 'Cabut')))) : h('p', { class: 'faint' }, 'Belum ada aplikasi AI yang terhubung lewat OAuth.'))));
 }
 
-// ---------------- team ----------------
+// ---------------- team & user management ----------------
+function accountPicker(selected = []) {
+  const sel = new Set(selected);
+  const box = h('div', { class: 'acc-picker' }, state.accounts.map((a) => {
+    const b = h('button', { type: 'button', class: `acc-chip ${sel.has(a.id) ? 'on' : ''}`, 'aria-pressed': sel.has(a.id),
+      onclick: () => { sel.has(a.id) ? sel.delete(a.id) : sel.add(a.id); b.classList.toggle('on'); b.setAttribute('aria-pressed', sel.has(a.id)); } },
+    avatar(a), `@${a.username}`, h('span', { class: `chip-plat ${a.platform}` }, icon(a.platform)));
+    return b;
+  }));
+  return { el: state.accounts.length ? box : h('p', { class: 'faint' }, 'Belum ada akun sosial terhubung.'), value: () => [...sel] };
+}
+
 async function pageTeam() {
-  const isAdmin = state.user.role === 'admin';
-  const users = isAdmin ? (await api('GET', '/v1/users')).data : [];
+  await loadAccounts();
+  const owner = isOwner();
+  const users = owner ? (await api('GET', '/v1/users')).data : [];
+  const me = (await api('GET', '/v1/me'));
+  const accName = (id) => { const a = state.accounts.find((x) => x.id === id); return a ? `@${a.username} (${PLAT[a.platform]})` : null; };
+
   const pw = h('form', { onsubmit: async (e) => {
     e.preventDefault();
     try { await api('POST', '/auth/password', Object.fromEntries(new FormData(pw))); toast('Password diganti. Semua API key dan akses AI dicabut.'); pw.reset(); }
@@ -600,28 +931,122 @@ async function pageTeam() {
   h('label', { class: 'field' }, h('span', {}, 'Password baru'), h('input', { type: 'password', name: 'next', required: true, minlength: 8, autocomplete: 'new-password' })),
   h('p', { class: 'faint small' }, 'Mengganti password juga mencabut semua API key dan akses aplikasi AI.'),
   h('button', { class: 'btn' }, 'Ganti password'));
-  const add = h('form', { class: 'row', onsubmit: async (e) => {
-    e.preventDefault();
-    try { await api('POST', '/v1/users', Object.fromEntries(new FormData(add))); toast('Anggota ditambahkan'); route(); }
-    catch (err) { toast(err.message, true); }
-  } },
-  h('input', { name: 'name', placeholder: 'Nama', style: { maxWidth: '160px' } }), h('input', { name: 'email', type: 'email', placeholder: 'Email', required: true, style: { maxWidth: '220px' } }),
-  h('input', { name: 'password', type: 'text', placeholder: 'Password awal (min 8)', required: true, minlength: 8, style: { maxWidth: '200px' } }),
-  h('select', { name: 'role', style: { width: 'auto' } }, h('option', { value: 'member' }, 'Anggota'), h('option', { value: 'admin' }, 'Admin')),
-  h('button', { class: 'btn primary' }, 'Tambah'));
+
+  function editUser(u) {
+    const picker = accountPicker(u.account_ids || []);
+    const role = h('select', { onchange: () => { pickWrap.hidden = role.value === 'owner'; } },
+      h('option', { value: 'rep', selected: u.role === 'rep' }, 'Representative — hanya akun yang dipilih'),
+      h('option', { value: 'owner', selected: u.role === 'owner' }, 'Owner — semua akun, kelola tim'));
+    const name = h('input', { value: u.name || '' });
+    const pass = h('input', { type: 'text', placeholder: 'Kosongkan kalau tidak diganti', minlength: 8 });
+    const pickWrap = h('div', { hidden: u.role === 'owner' }, h('label', { class: 'field' }, h('span', {}, 'Akun yang di-represent'), picker.el));
+    const d = modal(`Ubah ${u.email}`, h('div', {},
+      h('label', { class: 'field' }, h('span', {}, 'Nama'), name),
+      h('label', { class: 'field' }, h('span', {}, 'Peran'), role), pickWrap,
+      h('label', { class: 'field' }, h('span', {}, 'Reset password'), pass)),
+    [h('button', { class: 'btn', onclick: () => d.close() }, 'Batal'), h('button', { class: 'btn primary', onclick: async () => {
+      const body = { name: name.value, role: role.value };
+      if (role.value === 'rep') body.account_ids = picker.value();
+      if (pass.value) body.password = pass.value;
+      try { await api('PATCH', `/v1/users/${u.id}`, body); d.close(); toast('Anggota diperbarui'); route(); } catch (e) { toast(errMsg(e), true); }
+    } }, 'Simpan')]);
+  }
+
+  function addUser() {
+    const picker = accountPicker([]);
+    const f = { name: h('input', { autocomplete: 'off' }), email: h('input', { type: 'email', required: true, autocomplete: 'off' }), password: h('input', { type: 'text', minlength: 8, required: true, autocomplete: 'off' }) };
+    const role = h('select', { onchange: () => { pickWrap.hidden = role.value === 'owner'; } }, h('option', { value: 'rep' }, 'Representative — hanya akun yang dipilih'), h('option', { value: 'owner' }, 'Owner — semua akun, kelola tim'));
+    const pickWrap = h('div', {}, h('label', { class: 'field' }, h('span', {}, 'Akun yang di-represent (boleh lebih dari satu)'), picker.el));
+    const d = modal('Tambah anggota', h('div', {},
+      h('label', { class: 'field' }, h('span', {}, 'Nama'), f.name), h('label', { class: 'field' }, h('span', {}, 'Email'), f.email),
+      h('label', { class: 'field' }, h('span', {}, 'Password awal (min. 8 karakter)'), f.password),
+      h('label', { class: 'field' }, h('span', {}, 'Peran'), role), pickWrap),
+    [h('button', { class: 'btn', onclick: () => d.close() }, 'Batal'), h('button', { class: 'btn primary', onclick: async () => {
+      try {
+        await api('POST', '/v1/users', { name: f.name.value, email: f.email.value, password: f.password.value, role: role.value, account_ids: role.value === 'rep' ? picker.value() : undefined });
+        d.close(); toast('Anggota ditambahkan'); route();
+      } catch (e) { toast(errMsg(e), true); }
+    } }, 'Tambah')]);
+  }
+
   return shell('/team', h('div', {},
-    pagehead(isAdmin ? 'Tim' : 'Akun saya', 'Semua anggota tim berbagi akun sosial, kalender, dan inbox yang sama.'),
-    isAdmin ? h('div', { class: 'panel' }, h('h2', {}, 'Anggota'),
-      h('div', { class: 'list', style: { marginBottom: '14px' } }, users.map((u) => h('div', { class: 'item' },
-        h('div', { class: 'body' }, h('b', {}, u.name || u.email), h('div', { class: 'meta' }, h('span', {}, u.email), h('span', {}, u.role === 'admin' ? 'Admin' : 'Anggota'))),
-        u.id !== state.user.id ? h('button', { class: 'btn sm ghost danger', onclick: async () => { if (!confirm(`Hapus ${u.email}?`)) return; await api('DELETE', `/v1/users/${u.id}`); route(); } }, 'Hapus') : h('span', { class: 'faint small' }, 'Kamu')))),
-      add) : null,
-    h('div', { class: 'panel', style: { maxWidth: '460px' } }, h('h2', {}, 'Ganti password'), pw)));
+    pagehead(owner ? 'Tim' : 'Akun saya', owner ? 'Owner melihat dan mengelola semua akun. Representative hanya bisa posting, membalas komentar, dan membalas pesan di akun yang ditugaskan.' : null,
+      owner ? h('button', { class: 'btn primary', onclick: addUser }, 'Tambah anggota') : null),
+    owner ? h('div', { class: 'list', style: { marginBottom: '18px' } }, users.map((u) => h('div', { class: 'item' },
+      h('span', { class: 'peer' }, initials(u.name || u.email)),
+      h('div', { class: 'body' },
+        h('div', {}, h('b', {}, u.name || u.email), ' ', h('span', { class: `status ${u.role === 'owner' ? 'scheduled' : ''}` }, ROLE[u.role])),
+        h('div', { class: 'meta' }, h('span', {}, u.email),
+          u.role === 'owner' ? h('span', {}, 'Semua akun') : h('span', {}, u.account_ids.length ? u.account_ids.map(accName).filter(Boolean).join(', ') : 'Belum ada akun ditugaskan'))),
+      h('button', { class: 'btn sm', onclick: () => editUser(u) }, 'Ubah'),
+      u.id !== state.user.id ? h('button', { class: 'btn sm ghost danger', onclick: async () => { if (!confirm(`Hapus ${u.email}? Aksesnya langsung dicabut.`)) return; await api('DELETE', `/v1/users/${u.id}`); toast('Anggota dihapus'); route(); } }, 'Hapus') : h('span', { class: 'faint small' }, 'Kamu')))) : null,
+    !owner ? h('div', { class: 'panel', style: { marginBottom: '16px' } }, h('h2', {}, 'Akun yang kamu pegang'),
+      state.accounts.length ? h('div', { class: 'acc-picker' }, state.accounts.map((a) => h('span', { class: 'acc-chip on' }, avatar(a), `@${a.username}`, h('span', { class: `chip-plat ${a.platform}` }, icon(a.platform)))))
+        : h('p', { class: 'muted' }, 'Belum ada akun yang ditugaskan. Minta Owner menambahkan akun untukmu.')) : null,
+    h('div', { class: 'panel', style: { maxWidth: '460px' } }, h('h2', {}, 'Ganti password'), pw),
+    h('p', { class: 'faint small', style: { marginTop: '12px' } }, `Masuk sebagai ${me.user.email} · ${ROLE[me.user.role]}`)));
+}
+
+// ---------------- admin (Owner) ----------------
+const ACTION = {
+  'post.publish': 'Menerbitkan post', 'post.schedule': 'Menjadwalkan post', 'post.update': 'Mengubah post', 'post.cancel': 'Membatalkan post', 'post.publish_now': 'Menerbitkan sekarang',
+  'post.retry': 'Mencoba ulang post', 'post.remove': 'Menghapus dari riwayat', 'comment.reply': 'Membalas komentar', 'comment.hide': 'Menyembunyikan komentar', 'comment.unhide': 'Menampilkan komentar',
+  'message.send': 'Membalas DM', 'account.connect': 'Menyambungkan akun', 'account.reconnect': 'Menyambungkan ulang akun', 'account.disconnect': 'Memutus akun',
+  'user.create': 'Menambah anggota', 'user.update': 'Mengubah anggota', 'user.assign': 'Mengatur akun anggota', 'user.delete': 'Menghapus anggota',
+  'api_key.create': 'Membuat API key', 'api_key.revoke': 'Mencabut API key', 'ai_app.revoke': 'Mencabut akses AI', 'media.delete': 'Menghapus media',
+};
+const VIA = { session: 'dashboard', api_key: 'API key', oauth: 'AI (MCP)', system: 'sistem' };
+async function pageAdmin() {
+  if (!isOwner()) { go('/'); return shell('', h('div')); }
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  const tab = q.get('t') || 'audit';
+  const ov = await api('GET', '/v1/admin/overview');
+  let body;
+  if (tab === 'failed') {
+    const { data } = await api('GET', '/v1/admin/failed-posts');
+    body = data.length ? h('div', { class: 'list' }, data.map((f) => h('a', { class: 'item', href: `#/posts/${f.post_id}` },
+      h('div', { class: 'body' }, h('div', { class: 'title' }, f.content || '(tanpa teks)'),
+        h('div', { class: 'meta' }, plat(f.platform), h('span', {}, `@${f.username}`), h('span', {}, fmtDT(f.updated_at))),
+        h('div', { class: 'err-box', style: { marginTop: '6px' } }, h('b', {}, ERR[f.error_code] || f.error_code), f.error_message ? ` — ${f.error_message}` : '')),
+      status('failed')))) : h('div', { class: 'list empty' }, 'Belum ada post yang gagal.');
+  } else {
+    const listEl = h('div', { class: 'list' });
+    const more = h('button', { class: 'btn', hidden: true }, 'Muat lebih banyak');
+    let cursor = null;
+    const load = async () => {
+      const r = await api('GET', `/v1/admin/audit?limit=50${cursor ? `&cursor=${cursor}` : ''}`);
+      for (const a of r.data) {
+        const d = a.details || {};
+        const extra = [d.accounts?.join(', '), d.username ? `@${d.username}` : null, d.to, d.email, d.text ? `“${d.text}”` : null, d.name].filter(Boolean).join(' · ');
+        listEl.append(h('div', { class: 'item' },
+          h('div', { class: 'body' }, h('div', {}, h('b', {}, a.user_email || 'Sistem'), ' ', ACTION[a.action] || a.action),
+            h('div', { class: 'meta' }, h('span', {}, fmtDT(a.at)), h('span', {}, `via ${VIA[a.via] || a.via}`), extra ? h('span', {}, extra) : null)),
+          a.target_type === 'post' && a.target_id ? h('a', { class: 'btn sm ghost', href: `#/posts/${a.target_id}` }, 'Lihat') : null));
+      }
+      if (!listEl.children.length) listEl.append(h('div', { class: 'empty' }, 'Log masih kosong.'));
+      cursor = r.next_cursor; more.hidden = !cursor;
+    };
+    more.onclick = load;
+    await load();
+    body = h('div', {}, listEl, h('div', { class: 'row', style: { marginTop: '12px' } }, more));
+  }
+  return shell('/admin', h('div', {},
+    pagehead('Admin', 'Siapa melakukan apa, dari dashboard, API key, atau AI.'),
+    h('div', { class: 'strip' },
+      h('a', { href: '#/team' }, h('b', {}, ov.users), h('span', {}, 'anggota tim')),
+      h('a', { href: '#/accounts', class: ov.accounts_expired ? 'alert' : '' }, h('b', {}, ov.accounts), h('span', {}, ov.accounts_expired ? `akun · ${ov.accounts_expired} perlu disambung` : 'akun sosial')),
+      h('a', { href: '#/admin?t=failed', class: ov.failed_24h ? 'alert' : '' }, h('b', {}, ov.posts_24h), h('span', {}, `terbit 24 jam · ${ov.failed_24h} gagal`)),
+      h('a', { href: '#/media' }, h('b', {}, fmtBytes(ov.storage.used_bytes)), h('span', {}, `${ov.storage.files} file media`))),
+    h('p', { class: 'small muted', style: { margin: '-10px 0 18px' } }, `Real-time: ${ov.realtime_hint}${ov.webhooks.last_at ? ` (terakhir ${ago(ov.webhooks.last_at)} lalu)` : ''}.`),
+    h('div', { class: 'seg', style: { marginBottom: '14px' } }, h('button', { class: tab === 'audit' ? 'on' : '', onclick: () => go('/admin') }, 'Log audit'), h('button', { class: tab === 'failed' ? 'on' : '', onclick: () => go('/admin?t=failed') }, 'Post gagal')),
+    body));
 }
 
 // ---------------- router ----------------
+let pageCleanup = null;
 async function route() {
   const path = (location.hash.slice(1) || '/').split('?')[0];
+  if (pageCleanup) { pageCleanup(); pageCleanup = null; }
   try {
     if (!state.user) {
       const st = await api('GET', '/auth/state');
@@ -629,7 +1054,9 @@ async function route() {
       if (!st.user) { $app.replaceChildren(authPage(st.needs_setup ? 'setup' : 'login')); return; }
       await loadAccounts();
       state.stats = await api('GET', '/v1/stats');
+      state.lastOverdue = 0;
     }
+    live.start();
     if (path === '/login') { go('/'); return; }
     let m, view;
     if (path === '/') view = await pageHome();
@@ -638,13 +1065,18 @@ async function route() {
     else if ((m = path.match(/^\/posts\/(.+)$/))) view = await pagePost(m[1]);
     else if (path === '/calendar') view = await pageCalendar();
     else if (path === '/inbox') view = await pageInbox();
+    else if (path === '/messages') view = await pageMessages();
+    else if ((m = path.match(/^\/messages\/(.+)$/))) view = await pageMessages(m[1]);
+    else if (path === '/insights') view = await pageInsights();
+    else if (path === '/admin') view = await pageAdmin();
     else if (path === '/accounts') view = await pageAccounts();
     else if (path === '/media') view = await pageMedia();
     else if (path === '/developer') view = await pageDeveloper();
     else if (path === '/team') view = await pageTeam();
     else view = shell('', h('div', { class: 'panel empty' }, h('h2', {}, 'Halaman tidak ditemukan'), h('a', { class: 'btn', href: '#/' }, 'Ke beranda')));
     $app.replaceChildren(view);
-    window.scrollTo(0, 0);
+    if (!path.startsWith('/messages/')) window.scrollTo(0, 0);
+    document.querySelectorAll('.dm-msgs').forEach((b) => { b.scrollTop = b.scrollHeight; });
   } catch (e) {
     if (e.code === 'unauthenticated') return;
     $app.replaceChildren(shell('', h('div', { class: 'panel' }, h('h2', {}, 'Halaman gagal dimuat'), h('p', {}, errMsg(e)), h('button', { class: 'btn', onclick: route }, 'Muat ulang'))));

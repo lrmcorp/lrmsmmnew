@@ -50,7 +50,7 @@ let ig, th, writeKey, readKey, imgId, img2Id, post1;
 
 await step('first user becomes admin; signup then closes', async () => {
   const r = await http('POST', '/auth/register', { body: { email: 'reyner@hrgroup.id', password: 'rahasia123', name: 'Reyner' } });
-  assert.equal(r.status, 201); assert.equal(r.json.user.role, 'admin');
+  assert.equal(r.status, 201); assert.equal(r.json.user.role, 'owner');
   const saved = cookie; cookie = '';
   const r2 = await http('POST', '/auth/register', { body: { email: 'x@y.id', password: 'rahasia123' } });
   assert.equal(r2.status, 403); cookie = saved;
@@ -327,6 +327,139 @@ await step('MCP with API key (Claude Code / Cursor style)', async () => {
   await c.close();
 });
 
+
+// ---------------- roles, messages, realtime, audit ----------------
+async function asCookie(c, fn) { const saved = cookie; cookie = c; try { return await fn(); } finally { cookie = saved; } }
+let sp, repCookie = '', repId;
+
+await step('roles: Representative only sees and acts on assigned accounts', async () => {
+  await followConnect('instagram', 'sunrisepadel');
+  sp = (await http('GET', '/v1/accounts')).json.data.find((a) => a.username === 'sunrisepadel');
+  const u = await http('POST', '/v1/users', { body: { email: 'rep@hrgroup.id', password: 'rahasia123', name: 'Rep Kopi', role: 'rep', account_ids: [ig.id] } });
+  assert.equal(u.status, 201, JSON.stringify(u.json)); assert.deepEqual(u.json.account_ids, [ig.id]); repId = u.json.id;
+  const ownerCookie = cookie; cookie = '';
+  await http('POST', '/auth/login', { body: { email: 'rep@hrgroup.id', password: 'rahasia123' } });
+  repCookie = cookie; cookie = ownerCookie;
+  await asCookie(repCookie, async () => {
+    const acc = (await http('GET', '/v1/accounts')).json.data;
+    assert.deepEqual(acc.map((a) => a.id), [ig.id]);
+    const r = await http('POST', '/v1/posts', { body: { content: 'x', media_ids: [imgId], targets: [{ account_id: sp.id }] } });
+    assert.equal(r.status, 404, 'cannot post to unassigned account');
+    assert.equal((await http('GET', '/v1/users')).status, 403);
+    assert.equal((await http('GET', '/v1/admin/audit')).status, 403);
+    assert.equal((await http('GET', `/v1/accounts/${sp.id}/insights`)).status, 404);
+    const cm = (await http('GET', '/v1/comments?reply_status=all')).json.data;
+    assert.ok(cm.every((c) => c.account_id === ig.id));
+  });
+  const at = new Date(Date.now() + 3600_000).toISOString();
+  const both = (await http('POST', '/v1/posts', { body: { content: 'Bareng', media_ids: [imgId], targets: [{ account_id: ig.id }, { account_id: sp.id }], scheduled_at: at } })).json;
+  const onlySp = (await http('POST', '/v1/posts', { body: { content: 'Padel only', media_ids: [imgId], targets: [{ account_id: sp.id }], scheduled_at: at } })).json;
+  await asCookie(repCookie, async () => {
+    assert.equal((await http('GET', `/v1/posts/${both.id}`)).status, 200, 'can view shared post');
+    assert.equal((await http('DELETE', `/v1/posts/${both.id}`)).status, 403, 'cannot cancel post touching other accounts');
+    assert.equal((await http('GET', `/v1/posts/${onlySp.id}`)).status, 404, 'cannot see other account post');
+    const list = (await http('GET', '/v1/posts?limit=100')).json.data.map((p) => p.id);
+    assert.ok(list.includes(both.id) && !list.includes(onlySp.id));
+    const r = await http('POST', '/v1/posts', { body: { content: 'Rep post', media_ids: [imgId], targets: [{ account_id: ig.id }], scheduled_at: at } });
+    assert.equal(r.status, 201);
+    assert.equal((await http('DELETE', `/v1/posts/${r.json.id}`)).json.status, 'cancelled');
+  });
+  await http('DELETE', `/v1/posts/${both.id}`); await http('DELETE', `/v1/posts/${onlySp.id}`);
+  const upd = await http('PUT', `/v1/users/${repId}/accounts`, { body: { account_ids: [ig.id, sp.id] } });
+  assert.equal(upd.json.account_ids.length, 2);
+  await asCookie(repCookie, async () => assert.equal((await http('GET', '/v1/accounts')).json.data.length, 2));
+  const last = await http('PATCH', `/v1/users/${(await http('GET', '/v1/me')).json.user.id}`, { body: { role: 'rep' } });
+  assert.equal(last.status, 400, 'owner cannot demote self');
+});
+
+let rinaConv;
+await step('messages: sync Instagram DMs, needs-reply + overdue > 5 min', async () => {
+  const s = await http('POST', '/v1/messages/sync', { auth: undefined });
+  assert.ok(s.json.new_messages >= 3, JSON.stringify(s.json));
+  const list = (await http('GET', `/v1/conversations?account_id=${ig.id}`)).json.data;
+  rinaConv = list.find((c) => c.participant.username === 'rina.ardhani');
+  assert.ok(rinaConv, JSON.stringify(list)); assert.ok(rinaConv.waiting_minutes >= 11); assert.equal(rinaConv.can_reply, true);
+  assert.ok(!list.find((c) => c.participant.username === 'bayu_w'), 'replied conversation not in needs_reply');
+  const u = (await http('GET', '/v1/messages/unreplied')).json;
+  assert.ok(u.overdue >= 2, JSON.stringify(u)); // one per IG account (kopisenja + sunrisepadel)
+  const st = (await http('GET', '/v1/stats')).json; assert.equal(st.messages_overdue, u.overdue);
+});
+
+await step('messages: reply clears it; 24h window enforced; done/open', async () => {
+  const r = await http('POST', `/v1/conversations/${rinaConv.id}/messages`, { body: { text: 'Masih ada Kak, jam 08.00 dan 10.00 ✨' } });
+  assert.equal(r.status, 201, JSON.stringify(r.json)); assert.equal(r.json.needs_reply, false);
+  assert.equal(r.json.messages.at(-1).direction, 'out'); assert.equal(r.json.messages.at(-1).sent_by, 'Reyner');
+  const all2 = (await http('GET', `/v1/conversations?filter=all&account_id=${ig.id}`)).json.data;
+  const bayu = all2.find((c) => c.participant.username === 'bayu_w');
+  run('UPDATE conversations SET last_inbound_at=? WHERE id=?', new Date(Date.now() - 2 * 864e5).toISOString(), bayu.id);
+  const late = await http('POST', `/v1/conversations/${bayu.id}/messages`, { body: { text: 'halo' } });
+  assert.equal(late.json.error.code, 'messaging_window_closed');
+  const spConv = (await http('GET', `/v1/conversations?account_id=${sp.id}`)).json.data[0];
+  assert.equal((await http('PATCH', `/v1/conversations/${spConv.id}`, { body: { status: 'done' } })).json.status, 'done');
+  assert.equal((await http('GET', '/v1/messages/unreplied')).json.overdue, 0);
+});
+
+await step('webhooks: verify challenge, reject bad signature', async () => {
+  const v = await fetch(`${B}/webhooks/instagram?hub.mode=subscribe&hub.verify_token=lrmsmm-verify&hub.challenge=12345`).then((r) => r.text());
+  assert.equal(v, '12345');
+  assert.equal((await fetch(`${B}/webhooks/instagram?hub.mode=subscribe&hub.verify_token=salah&hub.challenge=1`)).status, 403);
+  const bad = await fetch(`${B}/webhooks/instagram`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-signature-256': 'sha256=00' }, body: '{}' });
+  assert.equal(bad.status, 401);
+});
+
+await step('real-time: inbound DM via signed webhook is pushed to dashboard (SSE)', async () => {
+  const ctrl = new AbortController();
+  const res = await fetch(`${B}/v1/events`, { headers: { cookie: repCookie }, signal: ctrl.signal });
+  const reader = res.body.getReader(); const dec = new TextDecoder();
+  let buf = '';
+  const got = (async () => {
+    for (;;) { const { value, done } = await reader.read(); if (done) break; buf += dec.decode(value); if (buf.includes('event: message.new')) return true; }
+  })();
+  await new Promise((r) => setTimeout(r, 100));
+  const sim = await fetch(`${B}/__mock/ig/simulate/dm`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner: 'kopisenja', owner_id: ig.platform_user_id, from: 'dewi.s', text: 'Bisa booking buat 4 orang?' }) }).then((r) => r.json());
+  assert.equal(sim.webhook_status, 200);
+  const ok = await Promise.race([got, new Promise((r) => setTimeout(() => r(false), 5000))]);
+  ctrl.abort();
+  assert.equal(ok, true, 'SSE message.new received');
+  const dewi = (await http('GET', `/v1/conversations?account_id=${ig.id}`)).json.data.find((c) => c.participant.username === 'dewi.s');
+  assert.ok(dewi?.needs_reply);
+  assert.equal((await http('GET', '/v1/messages/unreplied')).json.overdue, 0, 'fresh message not yet overdue');
+  assert.ok((await http('GET', '/v1/messages/unreplied?older_than=0')).json.overdue >= 1);
+});
+
+await step('MCP: list_conversations + send_message', async () => {
+  const c = await mcp(oauthAccess);
+  const list = JSON.parse((await c.callTool({ name: 'list_conversations', arguments: {} })).content[0].text);
+  assert.match(list._notice, /UNTRUSTED/);
+  const dewi = list.data.find((x) => x.participant.username === 'dewi.s');
+  const sent = JSON.parse((await c.callTool({ name: 'send_message', arguments: { conversation_id: dewi.id, text: 'Bisa Kak, untuk jam berapa?' } })).content[0].text);
+  assert.equal(sent.needs_reply, false);
+  await c.close();
+});
+
+await step('resumable chunked upload + storage usage', async () => {
+  const big = Buffer.concat([await sharp({ create: { width: 1080, height: 1080, channels: 3, background: '#357' } }).jpeg().toBuffer(), Buffer.alloc(9 * 1024 * 1024 - 200000)]);
+  const sz = (await sharp({ create: { width: 1080, height: 1080, channels: 3, background: '#357' } }).jpeg().toBuffer()).length;
+  const buf = big.subarray(0, Math.min(big.length, 7 * 1024 * 1024)); // < 8MB image limit
+  const up = (await http('POST', '/v1/media/uploads', { body: { mime_type: 'image/jpeg', size_bytes: buf.length } })).json;
+  assert.equal(up.part_count, 1);
+  assert.deepEqual((await http('GET', `/v1/media/${up.id}/parts`)).json.received, []);
+  await http('PUT', `/v1/media/${up.id}/parts/1`, { body: buf, raw: true, headers: { 'content-type': 'application/octet-stream' } });
+  assert.deepEqual((await http('GET', `/v1/media/${up.id}/parts`)).json.received, [1]);
+  assert.ok(sz > 0);
+  const u = (await http('GET', '/v1/media/usage')).json;
+  assert.ok(u.used_bytes > 0 && u.files > 0);
+});
+
+await step('audit log records who did what', async () => {
+  const a = (await http('GET', '/v1/admin/audit?limit=200')).json.data;
+  const acts = new Set(a.map((x) => x.action));
+  for (const k of ['account.connect', 'post.publish', 'post.schedule', 'message.send', 'user.create', 'user.assign', 'comment.reply', 'api_key.create']) assert.ok(acts.has(k), `missing ${k}`);
+  assert.ok(a.some((x) => x.action === 'message.send' && x.via === 'oauth'), 'AI actions attributed');
+  const ov = (await http('GET', '/v1/admin/overview')).json; assert.ok(ov.webhooks.received >= 1);
+  const fp = (await http('GET', '/v1/admin/failed-posts')).json; assert.ok(Array.isArray(fp.data));
+});
+
 await step('password change revokes API keys and AI access', async () => {
   const r = await http('POST', '/auth/password', { body: { current: 'rahasia123', next: 'rahasiabaru123' } });
   assert.equal(r.json.ok, true);
@@ -339,7 +472,7 @@ await step('disconnect account cancels its pending posts', async () => {
   const p = await http('POST', '/v1/posts', { body: { content: 'nanti', targets: [{ account_id: th.id }], scheduled_at: at } });
   await http('DELETE', `/v1/accounts/${th.id}`);
   assert.equal((await http('GET', `/v1/posts/${p.json.id}`)).json.status, 'cancelled');
-  assert.equal((await http('GET', '/v1/accounts')).json.data.length, 1);
+  assert.ok(!(await http('GET', '/v1/accounts')).json.data.some((a) => a.id === th.id));
 });
 
 await step('Meta data-deletion callback (signed_request) disconnects account', async () => {
@@ -349,7 +482,7 @@ await step('Meta data-deletion callback (signed_request) disconnects account', a
   assert.equal(bad.status, 400);
   const r = await fetch(`${B}/meta/instagram/delete`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `signed_request=${sig}.${payload}` }).then((x) => x.json());
   assert.ok(r.confirmation_code);
-  assert.equal((await http('GET', '/v1/accounts')).json.data.length, 0);
+  assert.ok(!(await http('GET', '/v1/accounts')).json.data.some((a) => a.id === ig.id));
   const page = await fetch(r.url).then((x) => x.text());
   assert.match(page, /selesai/);
 });

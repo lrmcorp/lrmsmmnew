@@ -3,6 +3,7 @@ import { err, parseJSON, toUtcIso } from '../util.js';
 import { getAccount } from './accounts.js';
 import { getMedia, publicMedia } from './media.js';
 import { validateTarget } from './rules.js';
+import { assertAccount, scopeSql } from './scope.js';
 
 const TERMINAL = ['published', 'failed', 'cancelled'];
 
@@ -42,7 +43,7 @@ export function refreshPostStatus(postId) {
   return status;
 }
 
-function normalizeTargets(body) {
+function normalizeTargets(body, user) {
   const targets = body.targets;
   if (!Array.isArray(targets) || !targets.length) throw err(400, 'validation_failed', 'targets wajib berisi minimal 1 akun', { field: 'targets' });
   const seen = new Set();
@@ -52,6 +53,7 @@ function normalizeTargets(body) {
     if (!t?.account_id) throw err(400, 'validation_failed', 'Setiap target wajib punya account_id');
     if (seen.has(t.account_id)) throw err(400, 'validation_failed', 'account_id duplikat di targets', { account_id: t.account_id });
     seen.add(t.account_id);
+    if (user) assertAccount(user, t.account_id);
     const acc = getAccount(t.account_id);
     if (acc.status === 'expired') throw err(422, 'account_expired', `Akun @${acc.username} perlu disambungkan ulang`, { account_id: acc.id });
     const content = typeof t.content === 'string' ? t.content : sharedContent;
@@ -87,7 +89,8 @@ function scheduleTime(input) {
 /**
  * Create a post. Idempotent via explicit key (REST) or identical-body dedupe window (MCP).
  */
-export function createPost(userId, body, { idempotencyKey, source = 'api', dedupeWindowMin = 0 } = {}) {
+export function createPost(user, body, { idempotencyKey, source = 'api', dedupeWindowMin = 0 } = {}) {
+  const userId = user.id;
   const canonical = JSON.stringify({ c: body.content ?? '', m: body.media_ids ?? [], t: body.targets ?? [], s: body.scheduled_at ?? null });
   const reqHash = sha256(`${userId}:${canonical}`);
 
@@ -104,7 +107,7 @@ export function createPost(userId, body, { idempotencyKey, source = 'api', dedup
     if (ex) return { post: publicPost(ex), replayed: true };
   }
 
-  const targets = normalizeTargets(body);
+  const targets = normalizeTargets(body, user);
   const scheduledAt = scheduleTime(body.scheduled_at);
   const runAt = scheduledAt || now();
   const pid = id('p');
@@ -126,9 +129,10 @@ export function getPost(postId) {
   return p;
 }
 
-export function listPosts({ limit = 20, cursor, status, account_id, from, to } = {}) {
+export function listPosts({ limit = 20, cursor, status, account_id, from, to } = {}, user) {
   limit = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const where = ['removed_at IS NULL']; const params = [];
+  if (user) { const [w, p] = scopeSql(user, 'account_id'); where.push(`(id IN (SELECT post_id FROM post_targets WHERE ${w}) OR created_by = ?)`); params.push(...p, user.id); }
   if (status) { where.push('status = ?'); params.push(status); }
   if (account_id) { where.push('id IN (SELECT post_id FROM post_targets WHERE account_id=?)'); params.push(account_id); }
   if (from) { where.push('COALESCE(scheduled_at, created_at) >= ?'); params.push(toUtcIso(from) || from); }
@@ -140,9 +144,11 @@ export function listPosts({ limit = 20, cursor, status, account_id, from, to } =
 }
 
 /** Calendar view: posts whose effective time falls in [from, to). */
-export function calendar(fromIso, toIso) {
+export function calendar(fromIso, toIso, user) {
+  const [w, p] = user ? scopeSql(user, 'account_id') : ['1=1', []];
   return all(`SELECT * FROM posts WHERE removed_at IS NULL AND status != 'cancelled'
-    AND COALESCE(scheduled_at, created_at) >= ? AND COALESCE(scheduled_at, created_at) < ? ORDER BY COALESCE(scheduled_at, created_at)`, fromIso, toIso).map(publicPost);
+    AND COALESCE(scheduled_at, created_at) >= ? AND COALESCE(scheduled_at, created_at) < ?
+    AND id IN (SELECT post_id FROM post_targets WHERE ${w}) ORDER BY COALESCE(scheduled_at, created_at)`, fromIso, toIso, ...p).map(publicPost);
 }
 
 function assertEditable(p) {
@@ -150,7 +156,7 @@ function assertEditable(p) {
   if (started || p.status !== 'scheduled') throw err(409, 'post_not_editable', 'Post sudah mulai diterbitkan dan tidak bisa diubah');
 }
 
-export function updatePost(postId, patch) {
+export function updatePost(postId, patch, user) {
   const p = getPost(postId);
   assertEditable(p);
   const merged = {
@@ -164,7 +170,7 @@ export function updatePost(postId, patch) {
     })),
   };
   if (Array.isArray(patch.targets)) merged.targets = patch.targets;
-  const targets = normalizeTargets(merged);
+  const targets = normalizeTargets(merged, user);
   const scheduledAt = patch.scheduled_at !== undefined ? scheduleTime(patch.scheduled_at) : p.scheduled_at;
   if (!scheduledAt) throw err(400, 'validation_failed', 'Post terjadwal butuh scheduled_at. Pakai /publish untuk terbit sekarang.');
   tx(() => {

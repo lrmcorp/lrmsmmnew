@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   name TEXT,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'member',         -- admin | member
+  role TEXT NOT NULL DEFAULT 'rep',            -- owner | rep
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -156,7 +156,48 @@ CREATE TABLE IF NOT EXISTS post_insights (
   updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS user_accounts (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  PRIMARY KEY(user_id, account_id)
+);
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT, user_email TEXT,
+  via TEXT,                                     -- session | api_key | oauth | system
+  action TEXT NOT NULL,
+  target_type TEXT, target_id TEXT,
+  details TEXT,
+  at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS audit_at ON audit_log(at);
+CREATE TABLE IF NOT EXISTS conversations (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  platform_conversation_id TEXT NOT NULL,
+  participant_id TEXT, participant_username TEXT, participant_name TEXT,
+  last_message_at TEXT, last_message_text TEXT, last_direction TEXT,
+  last_inbound_at TEXT,
+  status TEXT NOT NULL DEFAULT 'open',          -- open | done
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(account_id, platform_conversation_id)
+);
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  platform_message_id TEXT UNIQUE,
+  direction TEXT NOT NULL,                      -- in | out
+  text TEXT, attachments TEXT,
+  sent_at TEXT NOT NULL,
+  sent_by TEXT REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS messages_conv ON messages(conversation_id, sent_at);
+
 `);
+
+// migrations
+db.exec("UPDATE users SET role='owner' WHERE role='admin'; UPDATE users SET role='rep' WHERE role='member';");
 
 export const now = () => new Date().toISOString();
 export const id = (prefix) => `${prefix}_${crypto.randomBytes(9).toString('base64url')}`;
