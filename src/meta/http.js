@@ -6,7 +6,7 @@ export class PlatformError extends Error {
   }
 }
 
-// Map Meta error payloads into stable Siar error codes.
+// Map Meta error payloads into stable LRMsmm error codes.
 export function mapMetaError(status, body) {
   const e = body?.error || {};
   const code = Number(e.code), sub = Number(e.error_subcode);

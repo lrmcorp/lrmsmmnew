@@ -1,7 +1,7 @@
 {
-  "name": "siar",
+  "name": "lrmsmm",
   "version": "1.0.0",
-  "description": "Siar — internal social publishing (Instagram, Threads) via dashboard, REST API and MCP",
+  "description": "LRMsmm — internal social publishing (Instagram, Threads) via dashboard, REST API and MCP",
   "main": "src/server.js",
   "scripts": {
     "start": "node --no-warnings src/server.js",

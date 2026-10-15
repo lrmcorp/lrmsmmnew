@@ -78,11 +78,11 @@ oauth.get('/oauth/authorize', (req, res, next) => {
     const hidden = ['client_id', 'redirect_uri', 'state', 'code_challenge', 'code_challenge_method', 'resource']
       .map((k) => `<input type="hidden" name="${k}" value="${esc(req.query[k])}">`).join('');
     res.type('html').send(`<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Izinkan akses · Siar</title><link rel="stylesheet" href="/app.css"></head>
+<title>Izinkan akses · LRMsmm</title><link rel="stylesheet" href="/app.css"></head>
 <body class="center-page"><form class="card consent" method="post" action="/oauth/authorize">
-<div class="brand">siar</div>
-<h1>${esc(client.name)} ingin mengakses Siar</h1>
-<p class="muted">Masuk sebagai <b>${esc(user.email)}</b>. Aplikasi ini akan bisa memakai akun Instagram & Threads yang terhubung di Siar.</p>
+<div class="brand">LRMsmm</div>
+<h1>${esc(client.name)} ingin mengakses LRMsmm</h1>
+<p class="muted">Masuk sebagai <b>${esc(user.email)}</b>. Aplikasi ini akan bisa memakai akun Instagram & Threads yang terhubung di LRMsmm.</p>
 ${hidden}<input type="hidden" name="csrf" value="${csrf}">
 <label class="opt"><input type="radio" name="scope" value="read" ${wantWrite ? '' : 'checked'}><span><b>Baca saja</b><br><small>Lihat akun, post, komentar, statistik</small></span></label>
 <label class="opt"><input type="radio" name="scope" value="read write" ${wantWrite ? 'checked' : ''}><span><b>Baca dan tulis</b><br><small>Juga membuat/menjadwalkan post dan membalas komentar</small></span></label>
@@ -113,8 +113,8 @@ oauth.post('/oauth/authorize', express.urlencoded({ extended: false }), (req, re
 });
 
 function issueTokens(clientId, userId, scope) {
-  const access = `sra_${randomToken(32)}`;
-  const refresh = `srr_${randomToken(32)}`;
+  const access = `lrma_${randomToken(32)}`;
+  const refresh = `lrmr_${randomToken(32)}`;
   run(`INSERT INTO oauth_tokens(id,client_id,user_id,scope,access_hash,refresh_hash,access_expires_at,refresh_expires_at) VALUES(?,?,?,?,?,?,?,?)`,
     id('tok'), clientId, userId, scope, sha256(access), sha256(refresh),
     new Date(Date.now() + ACCESS_TTL * 1000).toISOString(), new Date(Date.now() + REFRESH_TTL * 1000).toISOString());

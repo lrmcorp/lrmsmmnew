@@ -24,10 +24,10 @@ export const config = {
   port: PORT,
   publicUrl: PUBLIC_URL,
   dataDir: path.resolve(env.DATA_DIR || './data'),
-  dbFile: path.resolve(env.DATA_DIR || './data', env.DB_FILE || 'siar.db'),
+  dbFile: path.resolve(env.DATA_DIR || './data', env.DB_FILE || 'lrmsmm.db'),
   mediaDir: path.resolve(env.DATA_DIR || './data', 'media'),
   // 32-byte key for AES-256-GCM, hex encoded
-  encryptionKey: Buffer.from(env.ENCRYPTION_KEY || crypto.createHash('sha256').update('siar-dev-key').digest('hex'), 'hex'),
+  encryptionKey: Buffer.from(env.ENCRYPTION_KEY || crypto.createHash('sha256').update('lrmsmm-dev-key').digest('hex'), 'hex'),
   allowSignup: env.ALLOW_SIGNUP === '1',
   timezone: env.APP_TIMEZONE || 'Asia/Jakarta',
   mock: MOCK,

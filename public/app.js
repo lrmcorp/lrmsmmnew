@@ -1,4 +1,4 @@
-// Siar dashboard — vanilla JS SPA (no build step).
+// LRMsmm dashboard — vanilla JS SPA (no build step).
 const $app = document.getElementById('app');
 
 // ---------------- helpers ----------------
@@ -87,7 +87,7 @@ function shell(active, content) {
     state.mock ? h('div', { class: 'mock-banner' }, 'Mode simulasi: Instagram & Threads tiruan (META_MOCK=1). Tidak ada yang benar-benar terposting.') : null,
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
-        h('a', { class: 'brand', href: '#/' }, 'siar', h('span', { class: 'wave', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'))),
+        h('a', { class: 'brand', href: '#/' }, 'LRMsmm', h('span', { class: 'wave', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'))),
         h('nav', { class: 'nav' }, nav.map(([p, ic, label, count]) =>
           h('a', { href: `#${p}`, class: active === p ? 'on' : '' }, icon(ic), label, count ? h('span', { class: 'count' }, count) : null))),
         h('div', { class: 'foot' }, h('div', {}, state.user?.email), h('a', { href: '#/team' }, state.user?.role === 'admin' ? 'Tim & akun saya' : 'Akun saya'), ' · ',
@@ -111,7 +111,7 @@ function authPage(mode) {
       if (next) location.href = next; else go('/');
     } catch (err) { toast(err.message, true); }
   } },
-  h('div', { class: 'brand' }, 'siar', h('span', { class: 'wave' }, h('i'), h('i'), h('i'))),
+  h('div', { class: 'brand' }, 'LRMsmm', h('span', { class: 'wave' }, h('i'), h('i'), h('i'))),
   h('h1', {}, setup ? 'Buat akun admin' : 'Masuk'),
   h('p', { class: 'muted' }, setup ? 'Akun pertama otomatis jadi admin. Anggota tim lain ditambahkan dari menu Tim.' : 'Posting dan jadwalkan Instagram & Threads tim.'),
   setup ? h('label', { class: 'field' }, h('span', {}, 'Nama'), h('input', { name: 'name', autocomplete: 'name' })) : null,
@@ -404,7 +404,7 @@ async function pagePost(id) {
               t.error_code === 'account_expired' ? h('a', { class: 'btn sm', style: { marginTop: '6px' }, href: `/connect/${t.platform}` }, 'Sambungkan ulang') : null) : null,
             t.content != null ? h('div', { class: 'small muted', style: { width: '100%', whiteSpace: 'pre-wrap' } }, `Teks khusus: ${t.content || '(kosong)'}`) : null)))),
       p.status !== 'scheduled' && !['publishing', 'cancelled'].includes(p.status) ? h('div', { class: 'row', style: { marginTop: '16px' } },
-        h('button', { class: 'btn ghost danger sm', onclick: async () => { if (!confirm('Hapus dari riwayat Siar? Post di Instagram/Threads tidak ikut terhapus.')) return; await api('POST', `/v1/posts/${p.id}/remove`); toast('Dihapus dari riwayat'); go('/calendar'); } }, 'Hapus dari riwayat')) : null);
+        h('button', { class: 'btn ghost danger sm', onclick: async () => { if (!confirm('Hapus dari riwayat LRMsmm? Post di Instagram/Threads tidak ikut terhapus.')) return; await api('POST', `/v1/posts/${p.id}/remove`); toast('Dihapus dari riwayat'); go('/calendar'); } }, 'Hapus dari riwayat')) : null);
   };
   async function act(kind, msg) {
     try {
@@ -506,7 +506,7 @@ async function pageAccounts() {
   if (q.get('connected') || q.get('error')) history.replaceState(null, '', '#/accounts');
   await loadAccounts();
   return shell('/accounts', h('div', {},
-    pagehead('Akun', 'Login lewat halaman resmi Meta. Siar tidak pernah tahu password akunmu; token disimpan terenkripsi.',
+    pagehead('Akun', 'Login lewat halaman resmi Meta. LRMsmm tidak pernah tahu password akunmu; token disimpan terenkripsi.',
       h('a', { class: 'btn', href: '/connect/instagram' }, icon('instagram'), 'Sambungkan Instagram'),
       h('a', { class: 'btn', href: '/connect/threads' }, icon('threads'), 'Sambungkan Threads')),
     h('div', { class: 'list' }, state.accounts.length ? state.accounts.map((a) => h('div', { class: 'item' },
@@ -563,14 +563,14 @@ async function pageDeveloper() {
   const nameIn = h('input', { placeholder: 'Nama key, mis. n8n atau Claude Code', style: { maxWidth: '320px' } });
   const scopeIn = h('select', { style: { width: 'auto' } }, h('option', { value: 'read' }, 'Baca saja'), h('option', { value: 'write' }, 'Baca dan tulis'));
   return shell('/developer', h('div', {},
-    pagehead('API & AI', 'Sambungkan Claude, ChatGPT, Claude Code, Cursor, atau n8n ke Siar.'),
+    pagehead('API & AI', 'Sambungkan Claude, ChatGPT, Claude Code, Cursor, atau n8n ke LRMsmm.'),
     h('div', { class: 'panel' }, h('h2', {}, 'Pasang di Claude atau ChatGPT'),
-      h('p', { class: 'muted' }, 'Di Claude: Settings → Connectors → Add custom connector, tempel URL ini. Login Siar lalu pilih akses baca atau baca-tulis.'),
+      h('p', { class: 'muted' }, 'Di Claude: Settings → Connectors → Add custom connector, tempel URL ini. Login LRMsmm lalu pilih akses baca atau baca-tulis.'),
       h('div', { class: 'secret', style: { background: 'var(--accent-soft)' } }, h('code', {}, mcpUrl), h('button', { class: 'btn sm', onclick: () => copy(mcpUrl) }, 'Salin')),
       h('p', { class: 'muted small' }, 'Claude Code (pakai API key):'),
-      h('div', { class: 'secret', style: { background: 'var(--line-2)' } }, h('code', {}, `claude mcp add --transport http siar ${mcpUrl} --header "Authorization: Bearer sr_live_..."`))),
+      h('div', { class: 'secret', style: { background: 'var(--line-2)' } }, h('code', {}, `claude mcp add --transport http lrmsmm ${mcpUrl} --header "Authorization: Bearer lrm_live_..."`))),
     h('div', { class: 'panel' }, h('h2', {}, 'API key'),
-      h('p', { class: 'muted' }, 'Untuk REST API (', h('code', {}, `${location.origin}/v1`), ') dan MCP dari Claude Code, Cursor, n8n. Key hanya ditampilkan sekali; Siar cuma menyimpan hash-nya.'),
+      h('p', { class: 'muted' }, 'Untuk REST API (', h('code', {}, `${location.origin}/v1`), ') dan MCP dari Claude Code, Cursor, n8n. Key hanya ditampilkan sekali; LRMsmm cuma menyimpan hash-nya.'),
       h('div', { class: 'row', style: { marginBottom: '12px' } }, nameIn, scopeIn, h('button', { class: 'btn primary', onclick: async () => {
         try {
           const k = await api('POST', '/v1/api-keys', { name: nameIn.value || 'API key', scope: scopeIn.value });

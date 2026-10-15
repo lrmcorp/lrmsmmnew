@@ -5,7 +5,7 @@ import { config } from '../config.js';
 
 let transport = null;
 if (config.smtp) transport = nodemailer.createTransport(config.smtp);
-const FROM = process.env.MAIL_FROM || 'Siar <no-reply@localhost>';
+const FROM = process.env.MAIL_FROM || 'LRMsmm <no-reply@localhost>';
 
 function recipients(account) {
   const ids = new Set(all("SELECT email FROM users WHERE role='admin'").map((u) => u.email));

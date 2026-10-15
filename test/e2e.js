@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
 const PORT = 4100 + Math.floor(Math.random() * 500);
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'siar-test-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lrmsmm-test-'));
 Object.assign(process.env, { META_MOCK: '1', PORT: String(PORT), PUBLIC_URL: `http://localhost:${PORT}`, DATA_DIR: tmp, DISABLE_WORKER: '1' });
 
 const { app } = await import('../src/server.js');
@@ -74,7 +74,7 @@ await step('API keys: create write + read, hashed', async () => {
   const w = await http('POST', '/v1/api-keys', { body: { name: 'n8n', scope: 'write' } });
   const r = await http('POST', '/v1/api-keys', { body: { name: 'viewer', scope: 'read' } });
   writeKey = w.json.key; readKey = r.json.key;
-  assert.match(writeKey, /^sr_live_/);
+  assert.match(writeKey, /^lrm_live_/);
   const me = await http('GET', '/v1/me', { auth: readKey });
   assert.equal(me.json.access.scope, 'read');
 });
@@ -260,7 +260,7 @@ async function oauthFlow(scope) {
   const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
   const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: 'https://claude.ai/api/mcp/auth_callback', code_challenge: challenge, code_challenge_method: 'S256', state: 'xyz', scope: 'read write' });
   const page = await http('GET', `/oauth/authorize?${q}`);
-  assert.equal(page.status, 200); assert.match(page.json, /ingin mengakses Siar/);
+  assert.equal(page.status, 200); assert.match(page.json, /ingin mengakses LRMsmm/);
   const csrf = page.json.match(/name="csrf" value="([^"]+)"/)[1];
   const form = new URLSearchParams({ client_id: clientId, redirect_uri: 'https://claude.ai/api/mcp/auth_callback', state: 'xyz', code_challenge: challenge, code_challenge_method: 'S256', csrf, scope, decision: 'allow' });
   const res = await fetch(`${B}/oauth/authorize`, { method: 'POST', headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, body: form, redirect: 'manual' });

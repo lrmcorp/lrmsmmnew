@@ -2,7 +2,7 @@ import { one, run, all, id, sha256, now } from './db.js';
 import { err, randomToken, hashPassword, verifyPassword } from './util.js';
 import { config } from './config.js';
 
-const SESSION_COOKIE = 'siar_sid';
+const SESSION_COOKIE = 'lrmsmm_sid';
 const SESSION_DAYS = 30;
 
 // ---------- users ----------
@@ -52,7 +52,7 @@ export function createApiKey(userId, name, scope) {
   if (!['read', 'write'].includes(scope)) throw err(400, 'validation_failed', 'scope harus read atau write');
   const active = one('SELECT COUNT(*) n FROM api_keys WHERE user_id=? AND revoked_at IS NULL', userId).n;
   if (active >= 25) throw err(400, 'too_many_keys', 'Maksimal 25 API key aktif');
-  const key = `sr_live_${randomToken(24)}`;
+  const key = `lrm_live_${randomToken(24)}`;
   const kid = id('key');
   run('INSERT INTO api_keys(id,user_id,name,prefix,key_hash,scope) VALUES(?,?,?,?,?,?)',
     kid, userId, String(name || 'API key').slice(0, 80), key.slice(0, 12), sha256(key), scope);
@@ -72,7 +72,7 @@ export function revokeAllMachineAccess(userId) {
 export function resolveBearer(token) {
   if (!token) return null;
   const h = sha256(token);
-  if (token.startsWith('sr_live_')) {
+  if (token.startsWith('lrm_live_')) {
     const k = one('SELECT * FROM api_keys WHERE key_hash=? AND revoked_at IS NULL', h);
     if (!k) throw err(401, 'invalid_api_key', 'API key tidak valid atau sudah dicabut');
     run('UPDATE api_keys SET last_used_at=? WHERE id=?', now(), k.id);

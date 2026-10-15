@@ -1,4 +1,4 @@
-# Siar
+# LRMsmm
 
 Aplikasi internal HR Group untuk **membuat, menjadwalkan, dan membalas komentar Instagram & Threads** dari satu tempat — lewat dashboard, REST API, atau langsung dari Claude/ChatGPT lewat MCP. Fungsinya setara Tebar, tapi di-host sendiri dan memakai Meta App milik sendiri.
 
@@ -28,7 +28,7 @@ Di mode mock, layar login Instagram/Threads adalah tiruan dan tidak ada yang ben
 ## Pasang di production
 
 ### 1. Server
-Butuh VPS dengan domain HTTPS publik, misalnya `siar.playgo.id`. **Wajib publik**: Meta mengunduh foto/video dari `PUBLIC_URL/m/...` saat posting.
+Butuh VPS dengan domain HTTPS publik, misalnya `lrmsmm.playgo.id`. **Wajib publik**: Meta mengunduh foto/video dari `PUBLIC_URL/m/...` saat posting.
 
 ```bash
 cp .env.example .env      # isi PUBLIC_URL, ENCRYPTION_KEY (openssl rand -hex 32), kredensial Meta
@@ -38,7 +38,7 @@ docker compose up -d --build
 Tanpa Docker: `npm ci --omit=dev && npm start` (pasang `ffmpeg` agar durasi video terbaca dan video otomatis di-"fast start"). Pasang reverse proxy HTTPS, contoh Caddy:
 
 ```
-siar.playgo.id {
+lrmsmm.playgo.id {
   reverse_proxy 127.0.0.1:3000
   request_body { max_size 110MB }
 }
@@ -52,14 +52,14 @@ Buka developers.facebook.com → **Create App**.
 **Instagram** (akun harus Business atau Creator)
 1. Tambah use case **"Manage messaging & content on Instagram"** → pilih *API setup with Instagram login*.
 2. Salin **Instagram App ID** dan **Instagram App Secret** (beda dari Facebook App ID) ke `IG_APP_ID` / `IG_APP_SECRET`.
-3. Di *Set up Instagram business login* → OAuth redirect URI: `https://siar.playgo.id/connect/instagram/callback`
-4. Deauthorize callback: `https://siar.playgo.id/meta/instagram/uninstall` · Data deletion: `https://siar.playgo.id/meta/instagram/delete`
+3. Di *Set up Instagram business login* → OAuth redirect URI: `https://lrmsmm.playgo.id/connect/instagram/callback`
+4. Deauthorize callback: `https://lrmsmm.playgo.id/meta/instagram/uninstall` · Data deletion: `https://lrmsmm.playgo.id/meta/instagram/delete`
 5. Izin: `instagram_business_basic`, `instagram_business_content_publish`, `instagram_business_manage_comments`, `instagram_business_manage_insights`.
 
 **Threads**
 1. Tambah use case **"Access the Threads API"** (bisa app yang sama atau terpisah).
 2. Salin Threads App ID/Secret ke `THREADS_APP_ID` / `THREADS_APP_SECRET`.
-3. Redirect callback: `https://siar.playgo.id/connect/threads/callback` · Uninstall: `/meta/threads/uninstall` · Delete: `/meta/threads/delete`
+3. Redirect callback: `https://lrmsmm.playgo.id/connect/threads/callback` · Uninstall: `/meta/threads/uninstall` · Delete: `/meta/threads/delete`
 4. Izin: `threads_basic`, `threads_content_publish`, `threads_read_replies`, `threads_manage_replies`, `threads_manage_insights`.
 
 **Tanpa App Review (cocok untuk internal):** biarkan app di **Development mode**, lalu daftarkan tiap akun brand sebagai tester:
@@ -69,13 +69,13 @@ Buka developers.facebook.com → **Create App**.
 Akun dengan role di app bisa memakai semua izin tanpa App Review. App Review hanya perlu kalau nanti mau dipakai akun di luar tim.
 
 ### 3. Akun admin & tim
-Buka `https://siar.playgo.id` → user pertama otomatis jadi admin. Anggota lain ditambah dari menu **Tim** (pendaftaran publik tertutup kecuali `ALLOW_SIGNUP=1`). Semua anggota berbagi akun sosial, kalender, dan inbox.
+Buka `https://lrmsmm.playgo.id` → user pertama otomatis jadi admin. Anggota lain ditambah dari menu **Tim** (pendaftaran publik tertutup kecuali `ALLOW_SIGNUP=1`). Semua anggota berbagi akun sosial, kalender, dan inbox.
 
 ### 4. Sambungkan ke AI
-- **Claude / ChatGPT**: Settings → Connectors → Add custom connector → `https://siar.playgo.id/mcp`. Login Siar, pilih *baca saja* atau *baca dan tulis*.
+- **Claude / ChatGPT**: Settings → Connectors → Add custom connector → `https://lrmsmm.playgo.id/mcp`. Login LRMsmm, pilih *baca saja* atau *baca dan tulis*.
 - **Claude Code**: buat API key di menu *API & AI*, lalu
-  `claude mcp add --transport http siar https://siar.playgo.id/mcp --header "Authorization: Bearer sr_live_..."`
-- **n8n / Cursor / skrip sendiri**: REST API dengan header `Authorization: Bearer sr_live_...`.
+  `claude mcp add --transport http lrmsmm https://lrmsmm.playgo.id/mcp --header "Authorization: Bearer lrm_live_..."`
+- **n8n / Cursor / skrip sendiri**: REST API dengan header `Authorization: Bearer lrm_live_...`.
 
 Contoh prompt: *"Jadwalkan foto ini di IG dan Threads Daily Dose Pilates besok jam 7 pagi, caption promo kelas Reformer."* · *"Balas komentar yang belum dibalas di Sunrise Padel, tampilkan drafnya dulu."*
 
@@ -102,8 +102,8 @@ Base URL `PUBLIC_URL/v1`. JSON `snake_case`, waktu ISO 8601 (kirim dengan zona w
 
 Contoh:
 ```bash
-curl https://siar.playgo.id/v1/posts \
-  -H "Authorization: Bearer sr_live_xxx" -H "Idempotency-Key: $(uuidgen)" -H "Content-Type: application/json" \
+curl https://lrmsmm.playgo.id/v1/posts \
+  -H "Authorization: Bearer lrm_live_xxx" -H "Idempotency-Key: $(uuidgen)" -H "Content-Type: application/json" \
   -d '{"content":"Promo akhir pekan","media_ids":["m_..."],
        "targets":[{"account_id":"ig_..."},{"account_id":"th_...","options":{"topic_tag":"Pilates"}}],
        "scheduled_at":"2026-10-17T09:00:00+07:00"}'
@@ -125,4 +125,4 @@ Error: `{"error":{"code","message","details"}}` — `code` stabil (`caption_too_
 - Komentar disinkron tiap 10 menit (polling), belum webhook real-time.
 - Statistik diperbarui tiap 6 jam; Meta sendiri bisa telat sampai 48 jam.
 - Belum ada: LinkedIn, Facebook Page, TikTok, kartu upload di dalam chat AI (pakai `get_upload_link` → upload di dashboard → `list_media`).
-- Post yang sudah tayang tidak diedit/dihapus dari Siar — lakukan di aplikasinya.
+- Post yang sudah tayang tidak diedit/dihapus dari LRMsmm — lakukan di aplikasinya.

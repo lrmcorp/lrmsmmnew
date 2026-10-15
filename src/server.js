@@ -116,7 +116,7 @@ app.use((e, req, res, _next) => {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   app.listen(config.port, () => {
-    console.log(`Siar running on ${config.publicUrl} (port ${config.port})`);
+    console.log(`LRMsmm running on ${config.publicUrl} (port ${config.port})`);
     console.log(`  MCP endpoint: ${config.publicUrl}/mcp`);
     startWorker();
   });
