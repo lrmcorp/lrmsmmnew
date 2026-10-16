@@ -124,8 +124,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   app.listen(config.port, () => {
     console.log(`LRMsmm running on ${config.publicUrl} (port ${config.port})`);
     console.log(`  MCP endpoint: ${config.publicUrl}/mcp`);
-    if (!config.mock && (!process.env.IG_APP_ID || !process.env.THREADS_APP_ID)) {
-      console.warn('  ⚠ IG_APP_ID / THREADS_APP_ID belum diisi — dashboard jalan, tapi menyambungkan akun Instagram/Threads akan gagal sampai kredensial Meta diisi.');
+    if (!config.mock) {
+      const e = process.env;
+      console.log(`  Instagram: ${e.IG_APP_ID && e.IG_APP_SECRET ? 'terkonfigurasi' : '⚠ IG_APP_ID / IG_APP_SECRET belum diisi'}`);
+      console.log(`  Threads:   ${e.THREADS_APP_ID && e.THREADS_APP_SECRET ? 'terkonfigurasi' : 'belum diisi (opsional)'}`);
     }
     startWorker();
   });
