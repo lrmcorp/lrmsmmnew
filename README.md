@@ -16,7 +16,16 @@ Aplikasi internal HR Group untuk **membuat, menjadwalkan, dan membalas komentar 
 
 Stack: Node.js 22, Express 5, SQLite bawaan Node (`node:sqlite`), sharp (gambar), ffmpeg (opsional, video). Tidak ada Redis/Postgres — satu proses, satu file database.
 
-## Coba lokal tanpa Meta (5 menit)
+## Jalankan di Mac (localhost)
+1. Pastikan Node.js 22.5+ terpasang (`node -v`; kalau belum: `brew install node` atau installer LTS di nodejs.org).
+2. Klik dua kali **Mulai LRMsmm.command** (kalau macOS menolak: klik kanan → Open), atau di Terminal: `bash start-local.sh`.
+3. Browser terbuka ke `http://localhost:3000`. Daftar → akun pertama jadi Owner.
+4. Menu **Akun** → *Sambungkan Instagram/Threads* → layar login tiruan → ketik username apa saja → Izinkan.
+5. Coba tulis post, jadwalkan, lihat kalender; DM & komentar contoh muncul otomatis setelah posting (atau klik *Muat terbaru*).
+
+Mode lokal memakai Instagram/Threads **tiruan** — tidak ada yang benar-benar terposting. Posting sungguhan butuh server dengan HTTPS publik (lihat *Pasang di production*). Berhenti: Ctrl+C. Mulai ulang dari nol: `bash start-local.sh --reset`.
+
+## Coba lokal tanpa Meta (developer)
 
 ```bash
 npm install
