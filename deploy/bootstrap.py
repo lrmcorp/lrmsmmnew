@@ -107,6 +107,9 @@ def main():
     sshdir = HOME / '.ssh'
     sshdir.mkdir(mode=0o750, exist_ok=True)
     os.chown(sshdir, 0, account.pw_gid)
+    # mkdir's requested mode is reduced by our private umask (077). Restore
+    # group traversal explicitly so sshd can read keys as the deployment user.
+    sshdir.chmod(0o750)
     key = ROOT / 'access' / 'actions_ed25519'
     if not key.exists():
         run('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'lrmsmmnew-actions', '-f', str(key))
