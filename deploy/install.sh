@@ -35,7 +35,7 @@ if command -v node >/dev/null; then
 fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq curl ca-certificates ffmpeg tar >/dev/null
+apt-get install -y -qq curl ca-certificates ffmpeg tar openssl sqlite3 iproute2 >/dev/null
 if (( need_node )); then
   say "Pasang Node.js 22"
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
