@@ -31,6 +31,14 @@ Di mode mock, layar login Instagram/Threads adalah tiruan dan tidak ada yang ben
 ### 1. Server
 Butuh VPS dengan domain HTTPS publik, misalnya `lrmsmm.playgo.id`. **Wajib publik**: Meta mengunduh foto/video dari `PUBLIC_URL/m/...` saat posting.
 
+**Cara tercepat (Ubuntu/Debian):** dari Mac, di folder berisi `lrmsmm.tar.gz`, `install.sh`, `deploy-from-mac.sh`:
+```bash
+bash deploy-from-mac.sh root@IP_VPS          # install pertama & setiap update
+```
+Script memasang Node 22 + ffmpeg, service systemd `lrmsmm` (port 3077), `/etc/lrmsmm.env` berisi kunci baru (tidak pernah ditimpa), data di `/var/lib/lrmsmm` (di-backup tiap update), Nginx/Caddy + HTTPS, dan rollback otomatis kalau versi baru gagal start atau konfigurasi Nginx ditolak.
+
+Manual:
+
 ```bash
 cp .env.example .env      # isi PUBLIC_URL, ENCRYPTION_KEY (openssl rand -hex 32), kredensial Meta
 docker compose up -d --build
@@ -46,6 +54,16 @@ lrmsmm.playgo.id {
 ```
 
 Jalankan **satu instance saja** (worker dan SQLite ada di proses yang sama). Backup = salin folder `data/` (database + media). Jangan pernah mengganti `ENCRYPTION_KEY` setelah akun tersambung.
+
+### 1b. Kalau domain di Cloudflare
+`deploy/install.sh` mendeteksi Cloudflare otomatis (awan oranye) dan:
+- memasang Nginx dengan HTTPS di origin (Let's Encrypt via webroot; kalau gagal, sertifikat self-signed sementara),
+- mengembalikan IP asli pengunjung dari header `CF-Connecting-IP` (hanya dipercaya dari range IP Cloudflare).
+
+Di dashboard Cloudflare:
+1. **SSL/TLS** → *Full (strict)* kalau Let's Encrypt sukses, kalau tidak *Full*. Jangan *Flexible* (bisa redirect loop).
+2. **Security → WAF → Custom rule → Skip** untuk path `/m/`, `/webhooks/`, `/mcp`, `/oauth/`, `/.well-known/`, `/v1/` di host LRMsmm. Tanpa ini Bot Fight Mode/challenge bisa memblokir Meta (mengambil foto, mengirim webhook) dan Claude (MCP).
+3. Batas upload Cloudflare 100 MB per request — dashboard otomatis memotong video besar jadi bagian 8 MB.
 
 ### 2. Meta App (sekali saja)
 Buka developers.facebook.com → **Create App**.
