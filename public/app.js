@@ -782,7 +782,7 @@ async function pageMessages(convId) {
     try {
       const { data } = await api('GET', '/v1/messages/sync-status');
       syncPanel.replaceChildren(...data.filter(a => !acc || a.account_id === acc).map(a => h('div', { class: a.status === 'error' ? 'err-box' : 'faint small', style: { marginBottom: '6px' } },
-        h('b', {}, `@${a.username}: `), a.status === 'error' ? a.message : a.last_success ? `Sinkronisasi terakhir berhasil: ${fmtDT(a.last_success)}` : 'Belum disinkronkan. Klik Muat terbaru.',
+        h('b', {}, `@${a.username}: `), ['error', 'empty'].includes(a.status) ? a.message : a.last_success ? `Sinkronisasi terakhir: ${fmtDT(a.last_success)} · ${a.conversations_found ?? '?'} percakapan · ${a.messages_stored ?? '?'} pesan tersimpan` : 'Belum disinkronkan. Klik Muat terbaru.',
         a.status === 'error' && ['permission_missing', 'account_expired'].includes(a.code) ? h('a', { class: 'btn sm', href: '/connect/instagram' }, 'Sambungkan ulang Instagram') : null)));
     } catch (error) { syncPanel.replaceChildren(h('div', { class: 'err-box' }, errMsg(error))); }
   }
@@ -844,7 +844,8 @@ async function pageMessages(convId) {
         const button = e.currentTarget; button.disabled = true;
         try {
           const r = await api('POST', '/v1/messages/sync', acc ? { account_id: acc } : {});
-          toast(r.errors?.length ? `${r.errors.length} akun gagal disinkronkan. Lihat penjelasan di bawah.` : r.new_messages ? `${r.new_messages} pesan baru` : 'Sinkronisasi berhasil, tidak ada pesan baru.', !!r.errors?.length);
+          const empty = r.accounts?.filter(a => a.status === 'empty').length || 0;
+          toast(r.errors?.length ? `${r.errors.length} akun gagal disinkronkan. Lihat penjelasan di bawah.` : empty ? `Meta belum mengembalikan pesan untuk ${empty} akun. Lihat status di bawah.` : r.new_messages ? `${r.new_messages} pesan baru` : 'Pemeriksaan selesai, tidak ada pesan baru.', !!r.errors?.length);
           await Promise.all([drawList(), drawThread(), drawSyncStatus()]); live.refresh();
         } catch (error) { toast(errMsg(error), true); }
         finally { button.disabled = false; }

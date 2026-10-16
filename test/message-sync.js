@@ -21,12 +21,15 @@ const originalFetch = globalThis.fetch;
 after(() => { globalThis.fetch = originalFetch; db.close(); fs.rmSync(directory, { recursive: true, force: true }); });
 
 let failure = false;
+let responseMode = 'normal';
 const requested = [];
 globalThis.fetch = async url => {
   const pathname = new URL(url).pathname;
   const account = ['ig-a', 'ig-b', 'ig-c'].find(id => pathname.includes(id));
   assert.ok(account, 'Only fixture account requests are expected');
   requested.push(account);
+  if (responseMode === 'empty') return new Response(JSON.stringify({ data: [] }));
+  if (responseMode === 'invalid-list' || (responseMode === 'invalid-messages' && !pathname.endsWith('/conversations'))) return new Response(JSON.stringify({ unexpected: true }));
   if (failure && account === 'ig-b') return new Response(JSON.stringify({ error: { code: 10, message: 'Private upstream details: private-fixture-token' } }), { status: 400 });
   const body = pathname.endsWith('/conversations')
     ? { data: [{ id: 'conv-' + account, participants: { data: [{ id: account, username: account }, { id: 'peer-' + account, username: 'customer' }] } }] }
@@ -73,4 +76,27 @@ test('permission failures are visible per account without leaking tokens or hidi
   assert.deepEqual(recovered.errors, []);
   assert.equal(messageSyncStatus(second)[0].status, 'ok');
   assert.equal(messageSyncStatus(second)[0].code, undefined);
+});
+
+
+test('empty Meta inboxes report zero conversations without claiming messages were synced', async () => {
+  responseMode = 'empty';
+  const result = await syncUserMessages(second);
+  const status = result.accounts[0];
+  assert.equal(result.new_messages, 0);
+  assert.equal(status.status, 'empty');
+  assert.equal(status.conversations_found, 0);
+  assert.ok(status.messages_stored > 0, 'Existing history is preserved');
+  assert.match(status.message, /Connected tools/);
+});
+
+test('invalid successful HTTP responses cannot silently become empty inboxes', async () => {
+  for (const mode of ['invalid-list', 'invalid-messages']) {
+    responseMode = mode;
+    const result = await syncUserMessages(second);
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.accounts[0].status, 'error');
+    assert.equal(result.synced_accounts, 0);
+  }
+  responseMode = 'normal';
 });

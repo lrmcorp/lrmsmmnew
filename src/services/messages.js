@@ -49,6 +49,7 @@ function refreshConversation(convId) {
 }
 
 function syncErrorMessage(code) {
+  if (code === 'invalid_response') return 'Respons DM dari Instagram tidak memiliki daftar percakapan/pesan yang valid. Sinkronisasi belum berhasil.';
   if (code === 'permission_missing') return 'Izin DM belum diberikan. Sambungkan ulang Instagram dan izinkan instagram_business_manage_messages. Di Instagram aktifkan Messages → Connected tools → Allow access to messages.';
   if (code === 'account_expired') return 'Token Instagram kedaluwarsa. Sambungkan ulang akun ini.';
   if (code === 'rate_limited') return 'Batas permintaan Instagram tercapai. Tunggu lalu coba lagi.';
@@ -68,6 +69,7 @@ export async function syncAccountMessages(acc, { onlyConversationIds, throwOnErr
   if (!MESSAGING_PLATFORMS.includes(acc.platform) || acc.status !== 'active') return 0;
   const ig = clients.instagram;
   let n = 0;
+  let fetched = 0;
   const previous = parseJSON(kvGet(`messages-sync:${acc.id}`), {});
   const attempted = now();
   try {
@@ -77,12 +79,20 @@ export async function syncAccountMessages(acc, { onlyConversationIds, throwOnErr
       if (onlyConversationIds && !onlyConversationIds.includes(c.id)) continue;
       const row = upsertConversation(acc, c);
       if (!row._new && row.last_message_at && c.updated_time && new Date(c.updated_time) <= new Date(row.last_message_at)) continue;
-      n += storeMessages(acc, row, await ig.conversationMessages(c.id, token, 25));
+      const messages = await ig.conversationMessages(c.id, token, 25);
+      fetched += messages.length;
+      n += storeMessages(acc, row, messages);
     }
-    kvSet(`messages-sync:${acc.id}`, JSON.stringify({ status: 'ok', last_attempt: attempted, last_success: now(), new_messages: n }));
+    const stored = one('SELECT COUNT(*) n FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.account_id=?', acc.id).n;
+    const empty = !convs.length || (!fetched && !stored);
+    kvSet(`messages-sync:${acc.id}`, JSON.stringify({
+      status: empty ? 'empty' : 'ok', last_attempt: attempted, last_success: now(), new_messages: n,
+      conversations_found: convs.length, messages_fetched: fetched, messages_stored: stored,
+      ...(empty ? { message: `Meta mengembalikan ${convs.length} percakapan; ${stored} pesan tersimpan. Jika ada DM di Instagram, periksa Connected tools → Allow access to messages, izin aplikasi, dan coba pesan masuk baru.` } : {}),
+    }));
   } catch (e) {
     if (e.code === 'account_expired') markExpired(acc.id, syncErrorMessage('account_expired'));
-    const code = ['permission_missing', 'account_expired', 'rate_limited'].includes(e.code) ? e.code : 'platform_error';
+    const code = ['permission_missing', 'account_expired', 'rate_limited', 'invalid_response'].includes(e.code) ? e.code : 'platform_error';
     const metaCode = Number(e.raw?.code);
     const message = syncErrorMessage(code) + (Number.isInteger(metaCode) && metaCode > 0 ? ` (Meta code ${metaCode})` : '');
     kvSet(`messages-sync:${acc.id}`, JSON.stringify({ status: 'error', code, message, last_attempt: attempted, last_success: previous.last_success || null, new_messages: n }));
