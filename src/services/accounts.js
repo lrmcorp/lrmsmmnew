@@ -58,6 +58,11 @@ export async function finishConnect(platform, code, st) {
   const c = clients[platform];
   const { accessToken, expiresIn } = await c.exchangeCode(String(code).replace(/#_$/, ''), redirectUri(platform));
   const profile = await c.me(accessToken);
+  // Meta may omit optional fields (for example a professional account's name).
+  // node:sqlite accepts null, but cannot bind JavaScript undefined values.
+  profile.name ??= null;
+  profile.avatarUrl ??= null;
+  profile.followers ??= null;
   const exp = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
   const existing = one('SELECT * FROM accounts WHERE platform=? AND platform_user_id=?', platform, profile.platformUserId);
   if (existing) {
