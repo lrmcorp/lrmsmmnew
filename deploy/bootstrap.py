@@ -94,6 +94,7 @@ def main():
     Path('/usr/local/sbin/lrmsmmnew-owner').chmod(0o700)
     installed = Path('/usr/local/lib/lrmsmmnew')
     installed.mkdir(mode=0o755, exist_ok=True)
+    installed.chmod(0o755)
     entry = installed / 'ssh-entry.sh'
     entry.write_text('#!/bin/sh\nexec timeout 1200 sudo -n /usr/local/sbin/lrmsmmnew-receiver "$SSH_ORIGINAL_COMMAND"\n')
     entry.chmod(0o755)
