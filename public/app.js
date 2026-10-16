@@ -911,7 +911,7 @@ async function pageAccounts() {
     missing.length ? h('div', { class: 'banner', style: { marginBottom: '1.5rem' } }, h('div', { class: 'l' }, h('div', { class: 'num' }, '!'), h('div', {},
       h('h3', {}, `Integrasi ${missing.join(' & ')} belum dikonfigurasi`),
       h('p', {}, state.user?.role === 'owner'
-        ? 'Isi App ID & Secret dari Meta Developer di /etc/lrmsmm.env server, lalu restart layanan. Sampai itu diisi, tombol Sambungkan tidak bisa dipakai.'
+        ? 'Isi App ID & Secret dari Meta Developer di /opt/lrmsmmnew/.env di server, lalu restart aplikasi. Sampai itu diisi, tombol Sambungkan tidak bisa dipakai.'
         : 'Hubungi Owner untuk melengkapi kredensial Meta di server.')))) : null,
     pagehead('Akun', 'Login lewat halaman resmi Meta. LRMsmm tidak pernah tahu password akunmu; token disimpan terenkripsi.',
       h('a', { class: 'btn', href: '/connect/instagram' }, icon('instagram'), 'Sambungkan Instagram'),

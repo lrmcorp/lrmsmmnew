@@ -43,7 +43,7 @@ export function beginConnect(platform, userId, returnTo = '/#/accounts') {
   if (!clients[platform]) throw err(400, 'validation_failed', 'Platform tidak dikenal');
   if (!platformConfigured(platform)) {
     const k = platform === 'instagram' ? 'IG_APP_ID / IG_APP_SECRET' : 'THREADS_APP_ID / THREADS_APP_SECRET';
-    throw err(503, 'meta_not_configured', `Integrasi ${platform === 'instagram' ? 'Instagram' : 'Threads'} belum dikonfigurasi di server: isi ${k} di /etc/lrmsmm.env lalu restart (systemctl restart lrmsmm).`);
+    throw err(503, 'meta_not_configured', `Integrasi ${platform === 'instagram' ? 'Instagram' : 'Threads'} belum dikonfigurasi di server: isi ${k} di file .env server (/opt/lrmsmmnew/.env), lalu restart aplikasi.`);
   }
   const st = randomToken(18);
   kvSet(`connect:${st}`, JSON.stringify({ platform, userId, returnTo, exp: Date.now() + 15 * 60_000 }));
