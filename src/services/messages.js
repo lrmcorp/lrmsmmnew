@@ -1,5 +1,5 @@
 // Direct messages inbox (Instagram). Threads has no messaging API.
-import { one, all, run, id, now } from '../db.js';
+import { one, all, run, id, now, kvGet, kvSet } from '../db.js';
 import { err, parseJSON } from '../util.js';
 import { clients, tokenOf, markExpired, getAccount } from './accounts.js';
 import { assertAccount, scopeSql } from './scope.js';
@@ -48,12 +48,30 @@ function refreshConversation(convId) {
     last.sent_at, (last.text || (last.attachments ? '[lampiran]' : '')).slice(0, 300), last.direction, lastIn?.sent_at || null, now(), convId);
 }
 
-export async function syncAccountMessages(acc, { onlyConversationIds } = {}) {
+function syncErrorMessage(code) {
+  if (code === 'permission_missing') return 'Izin DM belum diberikan. Sambungkan ulang Instagram dan izinkan instagram_business_manage_messages. Di Instagram aktifkan Messages → Connected tools → Allow access to messages.';
+  if (code === 'account_expired') return 'Token Instagram kedaluwarsa. Sambungkan ulang akun ini.';
+  if (code === 'rate_limited') return 'Batas permintaan Instagram tercapai. Tunggu lalu coba lagi.';
+  return 'Instagram gagal menyinkronkan DM. Periksa izin pesan dan koneksi akun, lalu coba lagi.';
+}
+
+export function messageSyncStatus(user) {
+  const [where, params] = scopeSql(user, 'id');
+  return all(`SELECT id, username, status FROM accounts WHERE platform='instagram' AND status!='disconnected' AND ${where}`, ...params).map(a => ({
+    account_id: a.id, username: a.username,
+    ...parseJSON(kvGet(`messages-sync:${a.id}`), { status: 'never', last_attempt: null, last_success: null }),
+    ...(a.status !== 'active' ? { status: 'error', code: 'account_expired', message: syncErrorMessage('account_expired') } : {}),
+  }));
+}
+
+export async function syncAccountMessages(acc, { onlyConversationIds, throwOnError = false } = {}) {
   if (!MESSAGING_PLATFORMS.includes(acc.platform) || acc.status !== 'active') return 0;
-  const token = tokenOf(acc);
   const ig = clients.instagram;
   let n = 0;
+  const previous = parseJSON(kvGet(`messages-sync:${acc.id}`), {});
+  const attempted = now();
   try {
+    const token = tokenOf(acc);
     const convs = await ig.listConversations(acc.platform_user_id, token, 25);
     for (const c of convs) {
       if (onlyConversationIds && !onlyConversationIds.includes(c.id)) continue;
@@ -61,11 +79,38 @@ export async function syncAccountMessages(acc, { onlyConversationIds } = {}) {
       if (!row._new && row.last_message_at && c.updated_time && new Date(c.updated_time) <= new Date(row.last_message_at)) continue;
       n += storeMessages(acc, row, await ig.conversationMessages(c.id, token, 25));
     }
+    kvSet(`messages-sync:${acc.id}`, JSON.stringify({ status: 'ok', last_attempt: attempted, last_success: now(), new_messages: n }));
   } catch (e) {
-    if (e.code === 'account_expired') markExpired(acc.id, e.message);
-    else if (e.code !== 'permission_missing') console.warn(`[messages] @${acc.username}: ${e.message}`);
+    if (e.code === 'account_expired') markExpired(acc.id, syncErrorMessage('account_expired'));
+    const code = ['permission_missing', 'account_expired', 'rate_limited'].includes(e.code) ? e.code : 'platform_error';
+    const metaCode = Number(e.raw?.code);
+    const message = syncErrorMessage(code) + (Number.isInteger(metaCode) && metaCode > 0 ? ` (Meta code ${metaCode})` : '');
+    kvSet(`messages-sync:${acc.id}`, JSON.stringify({ status: 'error', code, message, last_attempt: attempted, last_success: previous.last_success || null, new_messages: n }));
+    console.warn(`[messages] @${acc.username}: ${code}`);
+    if (throwOnError) throw err(422, code, message, { account_id: acc.id, new_messages: n });
   }
   return n;
+}
+
+export async function syncUserMessages(user, accountId) {
+  if (accountId !== undefined && (typeof accountId !== 'string' || !accountId.trim())) throw err(400, 'validation_failed', 'account_id harus ID akun Instagram.');
+  if (accountId) assertAccount(user, accountId);
+  const [where, params] = scopeSql(user, 'id');
+  const rows = all(`SELECT * FROM accounts WHERE platform='instagram' AND status!='disconnected' AND ${where}${accountId ? ' AND id=?' : ''}`, ...params, ...(accountId ? [accountId] : []));
+  let n = 0, synced = 0;
+  const errors = [];
+  for (const account of rows) {
+    if (account.status !== 'active') {
+      errors.push({ account_id: account.id, username: account.username, code: 'account_expired', message: syncErrorMessage('account_expired') });
+      continue;
+    }
+    try { n += await syncAccountMessages(account, { throwOnError: true }); synced++; }
+    catch (error) {
+      n += error.details?.new_messages || 0;
+      errors.push({ account_id: account.id, username: account.username, code: error.code, message: error.message });
+    }
+  }
+  return { new_messages: n, synced_accounts: synced, errors, accounts: messageSyncStatus(user).filter(a => !accountId || a.account_id === accountId) };
 }
 
 export async function syncAllMessages() {

@@ -32,7 +32,7 @@ Mode lokal memakai Instagram/Threads **tiruan** — tidak ada yang benar-benar t
 ```bash
 npm install
 npm run dev          # META_MOCK=1, buka http://localhost:3000
-npm test             # 35 tes end-to-end terhadap Meta tiruan
+npm test             # 36 tes end-to-end terhadap Meta tiruan
 ```
 
 Di mode mock, layar login Instagram/Threads adalah tiruan dan tidak ada yang benar-benar terposting. Caption berisi `#fail-expired`, `#fail-transient`, atau `#fail-permission` mensimulasikan error Meta.
@@ -185,3 +185,12 @@ Error: `{"error":{"code","message","details"}}` — `code` stabil (`caption_too_
 - Statistik diperbarui tiap 6 jam; Meta sendiri bisa telat sampai 48 jam.
 - Belum ada: LinkedIn, Facebook Page, TikTok, YouTube, login Google, kartu upload di dalam chat AI (pakai `get_upload_link` → upload di dashboard → `list_media`).
 - Post yang sudah tayang tidak diedit/dihapus dari LRMsmm — lakukan di aplikasinya.
+
+
+### Penugasan beberapa akun dan diagnosis DM
+
+Owner: **Tim & Akses → Tambah anggota / Ubah → Representative**, pilih semua akun Instagram yang ditugaskan, lalu Simpan. Satu anggota boleh memegang beberapa akun; satu akun boleh dikelola beberapa anggota. Pencabutan penugasan langsung membatasi daftar akun, DM, balasan, sinkronisasi, serta status sinkronisasi pada permintaan berikutnya. Representative tidak dapat mengubah penugasannya sendiri.
+
+Di **Pesan**, filter awal adalah **Semua**. Klik **Muat terbaru** untuk akun yang dipilih, atau semua akun yang ditugaskan. Status terakhir ditampilkan per akun; kegagalan izin/token tidak dilaporkan sebagai “tidak ada pesan baru”. Riwayat yang sudah tersimpan tetap tersedia saat Meta sedang gagal diakses. Endpoint `GET /v1/messages/sync-status` hanya mengembalikan status akun yang menjadi hak pengguna; `POST /v1/messages/sync` menerima `account_id` opsional dan mengembalikan `new_messages`, `synced_accounts`, serta `errors` per akun.
+
+Jika muncul `permission_missing`: sambungkan ulang akun dari LRMsmm, berikan izin `instagram_business_manage_messages`, dan aktifkan akses pesan di **Instagram → Messages and story replies → Message controls → Connected tools → Allow access to messages** (nama menu bisa berbeda menurut versi aplikasi). Jika Meta App masih Development, akun harus menerima undangan Instagram Tester. Sinkronisasi background berlangsung setiap 2 menit. Hanya percakapan yang disediakan Meta API yang dapat ditampilkan; tes otomatis menggunakan Meta tiruan dan bukan bukti akses ke DM produksi.

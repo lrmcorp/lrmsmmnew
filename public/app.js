@@ -747,14 +747,24 @@ function waitBadge(c) {
 async function pageMessages(convId) {
   await loadAccounts();
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
-  const filter = q.get('f') || 'needs_reply';
+  const filter = q.get('f') || 'all';
   const acc = q.get('a') || '';
   const igAccounts = state.accounts.filter((a) => a.platform === 'instagram');
   const qs = (extra = {}) => { const n = new URLSearchParams(q); for (const [k, v] of Object.entries(extra)) v ? n.set(k, v) : n.delete(k); const t = n.toString(); return t ? `?${t}` : ''; };
   const wrap = h('div', { class: `dm ${convId ? 'has-thread' : ''}` });
   const listEl = h('div', { class: 'dm-list' });
   const threadEl = h('div', { class: 'dm-thread' });
+  const syncPanel = h('div', { style: { marginBottom: '12px' }, 'aria-live': 'polite' });
   wrap.append(listEl, threadEl);
+
+  async function drawSyncStatus() {
+    try {
+      const { data } = await api('GET', '/v1/messages/sync-status');
+      syncPanel.replaceChildren(...data.filter(a => !acc || a.account_id === acc).map(a => h('div', { class: a.status === 'error' ? 'err-box' : 'faint small', style: { marginBottom: '6px' } },
+        h('b', {}, `@${a.username}: `), a.status === 'error' ? a.message : a.last_success ? `Sinkronisasi terakhir berhasil: ${fmtDT(a.last_success)}` : 'Belum disinkronkan. Klik Muat terbaru.',
+        a.status === 'error' && ['permission_missing', 'account_expired'].includes(a.code) ? h('a', { class: 'btn sm', href: '/connect/instagram' }, 'Sambungkan ulang Instagram') : null)));
+    } catch (error) { syncPanel.replaceChildren(h('div', { class: 'err-box' }, errMsg(error))); }
+  }
 
   async function drawList() {
     const { data } = await api('GET', `/v1/conversations?filter=${filter}${acc ? `&account_id=${acc}` : ''}`);
@@ -765,7 +775,7 @@ async function pageMessages(convId) {
         h('div', { class: 'prev' }, c.last_message.direction === 'out' ? 'Kamu: ' : '', c.last_message.text || ''),
         h('div', { class: 'faint small' }, `ke @${c.account_username}`)),
       h('div', { style: { textAlign: 'right' } }, h('div', { class: 'faint small' }, ago(c.last_message.at)), waitBadge(c))))
-      : [h('div', { class: 'dm-empty' }, filter === 'needs_reply' ? 'Semua pesan sudah dibalas.' : 'Belum ada percakapan.')]));
+      : [h('div', { class: 'dm-empty' }, filter === 'needs_reply' ? 'Tidak ada pesan pada filter Perlu dibalas. Coba Semua atau Muat terbaru.' : 'Belum ada percakapan tersimpan. Klik Muat terbaru dan periksa status sinkronisasi di atas.')]));
   }
   async function drawThread() {
     if (!convId) { threadEl.replaceChildren(h('div', { class: 'dm-empty' }, igAccounts.length ? 'Pilih percakapan di kiri.' : 'Hubungkan akun Instagram untuk membalas DM.')); return; }
@@ -802,14 +812,23 @@ async function pageMessages(convId) {
     box.scrollTop = box.scrollHeight;
     if (c.can_reply && document.activeElement?.tagName !== 'TEXTAREA') ta.focus({ preventScroll: true });
   }
-  await Promise.all([drawList(), drawThread()]);
+  await Promise.all([drawList(), drawThread(), drawSyncStatus()]);
   pageCleanup = live.on((t) => { if (t.startsWith('message.')) { drawList(); if (document.activeElement?.tagName !== 'TEXTAREA') drawThread(); } });
   return shell('/messages', h('div', {},
     pagehead('Pesan', 'DM Instagram dari semua akun yang kamu pegang. Balasan hanya bisa dalam 24 jam sejak pesan terakhir pelanggan.',
       h('select', { style: { width: 'auto' }, 'aria-label': 'Filter akun', onchange: (e) => go(`/messages${qs({ a: e.target.value })}`) },
         h('option', { value: '' }, 'Semua akun Instagram'), igAccounts.map((a) => h('option', { value: a.id, selected: a.id === acc }, `@${a.username}`))),
       h('div', { class: 'seg' }, [['needs_reply', 'Perlu dibalas'], ['all', 'Semua'], ['done', 'Selesai']].map(([v, l]) => h('button', { class: filter === v ? 'on' : '', onclick: () => go(`/messages${qs({ f: v })}`) }, l))),
-      h('button', { class: 'btn', onclick: async (e) => { e.currentTarget.disabled = true; const r = await api('POST', '/v1/messages/sync'); toast(r.new_messages ? `${r.new_messages} pesan baru` : 'Tidak ada pesan baru'); route(); } }, 'Muat terbaru')),
+      h('button', { class: 'btn', onclick: async (e) => {
+        const button = e.currentTarget; button.disabled = true;
+        try {
+          const r = await api('POST', '/v1/messages/sync', acc ? { account_id: acc } : {});
+          toast(r.errors?.length ? `${r.errors.length} akun gagal disinkronkan. Lihat penjelasan di bawah.` : r.new_messages ? `${r.new_messages} pesan baru` : 'Sinkronisasi berhasil, tidak ada pesan baru.', !!r.errors?.length);
+          await Promise.all([drawList(), drawThread(), drawSyncStatus()]); live.refresh();
+        } catch (error) { toast(errMsg(error), true); }
+        finally { button.disabled = false; }
+      } }, 'Muat terbaru')),
+    syncPanel,
     wrap,
     h('p', { class: 'faint small', style: { marginTop: '10px' } }, 'Threads belum menyediakan API pesan, jadi hanya DM Instagram yang tampil di sini.')));
 }

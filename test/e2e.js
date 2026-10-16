@@ -394,6 +394,8 @@ let rinaConv;
 await step('messages: sync Instagram DMs, needs-reply + overdue > 5 min', async () => {
   const s = await http('POST', '/v1/messages/sync', { auth: undefined });
   assert.ok(s.json.new_messages >= 3, JSON.stringify(s.json));
+  assert.deepEqual(s.json.errors, []);
+  assert.equal(s.json.synced_accounts, 2);
   const list = (await http('GET', `/v1/conversations?account_id=${ig.id}`)).json.data;
   rinaConv = list.find((c) => c.participant.username === 'rina.ardhani');
   assert.ok(rinaConv, JSON.stringify(list)); assert.ok(rinaConv.waiting_minutes >= 11); assert.equal(rinaConv.can_reply, true);
@@ -401,6 +403,26 @@ await step('messages: sync Instagram DMs, needs-reply + overdue > 5 min', async 
   const u = (await http('GET', '/v1/messages/unreplied')).json;
   assert.ok(u.overdue >= 2, JSON.stringify(u)); // one per IG account (kopisenja + sunrisepadel)
   const st = (await http('GET', '/v1/stats')).json; assert.equal(st.messages_overdue, u.overdue);
+});
+
+await step('team assignments restrict DM history and sync status immediately across multiple Instagram accounts', async () => {
+  const conversations = (await http('GET', `/v1/conversations?filter=all&account_id=${sp.id}`)).json.data;
+  const convId = conversations[0].id;
+  await asCookie(repCookie, async () => {
+    const status = (await http('GET', '/v1/messages/sync-status')).json.data;
+    assert.deepEqual(new Set(status.map(a => a.account_id)), new Set([ig.id, sp.id]));
+    assert.ok(status.every(a => a.status === 'ok' && a.last_success));
+    assert.equal((await http('GET', `/v1/conversations/${convId}`)).status, 200);
+    assert.equal((await http('PUT', `/v1/users/${repId}/accounts`, { body: { account_ids: [] } })).status, 403);
+  });
+  await http('PUT', `/v1/users/${repId}/accounts`, { body: { account_ids: [ig.id] } });
+  await asCookie(repCookie, async () => {
+    assert.deepEqual((await http('GET', '/v1/messages/sync-status')).json.data.map(a => a.account_id), [ig.id]);
+    assert.equal((await http('GET', `/v1/conversations/${convId}`)).status, 404);
+    assert.equal((await http('POST', `/v1/conversations/${convId}/messages`, { body: { text: 'must not send' } })).status, 404);
+    assert.equal((await http('POST', '/v1/messages/sync', { body: { account_id: sp.id } })).status, 404);
+  });
+  await http('PUT', `/v1/users/${repId}/accounts`, { body: { account_ids: [ig.id, sp.id] } });
 });
 
 await step('messages: reply clears it; 24h window enforced; done/open', async () => {

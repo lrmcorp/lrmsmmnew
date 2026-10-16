@@ -133,11 +133,9 @@ api.post('/conversations/:id/messages', W, async (req, res) => {
 });
 api.patch('/conversations/:id', W, (req, res) => res.json(msgs.setConversationStatus(U(req), req.params.id, req.body?.status)));
 api.post('/messages/sync', W, async (req, res) => {
-  let n = 0;
-  const s = scopeOf(U(req));
-  for (const a of all("SELECT * FROM accounts WHERE status='active' AND platform='instagram'")) if (s === null || s.includes(a.id)) n += await msgs.syncAccountMessages(a);
-  res.json({ new_messages: n });
+  res.json(await msgs.syncUserMessages(U(req), req.body?.account_id));
 });
+api.get('/messages/sync-status', (req, res) => res.json({ data: msgs.messageSyncStatus(U(req)) }));
 api.get('/messages/unreplied', (req, res) => res.json(msgs.unrepliedSummary(U(req), req.query.older_than ? Number(req.query.older_than) : undefined)));
 
 // ---- insights ----
