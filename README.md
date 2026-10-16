@@ -1,6 +1,6 @@
 # LRMsmm
 
-Aplikasi internal HR Group untuk **membuat, menjadwalkan, dan membalas komentar Instagram & Threads** dari satu tempat — lewat dashboard, REST API, atau langsung dari Claude/ChatGPT lewat MCP. Fungsinya setara Tebar, tapi di-host sendiri dan memakai Meta App milik sendiri.
+Aplikasi internal HR Group untuk **membuat, menjadwalkan, dan membalas komentar Instagram & Threads** dari satu tempat — lewat dashboard, REST API, atau langsung dari Claude/ChatGPT lewat MCP. di-host sendiri dan memakai Meta App milik sendiri.
 
 ## Isi
 
