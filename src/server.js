@@ -59,9 +59,10 @@ app.get('/m/:file', (req, res) => {
 // ---- dashboard auth ----
 const auth = express.Router();
 auth.use(express.json());
-auth.get('/state', (req, res) => res.json({ user: publicUser(sessionUser(req)), needs_setup: userCount() === 0, signup_open: config.allowSignup, mock: config.mock }));
+auth.get('/state', (req, res) => res.json({ user: publicUser(sessionUser(req)), needs_setup: config.allowInitialSetup && userCount() === 0, signup_open: config.allowSignup, mock: config.mock }));
 auth.post('/register', (req, res) => {
   const first = userCount() === 0;
+  if (first && !config.allowInitialSetup) throw err(403, 'signup_closed', 'Hubungi pengelola untuk membuat akun Owner.');
   if (!first && !config.allowSignup) throw err(403, 'signup_closed', 'Pendaftaran ditutup. Minta Owner menambahkan akunmu.');
   const u = createUser({ ...req.body, role: first ? 'owner' : 'rep' });
   startSession(res, req, u.id);

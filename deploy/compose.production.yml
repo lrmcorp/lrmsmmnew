@@ -1,0 +1,33 @@
+name: lrmsmmnew
+services:
+  app:
+    image: ${APP_IMAGE:?APP_IMAGE is required}
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DATA_DIR: /data
+      META_MOCK: '0'
+      DISABLE_WORKER: '0'
+      ALLOW_SIGNUP: '0'
+      ALLOW_INITIAL_SETUP: '0'
+    volumes:
+      - ./data:/data
+    ports:
+      - '127.0.0.1:${APP_PORT:-4007}:3000'
+    networks:
+      proxy:
+        aliases: [lrmsmmnew-app]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+networks:
+  proxy:
+    external: true
+    name: ${NPM_NETWORK:-proxy-net}

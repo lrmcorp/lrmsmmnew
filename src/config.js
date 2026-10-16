@@ -29,6 +29,7 @@ export const config = {
   // 32-byte key for AES-256-GCM, hex encoded
   encryptionKey: Buffer.from(env.ENCRYPTION_KEY || crypto.createHash('sha256').update('lrmsmm-dev-key').digest('hex'), 'hex'),
   allowSignup: env.ALLOW_SIGNUP === '1',
+  allowInitialSetup: env.ALLOW_INITIAL_SETUP !== '0',
   timezone: env.APP_TIMEZONE || 'Asia/Jakarta',
   mock: MOCK,
   workerIntervalMs: Number(env.WORKER_INTERVAL_MS || 15000),
