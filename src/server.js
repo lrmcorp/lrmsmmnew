@@ -105,7 +105,6 @@ app.get('/connect/:platform/callback', async (req, res) => {
 });
 
 app.use('/v1', express.json({ limit: '2mb' }), api);
-app.use('/vendor/eva', express.static(path.join(__dirname, '..', 'node_modules', 'eva-icons', 'style'), { maxAge: '30d', immutable: true }));
 app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
 
 // ---- errors ----

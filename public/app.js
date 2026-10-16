@@ -1,4 +1,5 @@
-// LRMsmm dashboard — vanilla JS SPA (no build step).
+// LRMsmm dashboard — vanilla JS SPA (no build step). UI mengikuti hrd.playgo.id.
+import { HERO } from './icons.js';
 const $app = document.getElementById('app');
 
 // ---------------- helpers ----------------
@@ -21,19 +22,19 @@ const PLAT_SVG = {
   instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M8 6l1.5-2.5h5L16 6"/><circle cx="12" cy="13" r="3.5"/></svg>',
   threads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14v9a3 3 0 0 1-3 3h-5l-4 3v-3H5z"/><path d="M9 9h6M9 12.5h4"/></svg>',
 };
-// UI icons from Eva Icons (the icon set used by ngx-admin / Nebular)
-const EVA = { home: 'home-outline', pen: 'edit-2-outline', cal: 'calendar-outline', chat: 'message-circle-outline', inbox: 'message-square-outline',
-  chart: 'trending-up-outline', users: 'people-outline', img: 'image-outline', key: 'code-outline', shield: 'shield-outline', team: 'person-add-outline',
-  menu: 'menu-2-outline', bell: 'bell-outline', logout: 'log-out-outline', person: 'person-outline' };
-const icon = (k) => (PLAT_SVG[k] ? svg(PLAT_SVG[k]) : h('i', { class: `eva eva-${EVA[k] || k}`, 'aria-hidden': 'true' }));
-const logo = (tag = 'a', attrs = {}) => h(tag, { class: 'logo', href: tag === 'a' ? '#/' : null, ...attrs }, 'LRM', h('span', {}, 'smm'));
-
-// ---- theme (ngx-admin theme switcher) & sidebar state ----
-const THEMES = [['default', 'Light'], ['dark', 'Dark'], ['cosmic', 'Cosmic'], ['corporate', 'Corporate']];
+// UI icons: Heroicons v1 outline — the same set hrd.playgo.id uses
+const ICO = { home: 'home', pen: 'pencil-alt', cal: 'calendar', chat: 'chat-alt-2', inbox: 'chat', chart: 'trending-up', users: 'user-group',
+  img: 'photograph', key: 'code', shield: 'shield-check', team: 'users', menu: 'menu', bell: 'bell', logout: 'logout', person: 'user-circle',
+  x: 'x', warn: 'exclamation', clock: 'clock', send: 'paper-airplane', upload: 'cloud-upload', lock: 'lock-closed', bolt: 'lightning-bolt',
+  sparkles: 'sparkles', link: 'link', globe: 'globe-alt', plus: 'plus', right: 'chevron-right', refresh: 'refresh', cog: 'cog', doc: 'document-text', grid: 'view-grid' };
+const icon = (k) => {
+  if (PLAT_SVG[k]) return svg(PLAT_SVG[k]);
+  const p = HERO[ICO[k] || k];
+  return p ? svg(`<svg class="hi" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">${p}</svg>`) : h('span');
+};
+const logo = (tag = 'a', attrs = {}) => h(tag, { class: 'logo', href: tag === 'a' ? '#/' : null, ...attrs },
+  h('span', { class: 'word' }, 'LRM', h('span', {}, 'smm')), h('span', { class: 'tag' }, 'SMM'));
 const pref = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } } };
-function applyTheme(t) { document.documentElement.dataset.theme = t; pref.set('lrm-theme', t); }
-applyTheme(pref.get('lrm-theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'));
-if (pref.get('lrm-compact', '0') === '1') document.body.classList.add('compact');
 const PLAT = { instagram: 'Instagram', threads: 'Threads' };
 const initials = (s) => (s || '?').replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase();
 const plat = (p) => h('span', { class: `plat ${p}` }, icon(p), PLAT[p] || p);
@@ -98,58 +99,72 @@ function badgeEl(key) {
   return h('span', { class: `count ${b?.tone || ''}`, 'data-badge': key, title: b?.title || '', hidden: !b }, b?.n ?? '');
 }
 
-function shell(active, content) {
-  const nav = [
-    ['/', 'home', 'Beranda'], ['/compose', 'pen', 'Tulis post'], ['/calendar', 'cal', 'Kalender'],
-    ['/messages', 'chat', 'Pesan', 'messages'], ['/inbox', 'inbox', 'Komentar', 'comments'], ['/insights', 'chart', 'Insights'],
-    null,
-    ['/accounts', 'users', 'Akun sosial'], ['/media', 'img', 'Media'], ['/developer', 'key', 'API & AI'],
-    ['/team', 'team', isOwner() ? 'Tim' : 'Akun saya'],
-    ...(isOwner() ? [['/admin', 'shield', 'Admin']] : []),
+// Navigation grouped like the HRD sidebar
+function navGroups() {
+  return [
+    ['Operasional', [['/', 'home', 'Beranda'], ['/compose', 'pen', 'Tulis Post'], ['/calendar', 'cal', 'Kalender Konten']]],
+    ['Interaksi', [['/messages', 'chat', 'Pesan (DM)', 'messages'], ['/inbox', 'inbox', 'Komentar', 'comments'], ['/insights', 'chart', 'Insights']]],
+    ['Administrasi & Integrasi', [['/accounts', 'users', 'Akun Sosial'], ['/media', 'img', 'Pustaka Media'], ['/developer', 'key', 'API & AI'],
+      ['/team', 'team', isOwner() ? 'Tim & Akses' : 'Akun Saya'], ...(isOwner() ? [['/admin', 'shield', 'Jejak Audit']] : [])]],
   ];
-  const narrow = () => matchMedia('(max-width: 991px)').matches;
-  const toggleSide = () => {
-    if (narrow()) document.body.classList.toggle('side-open');
-    else { const c = document.body.classList.toggle('compact'); pref.set('lrm-compact', c ? '1' : '0'); }
-  };
-  const ctx = h('div', { class: 'ctx', hidden: true, role: 'menu' },
-    h('a', { href: '#/team', role: 'menuitem' }, icon('person'), 'Profil & password'),
-    h('button', { role: 'menuitem', onclick: async () => { await api('POST', '/auth/logout'); state.user = null; live.stop(); go('/login'); } }, icon('logout'), 'Keluar'));
-  const userBtn = h('button', { class: 'user', 'aria-haspopup': 'menu', onclick: (e) => { e.stopPropagation(); ctx.hidden = !ctx.hidden; } },
-    h('span', { class: 'pic' }, initials(state.user?.name || state.user?.email)),
-    h('span', { class: 'meta-u' }, h('div', { class: 'nm' }, state.user?.name || state.user?.email), h('div', { class: 'rl' }, ROLE[state.user?.role] || '')),
-    ctx);
-  document.onclick = () => { ctx.hidden = true; };
-  return h('div', {},
-    h('header', { class: 'hdr' },
-      h('div', { class: 'hdr-l' },
-        h('button', { class: 'side-toggle', 'aria-label': 'Buka/tutup menu', onclick: toggleSide }, icon('menu')),
-        logo(),
-        h('select', { class: 'theme-select', 'aria-label': 'Tema', onchange: (e) => applyTheme(e.target.value) },
-          THEMES.map(([v, l]) => h('option', { value: v, selected: document.documentElement.dataset.theme === v }, l)))),
-      h('div', { class: 'hdr-r' },
-        h('a', { class: 'action', href: '#/compose', title: 'Tulis post' }, icon('pen')),
-        h('a', { class: 'action', href: '#/messages', title: 'Pesan belum dibalas' }, icon('bell'), badgeEl('messages')),
-        userBtn)),
-    h('div', { class: 'layout' },
-      h('aside', { class: 'side' },
-        h('nav', { class: 'nav', 'aria-label': 'Menu utama' }, nav.map((n) => {
-          if (!n) return h('div', { class: 'sep' });
-          const [p, ic, label, badge] = n;
-          return h('a', { href: `#${p}`, class: active === p ? 'on' : '', title: label, onclick: () => document.body.classList.remove('side-open') }, icon(ic), h('span', { class: 'lbl' }, label), badge ? badgeEl(badge) : null);
-        })),
-        null),
-      h('div', { class: 'scrim', onclick: () => document.body.classList.remove('side-open') }),
+}
+const PAGE_LABEL = () => Object.fromEntries(navGroups().flatMap(([g, items]) => items.map(([p, , l]) => [p, { label: l, group: g }])));
+
+let clockTimer;
+function shell(active, content) {
+  const info = PAGE_LABEL()[active] || { label: 'LRMsmm', group: '' };
+  content.classList.add('wrap');
+  const clock = h('div', { class: 'clock', title: 'Waktu server (WIB)' });
+  const tick = () => { clock.textContent = `${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} WIB · Jakarta`; };
+  tick(); clearInterval(clockTimer); clockTimer = setInterval(tick, 30000);
+  const close = () => document.body.classList.remove('side-open');
+  return h('div', { class: 'app' },
+    h('aside', { class: 'side' },
+      h('div', {},
+        h('div', { class: 'side-top' }, logo(), h('button', { class: 'side-close', 'aria-label': 'Tutup menu', onclick: close }, icon('x'))),
+        h('nav', { class: 'nav', 'aria-label': 'Menu utama' }, navGroups().map(([g, items]) =>
+          h('div', { class: 'nav-group' }, h('div', { class: 'nav-h' }, g),
+            h('div', { class: 'nav-items' }, items.map(([p, ic, label, badge]) =>
+              h('a', { href: `#${p}`, class: active === p ? 'on' : '', onclick: close }, icon(ic), h('span', { class: 'lbl' }, label), badge ? badgeEl(badge) : null))))))),
+      h('div', { class: 'side-foot' },
+        h('a', { class: 'ucard', href: '#/team' },
+          h('div', { class: 'who' }, h('div', { class: 'ini' }, initials(state.user?.name || state.user?.email)),
+            h('div', { style: { minWidth: 0 } }, h('div', { class: 'nm' }, state.user?.name || state.user?.email), h('div', { class: 'rl' }, ROLE[state.user?.role] || ''))),
+          icon('right')),
+        h('button', { class: 'logout', onclick: async () => { await api('POST', '/auth/logout'); state.user = null; live.stop(); go('/login'); } }, icon('logout'), h('span', {}, 'Keluar Akun')))),
+    h('div', { class: 'scrim', onclick: close }),
+    h('div', { class: 'col' },
+      h('header', { class: 'hdr' }, h('div', { class: 'hdr-in' },
+        h('div', { class: 'hdr-l' },
+          h('button', { class: 'menu-btn', 'aria-label': 'Buka menu', onclick: () => document.body.classList.add('side-open') }, icon('menu')),
+          h('div', { class: 'crumb' }, info.group ? h('span', {}, info.group) : null, info.group ? h('span', { class: 'sep' }, '/') : null, h('b', {}, info.label))),
+        h('div', { class: 'hdr-r' },
+          h('a', { class: 'chip', href: '#/compose' }, icon('pen'), h('span', { class: 'chip-t' }, 'Tulis Post')),
+          h('a', { class: 'chip', href: '#/messages', title: 'Pesan belum dibalas' }, icon('bell'), h('span', { class: 'chip-t' }, 'Pesan'), badgeEl('messages')),
+          clock,
+          h('span', { class: 'role' }, ROLE[state.user?.role] || '')))),
       h('main', { class: 'main' },
-        state.mock ? h('div', { class: 'mock-banner' }, icon('alert-triangle-outline'), 'Mode simulasi — Instagram & Threads tiruan, tidak ada yang benar-benar terposting.') : null,
+        state.mock ? h('div', { class: 'wrap', style: { marginBottom: '1.5rem' } }, h('div', { class: 'mock-banner' }, icon('warn'), 'Mode simulasi — Instagram & Threads tiruan, tidak ada yang benar-benar terposting.')) : null,
         content)));
 }
-// ngx-admin style status card: icon block + value + label
-const CP = { people: '\ueb4d', calendar: '\uea58', chat: '\ueb21', comment: '\ueb23', person: '\ueb57', send: '\ueb49', drive: '\ueaf1', alert: '\uea06' };
-const stat = (href, ic, value, label, alert = false) => h('a', { href, class: alert ? 'alert' : '', 'data-icon': CP[ic] }, h('div', {}, h('b', {}, value), h('span', {}, label)));
+
+// HRD-style page header: eyebrow pill + extrabold title + description, actions on the right
 function pagehead(title, sub, ...actions) {
-  return h('div', { class: 'pagehead' }, h('div', {}, h('h1', {}, title), sub ? h('p', { class: 'muted' }, sub) : null), h('div', { class: 'row' }, actions));
+  const path = (location.hash.slice(1) || '/').split('?')[0];
+  const info = PAGE_LABEL()[path] || PAGE_LABEL()['/' + path.split('/')[1]];
+  const eyebrow = path === '/' ? new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : (info?.group || 'LRMsmm');
+  return h('div', { class: 'pagehead' },
+    h('div', {}, h('div', { class: 'eyebrow' }, icon(path === '/' ? 'cal' : 'grid'), h('span', {}, eyebrow)), h('h1', {}, title), sub ? h('p', {}, sub) : null),
+    h('div', { class: 'row' }, actions));
 }
+// HRD stat card: label, big number, icon tile, footer with link
+const stat = (href, ic, value, label, foot, tone = 'em', alert = false, linkText = 'Kelola →') =>
+  h('a', { class: `stat tone-${tone} ${alert ? 'alert' : ''}`, href },
+    h('div', { class: 'top' }, h('div', {}, h('div', { class: 'lbl' }, label), h('div', { class: 'val' }, value)), h('div', { class: 'ico' }, icon(ic))),
+    h('div', { class: 'foot' }, h('span', {}, foot), h('b', {}, linkText)));
+const secHead = (ic, title, sub, link) => h('div', { class: 'sec-h' },
+  h('h2', {}, h('span', { class: 'ico' }, icon(ic)), h('span', {}, title, sub ? h('div', { class: 'faint small', style: { fontWeight: 500 } }, sub) : null)),
+  link ? h('a', { href: link[0] }, link[1]) : null);
 
 // ---------------- live updates: badges, overdue popup, SSE ----------------
 const live = {
@@ -188,53 +203,91 @@ function overduePopup(n) {
   document.body.append(el);
 }
 
-// ---------------- auth ----------------
+// ---------------- auth (HRD login layout) ----------------
 function authPage(mode) {
   const next = new URLSearchParams(location.hash.split('?')[1] || '').get('next');
   const setup = mode === 'setup';
-  const form = h('form', { class: 'card', onsubmit: async (e) => {
+  const field = (label, ic, attrs) => h('label', { class: 'field' }, h('span', {}, label), h('div', { class: 'inp-ico' }, icon(ic), h('input', attrs)));
+  const form = h('form', { class: 'auth-card', onsubmit: async (e) => {
     e.preventDefault();
-    const f = new FormData(form);
     try {
-      const r = await api('POST', setup ? '/auth/register' : '/auth/login', Object.fromEntries(f));
+      const r = await api('POST', setup ? '/auth/register' : '/auth/login', Object.fromEntries(new FormData(form)));
       state.user = r.user;
       if (next) location.href = next; else go('/');
     } catch (err) { toast(err.message, true); }
   } },
-  logo('div'),
-  h('h1', {}, setup ? 'Buat akun Owner' : 'Masuk'),
-  h('p', { class: 'muted' }, setup ? 'Akun pertama otomatis jadi Owner. Anggota tim lain ditambahkan dari menu Tim.' : 'Posting dan jadwalkan Instagram & Threads tim.'),
-  setup ? h('label', { class: 'field' }, h('span', {}, 'Nama'), h('input', { name: 'name', autocomplete: 'name' })) : null,
-  h('label', { class: 'field' }, h('span', {}, 'Email'), h('input', { name: 'email', type: 'email', required: true, autocomplete: 'email' })),
-  h('label', { class: 'field' }, h('span', {}, 'Password'), h('input', { name: 'password', type: 'password', required: true, minlength: setup ? 8 : null, autocomplete: setup ? 'new-password' : 'current-password' })),
-  h('button', { class: 'btn primary', style: { width: '100%' } }, setup ? 'Buat akun' : 'Masuk'));
-  return h('div', { class: 'center-page' }, form);
+  h('div', { class: 'pill' }, 'Portal Terpadu Social Media'),
+  h('h1', {}, setup ? 'Buat Akun Owner' : 'Selamat Datang Kembali'),
+  h('p', {}, setup ? 'Akun pertama otomatis menjadi Owner. Anggota tim lain ditambahkan dari menu Tim & Akses.' : 'Masuk ke LRMsmm untuk menulis, menjadwalkan, dan membalas komentar serta pesan Instagram & Threads seluruh brand HR Group.'),
+  setup ? field('Nama', 'person', { name: 'name', autocomplete: 'name', placeholder: 'Nama lengkap' }) : null,
+  field('Email', 'person', { name: 'email', type: 'email', required: true, autocomplete: 'email', placeholder: 'Alamat email Anda' }),
+  field('Kata Sandi', 'lock', { name: 'password', type: 'password', required: true, minlength: setup ? 8 : null, autocomplete: setup ? 'new-password' : 'current-password', placeholder: '••••••••' }),
+  h('button', { class: 'btn primary' }, setup ? 'Buat Akun' : 'Masuk ke Akun', icon('right')),
+  h('div', { class: 'auth-note' }, icon('shield'), 'Koneksi terenkripsi · token Meta disimpan terenkripsi AES-256'));
+  const feat = (ic, t, d) => h('div', { class: 'feat' }, h('div', { class: 'ico' }, icon(ic)), h('div', {}, h('b', {}, t), h('span', {}, d)));
+  return h('div', { class: 'auth' },
+    h('div', { class: 'auth-bar' }, logo('div'), h('div', { class: 'clock' }, 'WIB (UTC+7) Jakarta')),
+    h('div', { class: 'auth-main' }, form,
+      h('div', { class: 'auth-side' },
+        h('div', { class: 'tagline' }, logo('div'), h('span', { class: 'eco' }, 'Ecosystem')),
+        h('h2', {}, 'Satu Tempat untuk Semua Akun Sosial'),
+        h('p', {}, 'Infrastruktur konten terpadu untuk seluruh brand: rapi, terjadwal, dan bisa dikerjakan bersama AI.'),
+        feat('cal', 'Jadwal & Kalender Konten', 'Tulis sekali, terbit di Instagram dan Threads sesuai jadwal.'),
+        feat('chat', 'Pesan & Komentar Terpusat', 'Satu inbox untuk semua akun, dengan pengingat pesan lebih dari 5 menit.'),
+        feat('bolt', 'Terhubung ke Claude & ChatGPT', 'MCP dan REST API dengan akses Owner / Representative.'))));
 }
 
-// ---------------- home ----------------
+// ---------------- home (HRD Beranda layout) ----------------
 async function pageHome() {
-  const [stats, sched, failed] = await Promise.all([
+  const [stats, sched, recent] = await Promise.all([
     api('GET', '/v1/stats'), api('GET', '/v1/posts?status=scheduled&limit=100'), api('GET', '/v1/posts?limit=30'),
   ]);
   state.stats = stats;
-  const upcoming = sched.data.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at)).slice(0, 8);
-  const attention = failed.data.filter((p) => ['failed', 'partial'].includes(p.status)).slice(0, 5);
+  const upcoming = sched.data.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at)).slice(0, 6);
+  const attention = recent.data.filter((p) => ['failed', 'partial'].includes(p.status)).slice(0, 5);
+  const published = recent.data.filter((p) => p.status === 'published').slice(0, 5);
   const expired = state.accounts.filter((a) => a.status === 'expired');
+  const ig = state.accounts.filter((a) => a.platform === 'instagram').length;
+  const tasks = (stats.messages_overdue ? 1 : 0) + (attention.length ? 1 : 0) + (expired.length ? 1 : 0);
+  const first = state.user.name ? state.user.name.split(' ')[0] : '';
   return shell('/', h('div', {},
-    pagehead(`Halo${state.user.name ? ', ' + state.user.name.split(' ')[0] : ''}`, null, h('a', { class: 'btn primary', href: '#/compose' }, 'Tulis post')),
+    pagehead(`Halo${first ? ', ' + first : ''}`, 'Pusat kendali konten dan interaksi seluruh akun Instagram & Threads HR Group.',
+      h('a', { class: 'btn soft', href: '#/messages' }, icon('chat'), 'Buka Pesan'),
+      h('a', { class: 'btn primary', href: '#/compose' }, icon('plus'), 'Tulis Post'),
+      h('a', { class: 'btn', href: '#/calendar' }, icon('cal'), 'Kalender')),
+    tasks ? h('div', { class: `banner ${stats.messages_overdue || expired.length ? 'red' : ''}` },
+      h('div', { class: 'l' }, h('span', { class: 'num' }, tasks),
+        h('div', {}, h('h3', {}, 'Tugas Menunggu Tindakan'),
+          h('p', {}, [
+            stats.messages_overdue ? `${stats.messages_overdue} pesan belum dibalas lebih dari 5 menit` : null,
+            attention.length ? `${attention.length} post gagal terbit` : null,
+            expired.length ? `${expired.length} akun perlu disambungkan ulang` : null,
+          ].filter(Boolean).join(' · ')))),
+      h('div', { class: 'row' },
+        stats.messages_overdue ? h('a', { class: 'btn primary sm', href: '#/messages' }, 'Balas Pesan', icon('right')) : null,
+        attention.length ? h('a', { class: 'btn sm', href: `#/posts/${attention[0].id}` }, 'Tinjau Post Gagal') : null,
+        expired.length ? h('a', { class: 'btn sm', href: '#/accounts' }, 'Sambungkan Ulang') : null)) : null,
     h('div', { class: 'strip' },
-      stat('#/accounts', 'people', stats.accounts, 'Akun aktif'),
-      stat('#/calendar', 'calendar', stats.scheduled, 'Post terjadwal'),
-      stat('#/messages', 'chat', stats.messages_waiting, stats.messages_overdue ? `Pesan menunggu · ${stats.messages_overdue} lewat 5 mnt` : 'Pesan menunggu balasan', !!stats.messages_overdue),
-      stat('#/inbox', 'comment', stats.unreplied, 'Komentar belum dibalas')),
-    expired.length ? h('div', { class: 'panel', style: { borderColor: 'var(--danger)' } },
-      h('h3', {}, 'Akun perlu disambungkan ulang'),
-      h('p', { class: 'muted' }, 'Post terjadwal ke akun ini akan gagal sampai disambungkan lagi.'),
-      h('div', { class: 'row' }, expired.map((a) => h('a', { class: 'btn sm', href: `/connect/${a.platform}` }, avatar(a), `Sambungkan @${a.username}`)))) : null,
-    !state.accounts.length ? h('div', { class: 'panel empty' }, h('h2', {}, 'Sambungkan akun pertama'), h('p', {}, 'Hubungkan Instagram Business/Creator atau Threads untuk mulai posting.'), h('a', { class: 'btn primary', href: '#/accounts' }, 'Sambungkan akun')) : null,
-    attention.length ? h('div', { style: { marginBottom: '22px' } }, h('h2', {}, 'Perlu dicek'), postList(attention)) : null,
-    h('h2', {}, 'Terbit berikutnya'),
-    upcoming.length ? postList(upcoming) : h('div', { class: 'list empty' }, 'Belum ada post terjadwal.', h('br'), h('a', { class: 'btn', href: '#/compose' }, 'Jadwalkan post'))));
+      stat('#/accounts', 'users', stats.accounts, 'Akun Sosial Aktif', `${ig} Instagram · ${state.accounts.length - ig} Threads`, 'em'),
+      stat('#/calendar', 'cal', stats.scheduled, 'Post Terjadwal', upcoming[0] ? `Berikutnya ${fmtDT(upcoming[0].scheduled_at)}` : 'Belum ada jadwal', 'sky', false, 'Kalender →'),
+      stat('#/messages', 'chat', stats.messages_waiting, 'Pesan Menunggu', stats.messages_overdue ? `${stats.messages_overdue} lewat 5 menit` : 'Semua dalam batas', stats.messages_overdue ? 'ro' : 'am', !!stats.messages_overdue, 'Balas →'),
+      stat('#/inbox', 'inbox', stats.unreplied, 'Komentar Baru', stats.failed_7d ? `${stats.failed_7d} post gagal (7 hari)` : 'Belum dibalas', 'pu', false, 'Buka →')),
+    h('div', { class: 'panel' },
+      h('div', { class: 'sec-h', style: { paddingBottom: '1rem', borderBottom: '1px solid var(--slate-100)', marginBottom: '1rem' } },
+        h('div', {}, h('h2', {}, 'Pusat Tindakan Cepat'), h('div', { class: 'faint small', style: { fontWeight: 500 } }, 'Jalan pintas untuk pekerjaan harian tim konten.')),
+        h('span', { class: 'mode' }, `${ROLE[state.user.role]} Mode`)),
+      h('div', { class: 'quick' }, [
+        ['#/compose', 'pen', 'Tulis Post', 'IG & Threads', 'em'], ['#/calendar', 'cal', 'Kalender', 'Jadwal Konten', 'sky'],
+        ['#/messages', 'chat', 'Pesan', 'DM Instagram', 'ro'], ['#/inbox', 'inbox', 'Komentar', 'Balas & Moderasi', 'am'],
+        ['#/insights', 'chart', 'Insights', 'Statistik Akun', 'pu'], ['#/media', 'img', 'Media', 'Pustaka Foto', 'em'],
+      ].map(([href, ic, t, d, tone]) => h('a', { class: `q-${tone}`, href }, h('div', { class: 'ico' }, icon(ic)), h('b', {}, t), h('small', {}, d))))),
+    !state.accounts.length ? h('div', { class: 'panel empty' }, h('h2', {}, 'Sambungkan akun pertama'), h('p', {}, 'Hubungkan Instagram Business/Creator atau Threads untuk mulai posting.'), h('a', { class: 'btn primary', href: '#/accounts' }, 'Sambungkan Akun')) : null,
+    attention.length ? h('div', {}, secHead('warn', 'Perlu Dicek', 'Post yang gagal terbit di salah satu akun.', ['#/admin?t=failed', isOwner() ? 'Lihat Semua →' : '']), postList(attention)) : null,
+    h('div', { class: 'grid2' },
+      h('div', {}, secHead('cal', 'Terbit Berikutnya', 'Post terjadwal terdekat.', ['#/calendar', 'Lihat Kalender →']),
+        upcoming.length ? postList(upcoming) : h('div', { class: 'list empty' }, 'Belum ada post terjadwal.', h('br'), h('a', { class: 'btn primary sm', href: '#/compose' }, 'Jadwalkan Post'))),
+      h('div', {}, secHead('send', 'Baru Terbit', 'Aktivitas posting terakhir.', ['#/calendar?v=list', 'Lihat Semua →']),
+        published.length ? postList(published) : h('div', { class: 'list empty' }, 'Belum ada post yang terbit.')))));
 }
 
 function postList(posts) {
@@ -1002,12 +1055,12 @@ async function pageTeam() {
   }
 
   return shell('/team', h('div', {},
-    pagehead(owner ? 'Tim' : 'Akun saya', owner ? 'Owner melihat dan mengelola semua akun. Representative hanya bisa posting, membalas komentar, dan membalas pesan di akun yang ditugaskan.' : null,
+    pagehead(owner ? 'Tim & Akses' : 'Akun Saya', owner ? 'Owner melihat dan mengelola semua akun. Representative hanya bisa posting, membalas komentar, dan membalas pesan di akun yang ditugaskan.' : null,
       owner ? h('button', { class: 'btn primary', onclick: addUser }, 'Tambah anggota') : null),
     owner ? h('div', { class: 'list', style: { marginBottom: '18px' } }, users.map((u) => h('div', { class: 'item' },
       h('span', { class: 'peer' }, initials(u.name || u.email)),
       h('div', { class: 'body' },
-        h('div', {}, h('b', {}, u.name || u.email), ' ', h('span', { class: `status ${u.role === 'owner' ? 'scheduled' : ''}` }, ROLE[u.role])),
+        h('div', {}, h('b', {}, u.name || u.email), ' ', h('span', { class: `status role-${u.role}` }, ROLE[u.role])),
         h('div', { class: 'meta' }, h('span', {}, u.email),
           u.role === 'owner' ? h('span', {}, 'Semua akun') : h('span', {}, u.account_ids.length ? u.account_ids.map(accName).filter(Boolean).join(', ') : 'Belum ada akun ditugaskan'))),
       h('button', { class: 'btn sm', onclick: () => editUser(u) }, 'Ubah'),
@@ -1063,12 +1116,12 @@ async function pageAdmin() {
     body = h('div', {}, listEl, h('div', { class: 'row', style: { marginTop: '12px' } }, more));
   }
   return shell('/admin', h('div', {},
-    pagehead('Admin', 'Siapa melakukan apa, dari dashboard, API key, atau AI.'),
+    pagehead('Jejak Audit', 'Siapa melakukan apa, dari dashboard, API key, atau AI.'),
     h('div', { class: 'strip' },
-      stat('#/team', 'person', ov.users, 'Anggota tim'),
-      stat('#/accounts', 'people', ov.accounts, ov.accounts_expired ? `Akun · ${ov.accounts_expired} perlu disambung` : 'Akun sosial', !!ov.accounts_expired),
-      stat('#/admin?t=failed', 'send', ov.posts_24h, `Terbit 24 jam · ${ov.failed_24h} gagal`, !!ov.failed_24h),
-      stat('#/media', 'drive', fmtBytes(ov.storage.used_bytes), `${ov.storage.files} file media`)),
+      stat('#/team', 'team', ov.users, 'Anggota Tim', 'Owner & Representative', 'em'),
+      stat('#/accounts', 'users', ov.accounts, 'Akun Sosial', ov.accounts_expired ? `${ov.accounts_expired} perlu disambung ulang` : 'Semua aktif', ov.accounts_expired ? 'ro' : 'sky', !!ov.accounts_expired),
+      stat('#/admin?t=failed', 'send', ov.posts_24h, 'Terbit 24 Jam', `${ov.failed_24h} gagal terbit`, ov.failed_24h ? 'ro' : 'am', !!ov.failed_24h, 'Tinjau →'),
+      stat('#/media', 'img', fmtBytes(ov.storage.used_bytes), 'Penyimpanan', `${ov.storage.files} file media`, 'pu', false, 'Buka →')),
     h('p', { class: 'small muted', style: { margin: '-10px 0 18px' } }, `Real-time: ${ov.realtime_hint}${ov.webhooks.last_at ? ` (terakhir ${ago(ov.webhooks.last_at)} lalu)` : ''}.`),
     h('div', { class: 'seg', style: { marginBottom: '14px' } }, h('button', { class: tab === 'audit' ? 'on' : '', onclick: () => go('/admin') }, 'Log audit'), h('button', { class: tab === 'failed' ? 'on' : '', onclick: () => go('/admin?t=failed') }, 'Post gagal')),
     body));

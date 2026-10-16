@@ -1,3 +1,3 @@
-LRMsmm dashboard design is based on ngx-admin (https://github.com/akveo/ngx-admin)
-and the Nebular theme tokens (@nebular/theme), both MIT licensed, Copyright (c) 2017 akveo.com.
-Icons: Eva Icons (https://github.com/akveo/eva-icons), MIT licensed, Copyright (c) akveo.com.
+LRMsmm dashboard visual design follows hrd.playgo.id (HR Group Enterprise HRIS).
+Icons: Heroicons v1 (https://github.com/tailwindlabs/heroicons), MIT licensed, Copyright (c) Tailwind Labs, Inc.
+Color palette: Tailwind CSS default palette (MIT, Tailwind Labs, Inc.).
