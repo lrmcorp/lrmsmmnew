@@ -17,22 +17,25 @@ function h(tag, attrs = {}, ...kids) {
   return el;
 }
 const svg = (s) => { const t = document.createElement('template'); t.innerHTML = s.trim(); return t.content.firstChild; };
-const I = {
-  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11 12 4l9 7v9H3z"/><path d="M9 20v-6h6v6"/></svg>',
-  pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/></svg>',
-  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
-  inbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v10a3 3 0 0 1-3 3H8l-4 3z"/></svg>',
-  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.6c2 .8 3.2 2.6 3.6 5.4"/></svg>',
-  img: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
-  key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></svg>',
-  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-5 4v-4H6a2 2 0 0 1-2-2z"/><path d="m8 9 4 3 4-3"/></svg>',
-  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V4M4 20h16"/><path d="m7 15 4-5 3 3 5-7"/></svg>',
-  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v6c0 4 3 7.5 7 9 4-1.5 7-5 7-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
+const PLAT_SVG = {
   instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M8 6l1.5-2.5h5L16 6"/><circle cx="12" cy="13" r="3.5"/></svg>',
   threads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14v9a3 3 0 0 1-3 3h-5l-4 3v-3H5z"/><path d="M9 9h6M9 12.5h4"/></svg>',
 };
-const icon = (k) => svg(I[k]);
+// UI icons from Eva Icons (the icon set used by ngx-admin / Nebular)
+const EVA = { home: 'home-outline', pen: 'edit-2-outline', cal: 'calendar-outline', chat: 'message-circle-outline', inbox: 'message-square-outline',
+  chart: 'trending-up-outline', users: 'people-outline', img: 'image-outline', key: 'code-outline', shield: 'shield-outline', team: 'person-add-outline',
+  menu: 'menu-2-outline', bell: 'bell-outline', logout: 'log-out-outline', person: 'person-outline' };
+const icon = (k) => (PLAT_SVG[k] ? svg(PLAT_SVG[k]) : h('i', { class: `eva eva-${EVA[k] || k}`, 'aria-hidden': 'true' }));
+const logo = (tag = 'a', attrs = {}) => h(tag, { class: 'logo', href: tag === 'a' ? '#/' : null, ...attrs }, 'LRM', h('span', {}, 'smm'));
+
+// ---- theme (ngx-admin theme switcher) & sidebar state ----
+const THEMES = [['default', 'Light'], ['dark', 'Dark'], ['cosmic', 'Cosmic'], ['corporate', 'Corporate']];
+const pref = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } } };
+function applyTheme(t) { document.documentElement.dataset.theme = t; pref.set('lrm-theme', t); }
+applyTheme(pref.get('lrm-theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'));
+if (pref.get('lrm-compact', '0') === '1') document.body.classList.add('compact');
 const PLAT = { instagram: 'Instagram', threads: 'Threads' };
+const initials = (s) => (s || '?').replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase();
 const plat = (p) => h('span', { class: `plat ${p}` }, icon(p), PLAT[p] || p);
 const avatar = (a, cls = '') => h('span', { class: `avatar ${a.platform} ${cls}`, title: `@${a.username}` }, (a.username || '?').slice(0, 2).toUpperCase());
 const STATUS = { published: 'Terbit', scheduled: 'Terjadwal', publishing: 'Sedang diterbitkan', pending: 'Menunggu', failed: 'Gagal', partial: 'Sebagian gagal', cancelled: 'Dibatalkan', expired: 'Perlu disambung ulang', active: 'Aktif' };
@@ -97,23 +100,53 @@ function badgeEl(key) {
 
 function shell(active, content) {
   const nav = [
-    ['/', 'home', 'Beranda'], ['/compose', 'pen', 'Tulis'], ['/calendar', 'cal', 'Kalender'],
+    ['/', 'home', 'Beranda'], ['/compose', 'pen', 'Tulis post'], ['/calendar', 'cal', 'Kalender'],
     ['/messages', 'chat', 'Pesan', 'messages'], ['/inbox', 'inbox', 'Komentar', 'comments'], ['/insights', 'chart', 'Insights'],
-    ['/accounts', 'users', 'Akun'], ['/media', 'img', 'Media'], ['/developer', 'key', 'API & AI'],
+    null,
+    ['/accounts', 'users', 'Akun sosial'], ['/media', 'img', 'Media'], ['/developer', 'key', 'API & AI'],
+    ['/team', 'team', isOwner() ? 'Tim' : 'Akun saya'],
     ...(isOwner() ? [['/admin', 'shield', 'Admin']] : []),
   ];
+  const narrow = () => matchMedia('(max-width: 991px)').matches;
+  const toggleSide = () => {
+    if (narrow()) document.body.classList.toggle('side-open');
+    else { const c = document.body.classList.toggle('compact'); pref.set('lrm-compact', c ? '1' : '0'); }
+  };
+  const ctx = h('div', { class: 'ctx', hidden: true, role: 'menu' },
+    h('a', { href: '#/team', role: 'menuitem' }, icon('person'), 'Profil & password'),
+    h('button', { role: 'menuitem', onclick: async () => { await api('POST', '/auth/logout'); state.user = null; live.stop(); go('/login'); } }, icon('logout'), 'Keluar'));
+  const userBtn = h('button', { class: 'user', 'aria-haspopup': 'menu', onclick: (e) => { e.stopPropagation(); ctx.hidden = !ctx.hidden; } },
+    h('span', { class: 'pic' }, initials(state.user?.name || state.user?.email)),
+    h('span', { class: 'meta-u' }, h('div', { class: 'nm' }, state.user?.name || state.user?.email), h('div', { class: 'rl' }, ROLE[state.user?.role] || '')),
+    ctx);
+  document.onclick = () => { ctx.hidden = true; };
   return h('div', {},
-    state.mock ? h('div', { class: 'mock-banner' }, 'Mode simulasi: Instagram & Threads tiruan (META_MOCK=1). Tidak ada yang benar-benar terposting.') : null,
-    h('div', { class: 'shell' },
+    h('header', { class: 'hdr' },
+      h('div', { class: 'hdr-l' },
+        h('button', { class: 'side-toggle', 'aria-label': 'Buka/tutup menu', onclick: toggleSide }, icon('menu')),
+        logo(),
+        h('select', { class: 'theme-select', 'aria-label': 'Tema', onchange: (e) => applyTheme(e.target.value) },
+          THEMES.map(([v, l]) => h('option', { value: v, selected: document.documentElement.dataset.theme === v }, l)))),
+      h('div', { class: 'hdr-r' },
+        h('a', { class: 'action', href: '#/compose', title: 'Tulis post' }, icon('pen')),
+        h('a', { class: 'action', href: '#/messages', title: 'Pesan belum dibalas' }, icon('bell'), badgeEl('messages')),
+        userBtn)),
+    h('div', { class: 'layout' },
       h('aside', { class: 'side' },
-        h('a', { class: 'brand', href: '#/' }, 'LRMsmm', h('span', { class: 'wave', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'))),
-        h('nav', { class: 'nav' }, nav.map(([p, ic, label, badge]) =>
-          h('a', { href: `#${p}`, class: active === p ? 'on' : '' }, icon(ic), label, badge ? badgeEl(badge) : null))),
-        h('div', { class: 'foot' }, h('div', {}, state.user?.name || state.user?.email), h('div', { class: 'small' }, ROLE[state.user?.role] || ''),
-          h('a', { href: '#/team' }, isOwner() ? 'Tim & akun saya' : 'Akun saya'), ' · ',
-          h('button', { onclick: async () => { await api('POST', '/auth/logout'); state.user = null; live.stop(); go('/login'); } }, 'Keluar'))),
-      h('main', { class: 'main' }, content)));
+        h('nav', { class: 'nav', 'aria-label': 'Menu utama' }, nav.map((n) => {
+          if (!n) return h('div', { class: 'sep' });
+          const [p, ic, label, badge] = n;
+          return h('a', { href: `#${p}`, class: active === p ? 'on' : '', title: label, onclick: () => document.body.classList.remove('side-open') }, icon(ic), h('span', { class: 'lbl' }, label), badge ? badgeEl(badge) : null);
+        })),
+        null),
+      h('div', { class: 'scrim', onclick: () => document.body.classList.remove('side-open') }),
+      h('main', { class: 'main' },
+        state.mock ? h('div', { class: 'mock-banner' }, icon('alert-triangle-outline'), 'Mode simulasi — Instagram & Threads tiruan, tidak ada yang benar-benar terposting.') : null,
+        content)));
 }
+// ngx-admin style status card: icon block + value + label
+const CP = { people: '\ueb4d', calendar: '\uea58', chat: '\ueb21', comment: '\ueb23', person: '\ueb57', send: '\ueb49', drive: '\ueaf1', alert: '\uea06' };
+const stat = (href, ic, value, label, alert = false) => h('a', { href, class: alert ? 'alert' : '', 'data-icon': CP[ic] }, h('div', {}, h('b', {}, value), h('span', {}, label)));
 function pagehead(title, sub, ...actions) {
   return h('div', { class: 'pagehead' }, h('div', {}, h('h1', {}, title), sub ? h('p', { class: 'muted' }, sub) : null), h('div', { class: 'row' }, actions));
 }
@@ -168,7 +201,7 @@ function authPage(mode) {
       if (next) location.href = next; else go('/');
     } catch (err) { toast(err.message, true); }
   } },
-  h('div', { class: 'brand' }, 'LRMsmm', h('span', { class: 'wave' }, h('i'), h('i'), h('i'))),
+  logo('div'),
   h('h1', {}, setup ? 'Buat akun Owner' : 'Masuk'),
   h('p', { class: 'muted' }, setup ? 'Akun pertama otomatis jadi Owner. Anggota tim lain ditambahkan dari menu Tim.' : 'Posting dan jadwalkan Instagram & Threads tim.'),
   setup ? h('label', { class: 'field' }, h('span', {}, 'Nama'), h('input', { name: 'name', autocomplete: 'name' })) : null,
@@ -190,11 +223,11 @@ async function pageHome() {
   return shell('/', h('div', {},
     pagehead(`Halo${state.user.name ? ', ' + state.user.name.split(' ')[0] : ''}`, null, h('a', { class: 'btn primary', href: '#/compose' }, 'Tulis post')),
     h('div', { class: 'strip' },
-      h('a', { href: '#/accounts' }, h('b', {}, stats.accounts), h('span', {}, 'akun aktif')),
-      h('a', { href: '#/calendar' }, h('b', {}, stats.scheduled), h('span', {}, 'post terjadwal')),
-      h('a', { href: '#/messages', class: stats.messages_overdue ? 'alert' : '' }, h('b', {}, stats.messages_waiting), h('span', {}, stats.messages_overdue ? `pesan menunggu · ${stats.messages_overdue} lewat 5 mnt` : 'pesan menunggu balasan')),
-      h('a', { href: '#/inbox' }, h('b', {}, stats.unreplied), h('span', {}, 'komentar belum dibalas'))),
-    expired.length ? h('div', { class: 'panel', style: { borderColor: 'var(--bad)', marginBottom: '16px' } },
+      stat('#/accounts', 'people', stats.accounts, 'Akun aktif'),
+      stat('#/calendar', 'calendar', stats.scheduled, 'Post terjadwal'),
+      stat('#/messages', 'chat', stats.messages_waiting, stats.messages_overdue ? `Pesan menunggu · ${stats.messages_overdue} lewat 5 mnt` : 'Pesan menunggu balasan', !!stats.messages_overdue),
+      stat('#/inbox', 'comment', stats.unreplied, 'Komentar belum dibalas')),
+    expired.length ? h('div', { class: 'panel', style: { borderColor: 'var(--danger)' } },
       h('h3', {}, 'Akun perlu disambungkan ulang'),
       h('p', { class: 'muted' }, 'Post terjadwal ke akun ini akan gagal sampai disambungkan lagi.'),
       h('div', { class: 'row' }, expired.map((a) => h('a', { class: 'btn sm', href: `/connect/${a.platform}` }, avatar(a), `Sambungkan @${a.username}`)))) : null,
@@ -651,7 +684,6 @@ async function pageInbox() {
 
 // ---------------- messages (Instagram DM) ----------------
 const drafts = {};
-const initials = (s) => (s || '?').replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase();
 function waitBadge(c) {
   if (!c.needs_reply || c.waiting_minutes == null) return null;
   const m = c.waiting_minutes;
@@ -882,9 +914,9 @@ async function pageDeveloper() {
     pagehead('API & AI', 'Sambungkan Claude, ChatGPT, Claude Code, Cursor, atau n8n ke LRMsmm.'),
     h('div', { class: 'panel' }, h('h2', {}, 'Pasang di Claude atau ChatGPT'),
       h('p', { class: 'muted' }, 'Di Claude: Settings → Connectors → Add custom connector, tempel URL ini. Login LRMsmm lalu pilih akses baca atau baca-tulis.'),
-      h('div', { class: 'secret', style: { background: 'var(--accent-soft)' } }, h('code', {}, mcpUrl), h('button', { class: 'btn sm', onclick: () => copy(mcpUrl) }, 'Salin')),
+      h('div', { class: 'secret', style: { background: 'var(--primary-t)' } }, h('code', {}, mcpUrl), h('button', { class: 'btn sm', onclick: () => copy(mcpUrl) }, 'Salin')),
       h('p', { class: 'muted small' }, 'Claude Code (pakai API key):'),
-      h('div', { class: 'secret', style: { background: 'var(--line-2)' } }, h('code', {}, `claude mcp add --transport http lrmsmm ${mcpUrl} --header "Authorization: Bearer lrm_live_..."`))),
+      h('div', { class: 'secret', style: { background: 'var(--bg-2)' } }, h('code', {}, `claude mcp add --transport http lrmsmm ${mcpUrl} --header "Authorization: Bearer lrm_live_..."`))),
     h('div', { class: 'panel' }, h('h2', {}, 'API key'),
       h('p', { class: 'muted' }, 'Untuk REST API (', h('code', {}, `${location.origin}/v1`), ') dan MCP dari Claude Code, Cursor, n8n. Key hanya ditampilkan sekali; LRMsmm cuma menyimpan hash-nya.'),
       h('div', { class: 'row', style: { marginBottom: '12px' } }, nameIn, scopeIn, h('button', { class: 'btn primary', onclick: async () => {
@@ -1033,10 +1065,10 @@ async function pageAdmin() {
   return shell('/admin', h('div', {},
     pagehead('Admin', 'Siapa melakukan apa, dari dashboard, API key, atau AI.'),
     h('div', { class: 'strip' },
-      h('a', { href: '#/team' }, h('b', {}, ov.users), h('span', {}, 'anggota tim')),
-      h('a', { href: '#/accounts', class: ov.accounts_expired ? 'alert' : '' }, h('b', {}, ov.accounts), h('span', {}, ov.accounts_expired ? `akun · ${ov.accounts_expired} perlu disambung` : 'akun sosial')),
-      h('a', { href: '#/admin?t=failed', class: ov.failed_24h ? 'alert' : '' }, h('b', {}, ov.posts_24h), h('span', {}, `terbit 24 jam · ${ov.failed_24h} gagal`)),
-      h('a', { href: '#/media' }, h('b', {}, fmtBytes(ov.storage.used_bytes)), h('span', {}, `${ov.storage.files} file media`))),
+      stat('#/team', 'person', ov.users, 'Anggota tim'),
+      stat('#/accounts', 'people', ov.accounts, ov.accounts_expired ? `Akun · ${ov.accounts_expired} perlu disambung` : 'Akun sosial', !!ov.accounts_expired),
+      stat('#/admin?t=failed', 'send', ov.posts_24h, `Terbit 24 jam · ${ov.failed_24h} gagal`, !!ov.failed_24h),
+      stat('#/media', 'drive', fmtBytes(ov.storage.used_bytes), `${ov.storage.files} file media`)),
     h('p', { class: 'small muted', style: { margin: '-10px 0 18px' } }, `Real-time: ${ov.realtime_hint}${ov.webhooks.last_at ? ` (terakhir ${ago(ov.webhooks.last_at)} lalu)` : ''}.`),
     h('div', { class: 'seg', style: { marginBottom: '14px' } }, h('button', { class: tab === 'audit' ? 'on' : '', onclick: () => go('/admin') }, 'Log audit'), h('button', { class: tab === 'failed' ? 'on' : '', onclick: () => go('/admin?t=failed') }, 'Post gagal')),
     body));

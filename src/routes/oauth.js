@@ -78,9 +78,9 @@ oauth.get('/oauth/authorize', (req, res, next) => {
     const hidden = ['client_id', 'redirect_uri', 'state', 'code_challenge', 'code_challenge_method', 'resource']
       .map((k) => `<input type="hidden" name="${k}" value="${esc(req.query[k])}">`).join('');
     res.type('html').send(`<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Izinkan akses · LRMsmm</title><link rel="stylesheet" href="/app.css"></head>
+<title>Izinkan akses · LRMsmm</title><link rel="stylesheet" href="/app.css"><script>try{document.documentElement.dataset.theme=localStorage.getItem("lrm-theme")||"default"}catch(e){}</script></head>
 <body class="center-page"><form class="card consent" method="post" action="/oauth/authorize">
-<div class="brand">LRMsmm</div>
+<div class="brand">LRM<span>smm</span></div>
 <h1>${esc(client.name)} ingin mengakses LRMsmm</h1>
 <p class="muted">Masuk sebagai <b>${esc(user.email)}</b>. Aplikasi ini akan bisa memakai akun Instagram & Threads yang terhubung di LRMsmm.</p>
 ${hidden}<input type="hidden" name="csrf" value="${csrf}">
