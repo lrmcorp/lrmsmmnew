@@ -905,8 +905,14 @@ async function pageAccounts() {
   if (q.get('connected')) toast(`${q.get('connected')} tersambung`);
   if (q.get('error')) toast(q.get('error'), true);
   if (q.get('connected') || q.get('error')) history.replaceState(null, '', '#/accounts');
-  await loadAccounts();
+  const [, me] = await Promise.all([loadAccounts(), api('GET', '/v1/me').catch(() => ({}))]);
+  const missing = Object.entries(me.integrations || {}).filter(([, ok]) => !ok).map(([p]) => p === 'instagram' ? 'Instagram' : 'Threads');
   return shell('/accounts', h('div', {},
+    missing.length ? h('div', { class: 'banner', style: { marginBottom: '1.5rem' } }, h('div', { class: 'l' }, h('div', { class: 'num' }, '!'), h('div', {},
+      h('h3', {}, `Integrasi ${missing.join(' & ')} belum dikonfigurasi`),
+      h('p', {}, state.user?.role === 'owner'
+        ? 'Isi App ID & Secret dari Meta Developer di /etc/lrmsmm.env server, lalu restart layanan. Sampai itu diisi, tombol Sambungkan tidak bisa dipakai.'
+        : 'Hubungi Owner untuk melengkapi kredensial Meta di server.')))) : null,
     pagehead('Akun', 'Login lewat halaman resmi Meta. LRMsmm tidak pernah tahu password akunmu; token disimpan terenkripsi.',
       h('a', { class: 'btn', href: '/connect/instagram' }, icon('instagram'), 'Sambungkan Instagram'),
       h('a', { class: 'btn', href: '/connect/threads' }, icon('threads'), 'Sambungkan Threads')),

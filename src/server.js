@@ -89,7 +89,7 @@ app.get('/connect/:platform', (req, res, next) => {
     const u = sessionUser(req);
     if (!u) return res.redirect('/#/login');
     res.redirect(beginConnect(req.params.platform, u.id));
-  } catch (e) { next(e); }
+  } catch (e) { res.redirect(`/#/accounts?error=${encodeURIComponent(e.message)}`); }
 });
 app.get('/connect/:platform/callback', async (req, res) => {
   const { code, state, error, error_description: ed } = req.query;

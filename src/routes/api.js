@@ -40,7 +40,7 @@ const source = (req) => (req.auth.via === 'session' ? 'dashboard' : req.auth.via
 const kick = () => setImmediate(() => runPublisherTick().catch(() => {}));
 
 // ---- me / accounts ----
-api.get('/me', (req, res) => res.json({ user: publicUser(U(req)), access: { via: req.auth.via, scope: req.auth.scope }, account_ids: scopeOf(U(req)) }));
+api.get('/me', (req, res) => res.json({ user: publicUser(U(req)), access: { via: req.auth.via, scope: req.auth.scope }, account_ids: scopeOf(U(req)), integrations: { instagram: accounts.platformConfigured('instagram'), threads: accounts.platformConfigured('threads') } }));
 api.get('/accounts', (req, res) => res.json({ data: accounts.listAccounts(U(req)) }));
 api.get('/accounts/:id', (req, res) => { assertAccount(U(req), req.params.id); res.json(accounts.publicAccount(accounts.getAccount(req.params.id))); });
 api.delete('/accounts/:id', W, requireOwner, (req, res) => {
