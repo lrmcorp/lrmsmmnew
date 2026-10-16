@@ -914,8 +914,9 @@ async function pageAccounts() {
         ? 'Isi App ID & Secret dari Meta Developer di /opt/lrmsmmnew/.env di server, lalu restart aplikasi. Sampai itu diisi, tombol Sambungkan tidak bisa dipakai.'
         : 'Hubungi Owner untuk melengkapi kredensial Meta di server.')))) : null,
     pagehead('Akun', 'Login lewat halaman resmi Meta. LRMsmm tidak pernah tahu password akunmu; token disimpan terenkripsi.',
-      h('a', { class: 'btn', href: '/connect/instagram' }, icon('instagram'), 'Sambungkan Instagram'),
+      h('a', { class: 'btn', href: '/connect/instagram' }, icon('instagram'), state.accounts.some(a => a.platform === 'instagram') ? 'Tambah Akun Instagram' : 'Sambungkan Instagram'),
       h('a', { class: 'btn', href: '/connect/threads' }, icon('threads'), 'Sambungkan Threads')),
+    h('p', { class: 'muted' }, 'Bisa menyambungkan lebih dari satu akun. Untuk menambah Instagram lain, pilih Ganti akun atau login dengan akun tersebut di halaman Instagram. Akun yang sudah tersambung tetap tersimpan.'),
     h('div', { class: 'list' }, state.accounts.length ? state.accounts.map((a) => h('div', { class: 'item' },
       avatar(a, 'lg'),
       h('div', { class: 'body' },

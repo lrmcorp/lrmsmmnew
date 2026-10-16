@@ -70,6 +70,24 @@ await step('reconnecting same account does not duplicate', async () => {
   assert.equal((await http('GET', '/v1/accounts')).json.data.length, 2);
 });
 
+await step('a second Instagram account coexists; reconnect and disconnect do not replace the first', async () => {
+  assert.match(await followConnect('instagram', 'brandkedua'), /connected=/);
+  let accounts = (await http('GET', '/v1/accounts')).json.data;
+  const second = accounts.find(a => a.platform === 'instagram' && a.username === 'brandkedua');
+  assert.ok(second);
+  assert.notEqual(second.id, ig.id);
+  assert.equal(accounts.filter(a => a.platform === 'instagram').length, 2);
+  assert.equal(accounts.find(a => a.id === ig.id).username, 'kopisenja');
+  await followConnect('instagram', 'brandkedua');
+  accounts = (await http('GET', '/v1/accounts')).json.data;
+  assert.equal(accounts.filter(a => a.platform === 'instagram').length, 2);
+  assert.equal(accounts.find(a => a.username === 'brandkedua').id, second.id);
+  assert.equal((await http('DELETE', `/v1/accounts/${second.id}`)).status, 204);
+  accounts = (await http('GET', '/v1/accounts')).json.data;
+  assert.ok(accounts.some(a => a.id === ig.id && a.status === 'active'));
+  assert.ok(!accounts.some(a => a.id === second.id));
+});
+
 await step('API keys: create write + read, hashed', async () => {
   const w = await http('POST', '/v1/api-keys', { body: { name: 'n8n', scope: 'write' } });
   const r = await http('POST', '/v1/api-keys', { body: { name: 'viewer', scope: 'read' } });

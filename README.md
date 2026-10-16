@@ -32,7 +32,7 @@ Mode lokal memakai Instagram/Threads **tiruan** — tidak ada yang benar-benar t
 ```bash
 npm install
 npm run dev          # META_MOCK=1, buka http://localhost:3000
-npm test             # 34 tes end-to-end terhadap Meta tiruan
+npm test             # 35 tes end-to-end terhadap Meta tiruan
 ```
 
 Di mode mock, layar login Instagram/Threads adalah tiruan dan tidak ada yang benar-benar terposting. Caption berisi `#fail-expired`, `#fail-transient`, atau `#fail-permission` mensimulasikan error Meta.
