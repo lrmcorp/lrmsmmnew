@@ -64,6 +64,10 @@ lrmsmm.playgo.id {
 
 Jalankan **satu instance saja** (worker dan SQLite ada di proses yang sama). Backup = salin folder `data/` (database + media). Jangan pernah mengganti `ENCRYPTION_KEY` setelah akun tersambung.
 
+### 1a. Auto-deploy dari GitHub (Actions)
+Setiap push ke `main` di `lrmcorp/lrmsmmnew`: tes dijalankan, lalu kalau lolos, kode dikirim ke VPS dan `deploy/install.sh` dijalankan (backup DB + rollback otomatis bila gagal).
+Setup sekali dari Mac: `bash deploy/setup-github-deploy.sh root@IP_VPS` — membuat kunci SSH khusus deploy, mendaftarkannya di VPS, dan menyimpan secrets `VPS_HOST`, `VPS_USER`, `VPS_PORT`, `VPS_SSH_KEY` (pakai GitHub CLI `gh`, atau isi manual di Settings → Secrets → Actions). Domain bisa diganti lewat repository variable `DEPLOY_DOMAIN` (default `lrmsmm.playgo.id`). Install pertama tetap jalankan manual sekali supaya `/etc/lrmsmm.env` (kredensial Meta) terisi.
+
 ### 1b. Kalau domain di Cloudflare
 `deploy/install.sh` mendeteksi Cloudflare otomatis (awan oranye) dan:
 - memasang Nginx dengan HTTPS di origin (Let's Encrypt via webroot; kalau gagal, sertifikat self-signed sementara),

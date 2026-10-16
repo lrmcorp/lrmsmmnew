@@ -1,0 +1,72 @@
+name: Test & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install ffmpeg (video tests)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+      DOMAIN: ${{ vars.DEPLOY_DOMAIN || 'lrmsmm.playgo.id' }}
+    steps:
+      - name: Skip if the server is not configured yet
+        id: guard
+        run: |
+          if [ -z "$VPS_HOST" ] || [ -z "$VPS_USER" ]; then
+            echo "::warning::VPS_HOST / VPS_USER secrets not set — skipping deploy."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip != '1'
+      - name: Build release bundle
+        if: steps.guard.outputs.skip != '1'
+        run: |
+          mkdir -p out
+          git archive --format=tar HEAD src public scripts package.json package-lock.json .env.example README.md NOTICE | gzip > out/lrmsmm.tar.gz
+          cp deploy/install.sh out/
+      - name: Set up SSH
+        if: steps.guard.outputs.skip != '1'
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Upload and install on VPS
+        if: steps.guard.outputs.skip != '1'
+        run: |
+          SSH="ssh -i ~/.ssh/deploy -p $VPS_PORT -o BatchMode=yes"
+          $SSH "$VPS_USER@$VPS_HOST" 'mkdir -p ~/lrmsmm-deploy'
+          scp -i ~/.ssh/deploy -P "$VPS_PORT" -o BatchMode=yes out/lrmsmm.tar.gz out/install.sh "$VPS_USER@$VPS_HOST:~/lrmsmm-deploy/"
+          SUDO=""; [ "$VPS_USER" != "root" ] && SUDO="sudo -n"
+          $SSH "$VPS_USER@$VPS_HOST" "$SUDO bash ~/lrmsmm-deploy/install.sh $DOMAIN"
+      - name: Health check
+        if: steps.guard.outputs.skip != '1'
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS "https://$DOMAIN/healthz"; then exit 0; fi
+            sleep 3
+          done
+          echo "::error::https://$DOMAIN/healthz did not respond"; exit 1
