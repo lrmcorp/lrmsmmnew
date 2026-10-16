@@ -9,7 +9,8 @@ import * as eng from '../services/engagement.js';
 import * as msgs from '../services/messages.js';
 import { RULES } from '../services/rules.js';
 import { runPublisherTick } from '../services/publisher.js';
-import { assertAccount, assertPostView, assertPostEdit, scopeSql, scopeOf, setAssignments, assignedAccounts, ROLES, isOwner } from '../services/scope.js';
+import { assertAccount, assertPostView, assertPostEdit, scopeSql, scopeOf, setAssignments, assignedAccounts, assignedCompanies, setCompanyAssignments, ROLES, isOwner } from '../services/scope.js';
+import { listCompanies, saveCompany, moveAccount } from '../services/companies.js';
 import { audit, listAudit } from '../services/audit.js';
 import { bus } from '../services/events.js';
 import { stats as webhookStats } from './webhooks.js';
@@ -42,6 +43,30 @@ const kick = () => setImmediate(() => runPublisherTick().catch(() => {}));
 // ---- me / accounts ----
 api.get('/me', (req, res) => res.json({ user: publicUser(U(req)), access: { via: req.auth.via, scope: req.auth.scope }, account_ids: scopeOf(U(req)), integrations: { instagram: accounts.platformConfigured('instagram'), threads: accounts.platformConfigured('threads') } }));
 api.get('/accounts', (req, res) => res.json({ data: accounts.listAccounts(U(req)) }));
+api.get('/companies', (req, res) => res.json({ data: listCompanies(U(req)) }));
+api.post('/companies', sessionOnly, requireOwner, (req, res) => {
+  const company = saveCompany(null, req.body?.name);
+  audit(req.auth, 'company.create', 'company', company.id, { name: company.name });
+  res.status(201).json(company);
+});
+api.patch('/companies/:id', sessionOnly, requireOwner, (req, res) => {
+  const company = saveCompany(req.params.id, req.body?.name);
+  audit(req.auth, 'company.update', 'company', company.id, { name: company.name });
+  res.json(company);
+});
+api.put('/accounts/:id/company', sessionOnly, requireOwner, (req, res) => {
+  moveAccount(req.params.id, req.body?.company_id);
+  audit(req.auth, 'account.company', 'account', req.params.id, { company_id: req.body.company_id });
+  res.json(accounts.publicAccount(accounts.getAccount(req.params.id)));
+});
+api.post('/accounts/:id/profile', W, async (req, res) => {
+  assertAccount(U(req), req.params.id);
+  let profile;
+  try { profile = await accounts.refreshAccountProfile(req.params.id); }
+  catch (error) { throw err(422, 'profile_refresh_failed', 'Profil belum bisa diperbarui dari Meta. Periksa koneksi atau sambungkan ulang akun.'); }
+  assertAccount(U(req), req.params.id);
+  res.json(profile);
+});
 api.get('/accounts/:id', (req, res) => { assertAccount(U(req), req.params.id); res.json(accounts.publicAccount(accounts.getAccount(req.params.id))); });
 api.delete('/accounts/:id', W, requireOwner, (req, res) => {
   const a = accounts.getAccount(req.params.id);
@@ -200,13 +225,14 @@ api.get('/apps', sessionOnly, (req, res) => res.json({
 api.delete('/apps/:id', sessionOnly, (req, res) => { run('UPDATE oauth_tokens SET revoked_at=? WHERE id=? AND user_id=?', now(), req.params.id, U(req).id); audit(req.auth, 'ai_app.revoke', 'oauth_token', req.params.id); res.status(204).end(); });
 
 // ---- user management (Owner only) ----
-const publicMember = (u) => ({ ...publicUser(u), account_ids: u.role === 'owner' ? null : assignedAccounts(u.id) });
+const publicMember = (u) => ({ ...publicUser(u), account_ids: u.role === 'owner' ? null : assignedAccounts(u.id), company_ids: u.role === 'owner' ? null : assignedCompanies(u.id) });
 api.get('/users', sessionOnly, requireOwner, (_req, res) => res.json({ data: all('SELECT * FROM users ORDER BY created_at').map(publicMember) }));
 api.post('/users', sessionOnly, requireOwner, (req, res) => {
   const role = ROLES.includes(req.body?.role) ? req.body.role : 'rep';
   const u = createUser({ ...req.body, role });
   if (role === 'rep' && Array.isArray(req.body?.account_ids)) setAssignments(u.id, req.body.account_ids);
-  audit(req.auth, 'user.create', 'user', u.id, { email: u.email, role, account_ids: req.body?.account_ids });
+  if (role === 'rep' && req.body?.company_ids !== undefined) setCompanyAssignments(u.id, req.body.company_ids);
+  audit(req.auth, 'user.create', 'user', u.id, { email: u.email, role, account_ids: req.body?.account_ids, company_ids: req.body?.company_ids });
   res.status(201).json(publicMember(one('SELECT * FROM users WHERE id=?', u.id)));
 });
 api.patch('/users/:id', sessionOnly, requireOwner, (req, res) => {
@@ -227,7 +253,8 @@ api.patch('/users/:id', sessionOnly, requireOwner, (req, res) => {
     revokeAllMachineAccess(u.id);
   }
   if (Array.isArray(b.account_ids)) setAssignments(u.id, b.account_ids);
-  audit(req.auth, 'user.update', 'user', u.id, { email: u.email, role: b.role, account_ids: b.account_ids, password_reset: !!b.password });
+  if (b.company_ids !== undefined) setCompanyAssignments(u.id, b.company_ids);
+  audit(req.auth, 'user.update', 'user', u.id, { email: u.email, role: b.role, account_ids: b.account_ids, company_ids: b.company_ids, password_reset: !!b.password });
   res.json(publicMember(one('SELECT * FROM users WHERE id=?', u.id)));
 });
 api.put('/users/:id/accounts', sessionOnly, requireOwner, (req, res) => {

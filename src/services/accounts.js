@@ -15,6 +15,7 @@ export function publicAccount(a) {
   if (!a) return null;
   return {
     id: a.id, platform: a.platform, platform_user_id: a.platform_user_id, username: a.username, name: a.name,
+    company_id: a.company_id || null, company_name: a.company_id ? one('SELECT name FROM companies WHERE id=?', a.company_id)?.name || null : null,
     avatar_url: a.avatar_url, status: a.status, last_error: a.last_error, followers_count: a.followers_count,
     token_expires_at: a.token_expires_at, created_at: a.created_at,
   };
@@ -31,6 +32,20 @@ export function getAccount(accountId) {
   return a;
 }
 export const tokenOf = (a) => decrypt(a.token_enc);
+
+export async function refreshAccountProfile(accountId) {
+  const account = getAccount(accountId);
+  const profile = await clients[account.platform].me(tokenOf(account));
+  if (profile.platformUserId !== account.platform_user_id) throw err(422, 'profile_mismatch', 'Profil tidak cocok. Sambungkan ulang akun.');
+  run('UPDATE accounts SET username=COALESCE(?,username),name=COALESCE(?,name),avatar_url=COALESCE(?,avatar_url),followers_count=COALESCE(?,followers_count),updated_at=? WHERE id=?',
+    profile.username ?? null, profile.name ?? null, profile.avatarUrl ?? null, profile.followers ?? null, now(), accountId);
+  return publicAccount(getAccount(accountId));
+}
+export async function refreshAllProfiles() {
+  for (const a of all("SELECT id FROM accounts WHERE status='active'")) {
+    try { await refreshAccountProfile(a.id); } catch (error) { console.warn('[profile] refresh failed: ' + (error.code || 'platform_error')); }
+  }
+}
 
 // ---- connect flow ----
 export function platformConfigured(platform) {

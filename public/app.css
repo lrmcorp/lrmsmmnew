@@ -491,3 +491,23 @@ dialog .df { padding: 1rem 1.5rem; border-top: 1px solid var(--slate-100); displ
 .panel h3 { margin-bottom: .625rem; }
 .panel h3 + .acc-picker { margin-top: 0; }
 .wrap > .seg, .wrap > .row { justify-self: start; }
+
+/* Company → Accounts hierarchy */
+.avatar img { width:100%; height:100%; object-fit:cover; border-radius:inherit; }
+.company-toolbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:16px 0; }
+.company-toolbar select { width:auto; min-width:200px; max-width:100%; }
+.company-group { margin-bottom:16px; }
+.company-group summary { cursor:pointer; padding-bottom:12px; }
+.company-group summary .btn { margin-left:12px; }
+.account-row { flex-wrap:wrap; }
+.account-row .body { min-width:140px; }
+.company-access { margin:10px 0; padding:12px; border:1px solid var(--line,#e1e8ef); border-radius:12px; }
+.company-access summary { cursor:pointer; margin-bottom:8px; }
+.company-access label { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+.company-access input[type=checkbox] { width:auto; }
+@media (max-width:639px) {
+  .hdr-r { flex-shrink:0; }
+  .hdr-l { flex:1; overflow:hidden; }
+  .crumb span { display:none; }
+  .crumb b { overflow:hidden; text-overflow:ellipsis; }
+}

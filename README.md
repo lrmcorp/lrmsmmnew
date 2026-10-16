@@ -32,7 +32,7 @@ Mode lokal memakai Instagram/Threads **tiruan** — tidak ada yang benar-benar t
 ```bash
 npm install
 npm run dev          # META_MOCK=1, buka http://localhost:3000
-npm test             # 36 tes end-to-end terhadap Meta tiruan
+npm test             # 37 tes end-to-end terhadap Meta tiruan
 ```
 
 Di mode mock, layar login Instagram/Threads adalah tiruan dan tidak ada yang benar-benar terposting. Caption berisi `#fail-expired`, `#fail-transient`, atau `#fail-permission` mensimulasikan error Meta.
@@ -194,3 +194,16 @@ Owner: **Tim & Akses → Tambah anggota / Ubah → Representative**, pilih semua
 Di **Pesan**, filter awal adalah **Semua**. Klik **Muat terbaru** untuk akun yang dipilih, atau semua akun yang ditugaskan. Status terakhir ditampilkan per akun; kegagalan izin/token tidak dilaporkan sebagai “tidak ada pesan baru”. Riwayat yang sudah tersimpan tetap tersedia saat Meta sedang gagal diakses. Endpoint `GET /v1/messages/sync-status` hanya mengembalikan status akun yang menjadi hak pengguna; `POST /v1/messages/sync` menerima `account_id` opsional dan mengembalikan `new_messages`, `synced_accounts`, serta `errors` per akun.
 
 Jika muncul `permission_missing`: sambungkan ulang akun dari LRMsmm, berikan izin `instagram_business_manage_messages`, dan aktifkan akses pesan di **Instagram → Messages and story replies → Message controls → Connected tools → Allow access to messages** (nama menu bisa berbeda menurut versi aplikasi). Jika Meta App masih Development, akun harus menerima undangan Instagram Tester. Sinkronisasi background berlangsung setiap 2 menit. Hanya percakapan yang disediakan Meta API yang dapat ditampilkan; tes otomatis menggunakan Meta tiruan dan bukan bukti akses ke DM produksi.
+
+
+### Perusahaan → Akun
+
+Owner membuka **Perusahaan & Akun → Tambah perusahaan**, lalu memilih perusahaan pada setiap akun yang tersambung. Setiap akun berada di satu perusahaan; perusahaan dapat memiliki beberapa akun Instagram/Threads. Akun lama tetap tersimpan di **Belum ditetapkan** sampai Owner mengelompokkannya. Perusahaan dapat diubah namanya tanpa menghapus akun atau token.
+
+Di **Tim & Akses → Tambah/Ubah anggota**, perluas daftar perusahaan lalu centang **Akses semua akun perusahaan ini** untuk satu atau beberapa perusahaan. Akses ini meliputi akun sekarang dan akun baru yang dimasukkan ke perusahaan tersebut. Akun individual tambahan tetap bisa dipilih di bagian terpisah; penugasan individual lama dipertahankan saat migrasi. Untuk mencabut seluruh akses ke sebuah akun, hapus semua grant yang memberikannya (perusahaan maupun individual). Perpindahan akun antarperusahaan langsung memperbarui akses berbasis perusahaan. Member tidak bisa membuat perusahaan atau memindahkan akun. Owner mengelola semua perusahaan.
+
+Pemilih akun pada composer, filter DM/komentar, dan insights dikelompokkan menurut perusahaan. Pemeriksaan scope yang sama berlaku pada REST API dan MCP. Worker memeriksa akses pembuat sebelum menjalankan target post terjadwal; target ditolak dengan `access_revoked` jika hak aksesnya sudah dicabut.
+
+Nama dan foto profil dari Meta ditampilkan di semua avatar akun, dengan fallback inisial bila foto kosong, kedaluwarsa, atau tidak bisa dimuat. Klik **Perbarui nama & foto** untuk memperbarui profil akun yang sudah tersambung tanpa mengganti token. Worker juga mencoba memperbarui profil akun aktif setiap 6 jam. Nilai yang tidak disediakan Meta tidak dibuat-buat; nama kosong memakai username.
+
+REST API: `GET/POST /v1/companies`, `PATCH /v1/companies/{id}`, `PUT /v1/accounts/{id}/company` (`company_id` atau null), dan `POST /v1/accounts/{id}/profile`. Buat/ubah anggota melalui `/v1/users` dengan `company_ids` opsional serta `account_ids` untuk grant individual. Daftar perusahaan dan jumlah akun difilter menurut akses pengguna.

@@ -6,6 +6,7 @@ import { refreshPostStatus } from './posts.js';
 import { PlatformError } from '../meta/http.js';
 import { notify } from './notify.js';
 import { emit } from './events.js';
+import { canAccount } from './scope.js';
 
 const MAX_ATTEMPTS = 4;
 const BACKOFF_MIN = [1, 3, 10, 30];
@@ -34,6 +35,10 @@ async function publishTarget(t) {
   try {
     if (!acc || acc.status === 'disconnected') { run("UPDATE post_targets SET status='cancelled' WHERE id=?", t.id); return; }
     if (acc.status === 'expired') return fail('account_expired', 'Akun perlu disambungkan ulang');
+    if (post.created_by) {
+      const author = one('SELECT * FROM users WHERE id=?', post.created_by);
+      if (!author || !canAccount(author, acc.id)) return fail('access_revoked', 'Akses pembuat post ke akun ini sudah dicabut.');
+    }
 
     const token = tokenOf(acc);
     const content = t.content ?? post.content ?? '';

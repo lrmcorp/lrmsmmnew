@@ -507,6 +507,47 @@ await step('password change revokes API keys and AI access', async () => {
   assert.equal((await http('GET', '/v1/me', { auth: oauthAccess })).status, 401);
 });
 
+await step('company membership grants multiple accounts, preserves direct grants, and revokes DM/API access immediately', async () => {
+  const firstCompany = await http('POST', '/v1/companies', { body: { name: 'Company Alpha' } });
+  const secondCompany = await http('POST', '/v1/companies', { body: { name: 'Company Beta' } });
+  assert.equal(firstCompany.status, 201); assert.equal(secondCompany.status, 201);
+  const alpha = firstCompany.json.id, beta = secondCompany.json.id;
+  await http('PUT', `/v1/accounts/${ig.id}/company`, { body: { company_id: alpha } });
+  await http('PUT', `/v1/accounts/${th.id}/company`, { body: { company_id: alpha } });
+  await http('PUT', `/v1/accounts/${sp.id}/company`, { body: { company_id: beta } });
+  const member = await http('POST', '/v1/users', { body: { email: 'companies@fixture.id', password: 'fixture-password', role: 'rep', company_ids: [alpha, beta] } });
+  assert.equal(member.status, 201);
+  assert.deepEqual(new Set(member.json.company_ids), new Set([alpha, beta]));
+  let memberCookie;
+  await asCookie('', async () => { await http('POST', '/auth/login', { body: { email: 'companies@fixture.id', password: 'fixture-password' } }); memberCookie = cookie; });
+  await asCookie(memberCookie, async () => {
+    assert.equal((await http('GET', '/v1/accounts')).json.data.length, 3);
+    assert.equal((await http('GET', '/v1/companies')).json.data.length, 2);
+    assert.equal((await http('POST', '/v1/companies', { body: { name: 'forbidden' } })).status, 403);
+    assert.equal((await http('PUT', `/v1/accounts/${ig.id}/company`, { body: { company_id: beta } })).status, 403);
+  });
+  const pending = await asCookie(memberCookie, async () => (await http('POST', '/v1/posts', { body: { content: 'Revoked company schedule', targets: [{ account_id: th.id }], scheduled_at: new Date(Date.now() + 3600000).toISOString() } })).json);
+  await http('PATCH', `/v1/users/${member.json.id}`, { body: { company_ids: [beta] } });
+  await asCookie(memberCookie, async () => {
+    assert.deepEqual((await http('GET', '/v1/accounts')).json.data.map(a => a.id), [sp.id]);
+    assert.equal((await http('GET', `/v1/accounts/${ig.id}`)).status, 404);
+    assert.equal((await http('POST', `/v1/accounts/${ig.id}/profile`)).status, 404);
+    assert.equal((await http('POST', '/v1/messages/sync', { body: { account_id: ig.id } })).status, 404);
+    assert.deepEqual((await http('GET', '/v1/companies')).json.data.map(c => c.id), [beta]);
+  });
+  run('UPDATE post_targets SET run_at=? WHERE post_id=?', new Date(Date.now() - 1000).toISOString(), pending.id);
+  await tick();
+  assert.equal((await http('GET', `/v1/posts/${pending.id}`)).json.targets[0].error_code, 'access_revoked');
+  // Existing direct account assignments survive company grouping and moves.
+  await asCookie(repCookie, async () => assert.equal((await http('GET', `/v1/accounts/${ig.id}`)).status, 200));
+  await http('PUT', `/v1/accounts/${ig.id}/company`, { body: { company_id: beta } });
+  await asCookie(memberCookie, async () => assert.equal((await http('GET', `/v1/accounts/${ig.id}`)).status, 200));
+  await http('PUT', `/v1/accounts/${ig.id}/company`, { body: { company_id: alpha } });
+  const refreshed = await http('POST', `/v1/accounts/${ig.id}/profile`);
+  assert.equal(refreshed.status, 200); assert.ok(refreshed.json.name);
+  assert.equal(refreshed.json.company_id, alpha);
+});
+
 await step('disconnect account cancels its pending posts', async () => {
   const at = new Date(Date.now() + 7200_000).toISOString();
   const p = await http('POST', '/v1/posts', { body: { content: 'nanti', targets: [{ account_id: th.id }], scheduled_at: at } });

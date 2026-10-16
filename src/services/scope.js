@@ -9,7 +9,8 @@ export const isOwner = (user) => user?.role === 'owner';
 export function scopeOf(user) {
   if (!user) return [];
   if (isOwner(user)) return null;
-  return all('SELECT account_id FROM user_accounts WHERE user_id=?', user.id).map((r) => r.account_id);
+  return all(`SELECT account_id FROM user_accounts WHERE user_id=?
+    UNION SELECT a.id AS account_id FROM accounts a JOIN user_companies uc ON uc.company_id=a.company_id WHERE uc.user_id=?`, user.id, user.id).map((r) => r.account_id);
 }
 export function canAccount(user, accountId) {
   const s = scopeOf(user);
@@ -57,4 +58,15 @@ export function setAssignments(userId, accountIds) {
 }
 export function assignAccount(userId, accountId) {
   run('INSERT OR IGNORE INTO user_accounts(user_id,account_id) VALUES(?,?)', userId, accountId);
+}
+
+export function assignedCompanies(userId) {
+  return all('SELECT company_id FROM user_companies WHERE user_id=?', userId).map(r => r.company_id);
+}
+export function setCompanyAssignments(userId, companyIds) {
+  if (!Array.isArray(companyIds) || companyIds.some(c => typeof c !== 'string' || !one('SELECT 1 FROM companies WHERE id=?', c))) throw err(400, 'validation_failed', 'company_ids harus daftar perusahaan yang valid.');
+  tx(() => {
+    run('DELETE FROM user_companies WHERE user_id=?', userId);
+    for (const companyId of new Set(companyIds)) run('INSERT INTO user_companies(user_id,company_id) VALUES(?,?)', userId, companyId);
+  });
 }

@@ -3,11 +3,12 @@ import { kvGet, kvSet } from './db.js';
 import { config } from './config.js';
 import { runPublisherTick } from './services/publisher.js';
 import { syncAllComments, syncInsights } from './services/engagement.js';
-import { refreshExpiringTokens } from './services/accounts.js';
+import { refreshExpiringTokens, refreshAllProfiles } from './services/accounts.js';
 import { gcMedia } from './services/media.js';
 import { syncAllMessages } from './services/messages.js';
 
 const JOBS = [
+  { name: 'profiles', everyMs: 6 * 3600_000, fn: refreshAllProfiles },
   { name: 'comments', everyMs: 10 * 60_000, fn: syncAllComments },
   { name: 'messages', everyMs: 2 * 60_000, fn: syncAllMessages },
   { name: 'insights', everyMs: 6 * 3600_000, fn: syncInsights },

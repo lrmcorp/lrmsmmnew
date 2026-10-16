@@ -197,6 +197,19 @@ CREATE INDEX IF NOT EXISTS messages_conv ON messages(conversation_id, sent_at);
 `);
 
 // migrations
+db.exec(`CREATE TABLE IF NOT EXISTS companies (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE TABLE IF NOT EXISTS user_companies (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  PRIMARY KEY(user_id, company_id)
+);`);
+if (!db.prepare('PRAGMA table_info(accounts)').all().some(c => c.name === 'company_id')) {
+  db.exec('ALTER TABLE accounts ADD COLUMN company_id TEXT REFERENCES companies(id) ON DELETE SET NULL');
+}
+db.exec('CREATE INDEX IF NOT EXISTS accounts_company ON accounts(company_id);');
 db.exec("UPDATE users SET role='owner' WHERE role='admin'; UPDATE users SET role='rep' WHERE role='member';");
 
 export const now = () => new Date().toISOString();

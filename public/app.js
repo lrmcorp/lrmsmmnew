@@ -38,7 +38,13 @@ const pref = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } cat
 const PLAT = { instagram: 'Instagram', threads: 'Threads' };
 const initials = (s) => (s || '?').replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase();
 const plat = (p) => h('span', { class: `plat ${p}` }, icon(p), PLAT[p] || p);
-const avatar = (a, cls = '') => h('span', { class: `avatar ${a.platform} ${cls}`, title: `@${a.username}` }, (a.username || '?').slice(0, 2).toUpperCase());
+const avatar = (a, cls = '') => {
+  const el = h('span', { class: `avatar ${a.platform} ${cls}`, title: a.name || `@${a.username}` }, initials(a.name || a.username));
+  try {
+    if (a.avatar_url && new URL(a.avatar_url).protocol === 'https:') el.replaceChildren(h('img', { src: a.avatar_url, alt: a.name || `@${a.username}`, loading: 'lazy', referrerpolicy: 'no-referrer', onerror: () => el.replaceChildren(document.createTextNode(initials(a.name || a.username))) }));
+  } catch { /* Invalid or unavailable remote photo: keep initials. */ }
+  return el;
+};
 const STATUS = { published: 'Terbit', scheduled: 'Terjadwal', publishing: 'Sedang diterbitkan', pending: 'Menunggu', failed: 'Gagal', partial: 'Sebagian gagal', cancelled: 'Dibatalkan', expired: 'Perlu disambung ulang', active: 'Aktif' };
 const status = (s) => h('span', { class: `status ${s}` }, STATUS[s] || s);
 const len = (s) => [...(s || '')].length;
@@ -83,10 +89,25 @@ function modal(title, body, actions = []) {
 }
 
 // ---------------- state & shell ----------------
-const state = { user: null, mock: false, accounts: [], stats: {}, lastOverdue: 0 };
+const state = { user: null, mock: false, accounts: [], companies: [], stats: {}, lastOverdue: 0 };
 const isOwner = () => state.user?.role === 'owner';
 const ROLE = { owner: 'Owner', rep: 'Representative' };
-async function loadAccounts() { state.accounts = (await api('GET', '/v1/accounts')).data; return state.accounts; }
+async function loadAccounts() {
+  const [accounts, companies] = await Promise.all([api('GET', '/v1/accounts'), api('GET', '/v1/companies')]);
+  state.accounts = accounts.data; state.companies = companies.data; return state.accounts;
+}
+function companyGroups() {
+  return [...state.companies.map(c => ({ ...c, accounts: state.accounts.filter(a => a.company_id === c.id) })),
+    { id: '', name: 'Belum ditetapkan', accounts: state.accounts.filter(a => !a.company_id) }];
+}
+
+
+function accountOptions(selected, platform) {
+  return companyGroups().map(company => {
+    const accounts = company.accounts.filter(a => !platform || a.platform === platform);
+    return accounts.length ? h('optgroup', { label: company.name }, accounts.map(a => h('option', { value: a.id, selected: a.id === selected }, `${a.name || '@' + a.username} · @${a.username} (${PLAT[a.platform]})`))) : null;
+  });
+}
 
 function badgeFor(key) {
   const s = state.stats;
@@ -104,7 +125,7 @@ function navGroups() {
   return [
     ['Operasional', [['/', 'home', 'Beranda'], ['/compose', 'pen', 'Tulis Post'], ['/calendar', 'cal', 'Kalender Konten']]],
     ['Interaksi', [['/messages', 'chat', 'Pesan (DM)', 'messages'], ['/inbox', 'inbox', 'Komentar', 'comments'], ['/insights', 'chart', 'Insights']]],
-    ['Administrasi & Integrasi', [['/accounts', 'users', 'Akun Sosial'], ['/media', 'img', 'Pustaka Media'], ['/developer', 'key', 'API & AI'],
+    ['Administrasi & Integrasi', [['/accounts', 'users', 'Perusahaan & Akun'], ['/media', 'img', 'Pustaka Media'], ['/developer', 'key', 'API & AI'],
       ['/team', 'team', isOwner() ? 'Tim & Akses' : 'Akun Saya'], ...(isOwner() ? [['/admin', 'shield', 'Jejak Audit']] : [])]],
   ];
 }
@@ -348,10 +369,10 @@ async function pageCompose(editId) {
     updateMeter();
     return [
       h('h3', {}, 'Akun tujuan'),
-      state.accounts.length ? h('div', { class: 'acc-picker' }, state.accounts.map((a) =>
+      state.accounts.length ? h('div', {}, companyGroups().filter(c => c.accounts.length).map(c => h('details', { class: 'company-access', open: true }, h('summary', {}, c.name), h('div', { class: 'acc-picker' }, c.accounts.map((a) =>
         h('button', { type: 'button', class: `acc-chip ${s.selected.has(a.id) ? 'on' : ''}`, disabled: a.status !== 'active', 'aria-pressed': s.selected.has(a.id),
           title: a.status !== 'active' ? 'Akun perlu disambungkan ulang' : PLAT[a.platform],
-          onclick: () => { s.selected.has(a.id) ? s.selected.delete(a.id) : s.selected.add(a.id); render(); } }, avatar(a), `@${a.username}`, h('span', { class: `chip-plat ${a.platform}`, 'aria-label': PLAT[a.platform] }, icon(a.platform)))))
+          onclick: () => { s.selected.has(a.id) ? s.selected.delete(a.id) : s.selected.add(a.id); render(); } }, avatar(a), a.name || `@${a.username}`, h('span', { class: `chip-plat ${a.platform}`, 'aria-label': PLAT[a.platform] }, icon(a.platform))))))))
         : h('p', { class: 'muted' }, 'Belum ada akun. ', h('a', { href: '#/accounts' }, 'Sambungkan dulu.')),
       ta, meter,
       h('div', { class: 'media-strip' },
@@ -728,7 +749,7 @@ async function pageInbox() {
   pageCleanup = live.on((t) => { if (t === 'comment.new' && document.activeElement?.tagName !== 'TEXTAREA') draw(); });
   return shell('/inbox', h('div', {},
     pagehead('Komentar', 'Komentar Instagram dan balasan Threads di post kamu. Komentar baru masuk otomatis.',
-      h('select', { style: { width: 'auto' }, onchange: (e) => setQ('a', e.target.value), 'aria-label': 'Filter akun' }, h('option', { value: '' }, 'Semua akun'), state.accounts.map((a) => h('option', { value: a.id, selected: a.id === acc }, `@${a.username} (${PLAT[a.platform]})`))),
+      h('select', { style: { width: 'auto' }, onchange: (e) => setQ('a', e.target.value), 'aria-label': 'Filter akun' }, h('option', { value: '' }, 'Semua akun'), accountOptions(acc)),
       h('div', { class: 'seg' }, [['unreplied', 'Perlu dibalas'], ['all', 'Semua'], ['hidden', 'Disembunyikan']].map(([v, l]) => h('button', { class: filter === v ? 'on' : '', onclick: () => setQ('f', v) }, l))),
       h('div', { class: 'seg' }, h('button', { class: !group ? 'on' : '', onclick: () => setQ('g', '') }, 'Terbaru'), h('button', { class: group ? 'on' : '', onclick: () => setQ('g', 'post') }, 'Per post')),
       h('button', { class: 'btn', onclick: async (e) => { e.currentTarget.disabled = true; const r = await api('POST', '/v1/comments/sync'); toast(`${r.synced} komentar dicek`); route(); } }, 'Muat terbaru')),
@@ -817,7 +838,7 @@ async function pageMessages(convId) {
   return shell('/messages', h('div', {},
     pagehead('Pesan', 'DM Instagram dari semua akun yang kamu pegang. Balasan hanya bisa dalam 24 jam sejak pesan terakhir pelanggan.',
       h('select', { style: { width: 'auto' }, 'aria-label': 'Filter akun', onchange: (e) => go(`/messages${qs({ a: e.target.value })}`) },
-        h('option', { value: '' }, 'Semua akun Instagram'), igAccounts.map((a) => h('option', { value: a.id, selected: a.id === acc }, `@${a.username}`))),
+        h('option', { value: '' }, 'Semua akun Instagram'), accountOptions(acc, 'instagram')),
       h('div', { class: 'seg' }, [['needs_reply', 'Perlu dibalas'], ['all', 'Semua'], ['done', 'Selesai']].map(([v, l]) => h('button', { class: filter === v ? 'on' : '', onclick: () => go(`/messages${qs({ f: v })}`) }, l))),
       h('button', { class: 'btn', onclick: async (e) => {
         const button = e.currentTarget; button.disabled = true;
@@ -910,7 +931,7 @@ async function pageInsights() {
       h('tbody', {}, data.days.slice().reverse().map((d) => h('tr', {}, h('td', {}, d.date), order.map((k) => h('td', {}, fmtNum(d[k])))))))));
   return shell('/insights', h('div', {},
     pagehead('Insights', 'Perkembangan akun dari hari ke hari. Diperbarui otomatis tiap 6 jam; Meta bisa telat hingga 48 jam.',
-      h('select', { style: { width: 'auto' }, 'aria-label': 'Akun', onchange: (e) => setQ('a', e.target.value) }, state.accounts.map((x) => h('option', { value: x.id, selected: x.id === accId }, `@${x.username} (${PLAT[x.platform]})`))),
+      h('select', { style: { width: 'auto' }, 'aria-label': 'Akun', onchange: (e) => setQ('a', e.target.value) }, accountOptions(accId)),
       h('div', { class: 'seg' }, [7, 30, 90].map((r) => h('button', { class: r === days ? 'on' : '', onclick: () => setQ('r', String(r)) }, `${r} hari`))),
       h('button', { class: 'btn', onclick: async (e) => { e.currentTarget.disabled = true; try { await api('POST', '/v1/insights/sync'); toast('Statistik diperbarui'); route(); } catch (err) { toast(errMsg(err), true); e.currentTarget.disabled = false; } } }, 'Perbarui')),
     a?.status === 'expired' ? h('div', { class: 'err-box', style: { marginBottom: '14px' } }, 'Akun perlu dihubungkan ulang; statistik berhenti diperbarui. ', h('a', { href: `/connect/${a.platform}` }, 'Hubungkan ulang')) : null,
@@ -926,30 +947,64 @@ async function pageAccounts() {
   if (q.get('connected') || q.get('error')) history.replaceState(null, '', '#/accounts');
   const [, me] = await Promise.all([loadAccounts(), api('GET', '/v1/me').catch(() => ({}))]);
   const missing = Object.entries(me.integrations || {}).filter(([, ok]) => !ok).map(([p]) => p === 'instagram' ? 'Instagram' : 'Threads');
+  const selectedCompany = q.get('company') || 'all';
+  function editCompany(company) {
+    const name = h('input', { value: company?.name || '', maxlength: 100, placeholder: 'Nama perusahaan', 'aria-label': 'Nama perusahaan' });
+    const dialog = modal(company ? 'Ubah perusahaan' : 'Tambah perusahaan', h('label', { class: 'field' }, 'Nama perusahaan', name), [h('button', { class: 'btn primary', onclick: async () => {
+      try { await api(company ? 'PATCH' : 'POST', '/v1/companies' + (company ? '/' + company.id : ''), { name: name.value }); dialog.close(); toast('Perusahaan disimpan'); route(); }
+      catch (error) { toast(errMsg(error), true); }
+    } }, 'Simpan')]);
+    name.focus();
+  }
+  async function refreshProfiles(e) {
+    const button = e.currentTarget; button.disabled = true;
+    let failed = 0;
+    try {
+      for (const a of state.accounts.filter(a => a.status === 'active')) {
+        try { await api('POST', `/v1/accounts/${a.id}/profile`); } catch { failed++; }
+      }
+      toast(failed ? `${failed} profil belum dapat diperbarui. Sambungkan ulang akun bila perlu.` : 'Nama dan foto profil diperbarui dari Meta.', !!failed); route();
+    } finally { button.disabled = false; }
+  }
+  function accountRow(a) {
+    return h('div', { class: 'item account-row' }, avatar(a, 'lg'),
+      h('div', { class: 'body' },
+        h('div', {}, h('b', {}, a.name || `@${a.username}`)),
+        h('div', { class: 'muted small' }, `@${a.username}`),
+        h('div', { class: 'meta' }, plat(a.platform), a.followers_count != null ? h('span', {}, `${a.followers_count.toLocaleString('id-ID')} pengikut`) : null,
+          a.token_expires_at ? h('span', {}, `Token berlaku s/d ${new Date(a.token_expires_at).toLocaleDateString('id-ID')} (diperpanjang otomatis)`) : null),
+        a.last_error && a.status !== 'active' ? h('div', { class: 'err-box' }, a.last_error) : null),
+      status(a.status),
+      isOwner() ? h('select', { 'aria-label': `Perusahaan untuk @${a.username}`, style: { width: 'auto', maxWidth: '210px' }, onchange: async e => {
+        const select = e.currentTarget;
+        try { await api('PUT', `/v1/accounts/${a.id}/company`, { company_id: select.value || null }); toast('Perusahaan akun diperbarui'); route(); }
+        catch (error) { select.value = a.company_id || ''; toast(errMsg(error), true); }
+      } }, h('option', { value: '', selected: !a.company_id }, 'Belum ditetapkan'), state.companies.map(c => h('option', { value: c.id, selected: c.id === a.company_id }, c.name))) : null,
+      h('a', { class: 'btn sm', href: `/connect/${a.platform}` }, 'Sambungkan ulang'),
+      isOwner() ? h('button', { class: 'btn sm ghost danger', onclick: async () => {
+        if (!confirm(`Putuskan @${a.username}? Post terjadwal ke akun ini dibatalkan.`)) return;
+        try { await api('DELETE', `/v1/accounts/${a.id}`); toast(`@${a.username} diputus`); route(); } catch (error) { toast(errMsg(error), true); }
+      } }, 'Putuskan') : null);
+  }
+  const groups = companyGroups().filter(c => selectedCompany === 'all' || (c.id || 'none') === selectedCompany).filter(c => c.id || c.accounts.length);
   return shell('/accounts', h('div', {},
     missing.length ? h('div', { class: 'banner', style: { marginBottom: '1.5rem' } }, h('div', { class: 'l' }, h('div', { class: 'num' }, '!'), h('div', {},
       h('h3', {}, `Integrasi ${missing.join(' & ')} belum dikonfigurasi`),
-      h('p', {}, state.user?.role === 'owner'
-        ? 'Isi App ID & Secret dari Meta Developer di /opt/lrmsmmnew/.env di server, lalu restart aplikasi. Sampai itu diisi, tombol Sambungkan tidak bisa dipakai.'
-        : 'Hubungi Owner untuk melengkapi kredensial Meta di server.')))) : null,
-    pagehead('Akun', 'Login lewat halaman resmi Meta. LRMsmm tidak pernah tahu password akunmu; token disimpan terenkripsi.',
+      h('p', {}, isOwner() ? 'Isi App ID & Secret dari Meta Developer di /opt/lrmsmmnew/.env di server, lalu restart aplikasi.' : 'Hubungi Owner untuk melengkapi kredensial Meta di server.')))) : null,
+    pagehead('Perusahaan & Akun', 'Kelompokkan akun Instagram dan Threads di bawah perusahaan masing-masing.',
+      isOwner() ? h('button', { class: 'btn primary', onclick: () => editCompany() }, 'Tambah perusahaan') : null,
       h('a', { class: 'btn', href: '/connect/instagram' }, icon('instagram'), state.accounts.some(a => a.platform === 'instagram') ? 'Tambah Akun Instagram' : 'Sambungkan Instagram'),
       h('a', { class: 'btn', href: '/connect/threads' }, icon('threads'), 'Sambungkan Threads')),
-    h('p', { class: 'muted' }, 'Bisa menyambungkan lebih dari satu akun. Untuk menambah Instagram lain, pilih Ganti akun atau login dengan akun tersebut di halaman Instagram. Akun yang sudah tersambung tetap tersimpan.'),
-    h('div', { class: 'list' }, state.accounts.length ? state.accounts.map((a) => h('div', { class: 'item' },
-      avatar(a, 'lg'),
-      h('div', { class: 'body' },
-        h('div', {}, h('b', {}, `@${a.username}`), ' ', h('span', { class: 'muted' }, a.name || '')),
-        h('div', { class: 'meta' }, plat(a.platform), a.followers_count != null ? h('span', {}, `${a.followers_count.toLocaleString('id-ID')} pengikut`) : null,
-          a.token_expires_at ? h('span', {}, `Token berlaku s/d ${new Date(a.token_expires_at).toLocaleDateString('id-ID')} (diperpanjang otomatis)`) : null),
-        a.last_error && a.status !== 'active' ? h('div', { class: 'err-box', style: { marginTop: '6px' } }, a.last_error) : null),
-      status(a.status),
-      h('a', { class: 'btn sm', href: `/connect/${a.platform}` }, a.status === 'expired' ? 'Sambungkan ulang' : 'Perbarui'),
-      isOwner() && h('button', { class: 'btn sm ghost danger', onclick: async () => {
-        if (!confirm(`Putuskan @${a.username}? Post terjadwal ke akun ini dibatalkan.`)) return;
-        await api('DELETE', `/v1/accounts/${a.id}`); toast(`@${a.username} diputus`); route();
-      } }, 'Putuskan'))) : h('div', { class: 'empty' }, 'Belum ada akun tersambung.')),
-    h('p', { class: 'faint small', style: { marginTop: '14px' } }, 'Instagram harus akun Business atau Creator. Selama Meta App masih mode Development, akun harus terdaftar sebagai tester/role di app tersebut.')));
+    h('div', { class: 'company-toolbar' },
+      h('select', { 'aria-label': 'Filter perusahaan', onchange: e => go('/accounts?company=' + encodeURIComponent(e.target.value)) },
+        h('option', { value: 'all', selected: selectedCompany === 'all' }, 'Semua perusahaan'), state.companies.map(c => h('option', { value: c.id, selected: selectedCompany === c.id }, c.name)), h('option', { value: 'none', selected: selectedCompany === 'none' }, 'Belum ditetapkan')),
+      h('button', { class: 'btn', onclick: refreshProfiles, disabled: !state.accounts.length }, icon('refresh'), 'Perbarui nama & foto')),
+    groups.map(c => h('details', { class: 'panel company-group', open: true },
+      h('summary', {}, h('strong', {}, c.name), h('span', { class: 'faint small' }, ` · ${c.accounts.length} akun`),
+        isOwner() && c.id ? h('button', { class: 'btn sm ghost', onclick: e => { e.preventDefault(); editCompany(c); } }, 'Ubah nama') : null),
+      c.accounts.length ? h('div', { class: 'list' }, c.accounts.map(accountRow)) : h('p', { class: 'muted' }, 'Belum ada akun. Pilih perusahaan pada akun yang sudah tersambung.'))),
+    !groups.length ? h('div', { class: 'panel empty' }, 'Belum ada perusahaan atau akun. Tambahkan perusahaan dan sambungkan akun untuk memulai.') : null,
+    h('p', { class: 'faint small' }, 'Nama dan foto ditarik dari Meta; inisial ditampilkan jika foto tidak tersedia. Akun baru masuk ke Belum ditetapkan. Owner dapat memindahkannya ke perusahaan. Instagram harus Business/Creator.')));
 }
 
 // ---------------- media library ----------------
@@ -1017,13 +1072,24 @@ async function pageDeveloper() {
 // ---------------- team & user management ----------------
 function accountPicker(selected = []) {
   const sel = new Set(selected);
-  const box = h('div', { class: 'acc-picker' }, state.accounts.map((a) => {
-    const b = h('button', { type: 'button', class: `acc-chip ${sel.has(a.id) ? 'on' : ''}`, 'aria-pressed': sel.has(a.id),
-      onclick: () => { sel.has(a.id) ? sel.delete(a.id) : sel.add(a.id); b.classList.toggle('on'); b.setAttribute('aria-pressed', sel.has(a.id)); } },
-    avatar(a), `@${a.username}`, h('span', { class: `chip-plat ${a.platform}` }, icon(a.platform)));
-    return b;
-  }));
+  const box = h('div', {}, companyGroups().filter(c => c.accounts.length).map(c => h('details', { class: 'company-access', open: true },
+    h('summary', {}, c.name), h('div', { class: 'acc-picker' }, c.accounts.map(a => {
+      const button = h('button', { type: 'button', class: `acc-chip ${sel.has(a.id) ? 'on' : ''}`, 'aria-pressed': sel.has(a.id), onclick: () => {
+        sel.has(a.id) ? sel.delete(a.id) : sel.add(a.id); button.classList.toggle('on'); button.setAttribute('aria-pressed', sel.has(a.id));
+      } }, avatar(a), a.name || `@${a.username}`, h('span', { class: `chip-plat ${a.platform}` }, icon(a.platform)));
+      return button;
+    })))));
   return { el: state.accounts.length ? box : h('p', { class: 'faint' }, 'Belum ada akun sosial terhubung.'), value: () => [...sel] };
+}
+function companyPicker(selected = []) {
+  const sel = new Set(selected);
+  const box = h('div', {}, state.companies.map(c => h('details', { class: 'company-access' },
+    h('summary', {}, c.name, ` · ${state.accounts.filter(a => a.company_id === c.id).length} akun`),
+    h('label', {}, h('input', { type: 'checkbox', checked: sel.has(c.id), 'aria-label': `Akses seluruh perusahaan ${c.name}`, onchange: e => {
+      e.currentTarget.checked ? sel.add(c.id) : sel.delete(c.id);
+    } }), 'Akses semua akun perusahaan ini (termasuk akun baru)'),
+    h('div', { class: 'acc-picker' }, state.accounts.filter(a => a.company_id === c.id).map(a => h('span', { class: 'acc-chip' }, avatar(a), a.name || `@${a.username}`, h('span', { class: 'muted small' }, ` @${a.username}`)))))));
+  return { el: state.companies.length ? box : h('p', { class: 'faint' }, 'Tambahkan perusahaan di menu Perusahaan & Akun.'), value: () => [...sel] };
 }
 
 async function pageTeam() {
@@ -1045,19 +1111,20 @@ async function pageTeam() {
 
   function editUser(u) {
     const picker = accountPicker(u.account_ids || []);
+    const companies = companyPicker(u.company_ids || []);
     const role = h('select', { onchange: () => { pickWrap.hidden = role.value === 'owner'; } },
-      h('option', { value: 'rep', selected: u.role === 'rep' }, 'Representative — hanya akun yang dipilih'),
+      h('option', { value: 'rep', selected: u.role === 'rep' }, 'Representative — perusahaan / akun yang dipilih'),
       h('option', { value: 'owner', selected: u.role === 'owner' }, 'Owner — semua akun, kelola tim'));
     const name = h('input', { value: u.name || '' });
     const pass = h('input', { type: 'text', placeholder: 'Kosongkan kalau tidak diganti', minlength: 8 });
-    const pickWrap = h('div', { hidden: u.role === 'owner' }, h('label', { class: 'field' }, h('span', {}, 'Akun yang di-represent'), picker.el));
+    const pickWrap = h('div', { hidden: u.role === 'owner' }, h('div', { class: 'field' }, h('span', {}, 'Perusahaan yang ditugaskan'), companies.el, h('span', {}, 'Akun individual tambahan (opsional)'), picker.el));
     const d = modal(`Ubah ${u.email}`, h('div', {},
       h('label', { class: 'field' }, h('span', {}, 'Nama'), name),
       h('label', { class: 'field' }, h('span', {}, 'Peran'), role), pickWrap,
       h('label', { class: 'field' }, h('span', {}, 'Reset password'), pass)),
     [h('button', { class: 'btn', onclick: () => d.close() }, 'Batal'), h('button', { class: 'btn primary', onclick: async () => {
       const body = { name: name.value, role: role.value };
-      if (role.value === 'rep') body.account_ids = picker.value();
+      if (role.value === 'rep') { body.account_ids = picker.value(); body.company_ids = companies.value(); }
       if (pass.value) body.password = pass.value;
       try { await api('PATCH', `/v1/users/${u.id}`, body); d.close(); toast('Anggota diperbarui'); route(); } catch (e) { toast(errMsg(e), true); }
     } }, 'Simpan')]);
@@ -1065,16 +1132,17 @@ async function pageTeam() {
 
   function addUser() {
     const picker = accountPicker([]);
+    const companies = companyPicker([]);
     const f = { name: h('input', { autocomplete: 'off' }), email: h('input', { type: 'email', required: true, autocomplete: 'off' }), password: h('input', { type: 'text', minlength: 8, required: true, autocomplete: 'off' }) };
-    const role = h('select', { onchange: () => { pickWrap.hidden = role.value === 'owner'; } }, h('option', { value: 'rep' }, 'Representative — hanya akun yang dipilih'), h('option', { value: 'owner' }, 'Owner — semua akun, kelola tim'));
-    const pickWrap = h('div', {}, h('label', { class: 'field' }, h('span', {}, 'Akun yang di-represent (boleh lebih dari satu)'), picker.el));
+    const role = h('select', { onchange: () => { pickWrap.hidden = role.value === 'owner'; } }, h('option', { value: 'rep' }, 'Representative — perusahaan / akun yang dipilih'), h('option', { value: 'owner' }, 'Owner — semua akun, kelola tim'));
+    const pickWrap = h('div', {}, h('div', { class: 'field' }, h('span', {}, 'Perusahaan yang ditugaskan (boleh lebih dari satu)'), companies.el, h('span', {}, 'Akun individual tambahan (opsional)'), picker.el));
     const d = modal('Tambah anggota', h('div', {},
       h('label', { class: 'field' }, h('span', {}, 'Nama'), f.name), h('label', { class: 'field' }, h('span', {}, 'Email'), f.email),
       h('label', { class: 'field' }, h('span', {}, 'Password awal (min. 8 karakter)'), f.password),
       h('label', { class: 'field' }, h('span', {}, 'Peran'), role), pickWrap),
     [h('button', { class: 'btn', onclick: () => d.close() }, 'Batal'), h('button', { class: 'btn primary', onclick: async () => {
       try {
-        await api('POST', '/v1/users', { name: f.name.value, email: f.email.value, password: f.password.value, role: role.value, account_ids: role.value === 'rep' ? picker.value() : undefined });
+        await api('POST', '/v1/users', { name: f.name.value, email: f.email.value, password: f.password.value, role: role.value, account_ids: role.value === 'rep' ? picker.value() : undefined, company_ids: role.value === 'rep' ? companies.value() : undefined });
         d.close(); toast('Anggota ditambahkan'); route();
       } catch (e) { toast(errMsg(e), true); }
     } }, 'Tambah')]);
@@ -1088,7 +1156,7 @@ async function pageTeam() {
       h('div', { class: 'body' },
         h('div', {}, h('b', {}, u.name || u.email), ' ', h('span', { class: `status role-${u.role}` }, ROLE[u.role])),
         h('div', { class: 'meta' }, h('span', {}, u.email),
-          u.role === 'owner' ? h('span', {}, 'Semua akun') : h('span', {}, u.account_ids.length ? u.account_ids.map(accName).filter(Boolean).join(', ') : 'Belum ada akun ditugaskan'))),
+          u.role === 'owner' ? h('span', {}, 'Semua perusahaan & akun') : h('span', {}, [...(u.company_ids || []).map(id => state.companies.find(c => c.id === id)?.name).filter(Boolean), ...(u.account_ids || []).map(accName).filter(Boolean)].join(' · ') || 'Belum ada penugasan'))),
       h('button', { class: 'btn sm', onclick: () => editUser(u) }, 'Ubah'),
       u.id !== state.user.id ? h('button', { class: 'btn sm ghost danger', onclick: async () => { if (!confirm(`Hapus ${u.email}? Aksesnya langsung dicabut.`)) return; await api('DELETE', `/v1/users/${u.id}`); toast('Anggota dihapus'); route(); } }, 'Hapus') : h('span', { class: 'faint small' }, 'Kamu')))) : null,
     !owner ? h('div', { class: 'panel', style: { marginBottom: '16px' } }, h('h2', {}, 'Akun yang kamu pegang'),

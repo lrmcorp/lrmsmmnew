@@ -6,9 +6,9 @@ import path from 'node:path';
 
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lrmsmm-profile-'));
 Object.assign(process.env, { META_MOCK: '1', DATA_DIR: directory, DISABLE_WORKER: '1' });
-const { db, one } = await import('../src/db.js');
+const { db, one, run } = await import('../src/db.js');
 const { createUser } = await import('../src/auth.js');
-const { beginConnect, finishConnect, tokenOf } = await import('../src/services/accounts.js');
+const { beginConnect, finishConnect, tokenOf, refreshAccountProfile } = await import('../src/services/accounts.js');
 const user = createUser({ email: 'fixture@example.com', password: 'fixture-only-password', role: 'owner' });
 const originalFetch = globalThis.fetch;
 after(() => { globalThis.fetch = originalFetch; db.close(); fs.rmSync(directory, { recursive: true, force: true }); });
@@ -58,3 +58,28 @@ for (const platform of ['instagram', 'threads']) {
     }
   });
 }
+
+
+test('existing connected profiles refresh their name and photo without losing company or token', async () => {
+  const account = one("SELECT * FROM accounts WHERE platform='instagram'");
+  run("INSERT INTO companies(id,name) VALUES('profile-company','Profile Company')");
+  run('UPDATE accounts SET company_id=? WHERE id=?', 'profile-company', account.id);
+  globalThis.fetch = async () => new Response(JSON.stringify({ user_id: account.platform_user_id, username: account.username,
+    name: 'Updated Brand', profile_picture_url: 'https://example.com/profile.jpg', followers_count: 42 }));
+  try {
+    const result = await refreshAccountProfile(account.id);
+    assert.equal(result.name, 'Updated Brand');
+    assert.equal(result.avatar_url, 'https://example.com/profile.jpg');
+    assert.equal(result.company_id, 'profile-company');
+    assert.equal(one('SELECT token_enc FROM accounts WHERE id=?', account.id).token_enc, account.token_enc);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('a profile for a different Instagram identity cannot replace an existing account', async () => {
+  const account = one("SELECT * FROM accounts WHERE platform='instagram'");
+  globalThis.fetch = async () => new Response(JSON.stringify({ user_id: 'wrong-identity', username: 'wrong-user', name: 'Wrong Brand' }));
+  try {
+    await assert.rejects(refreshAccountProfile(account.id), error => error.code === 'profile_mismatch');
+    assert.equal(one('SELECT name FROM accounts WHERE id=?', account.id).name, account.name);
+  } finally { globalThis.fetch = originalFetch; }
+});
