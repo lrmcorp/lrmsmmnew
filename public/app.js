@@ -348,6 +348,7 @@ async function pageCompose(editId) {
     at: initial?.scheduled_at ? toLocalInput(initial.scheduled_at) : toLocalInput(atParam || new Date(Date.now() + 3600_000).toISOString()),
   };
   if (initial) for (const t of initial.targets) s.per[t.account_id] = { content: t.content ?? undefined, options: t.options || {} };
+  const slides = {};
   const per = (id) => (s.per[id] ||= { options: {} });
 
   const root = h('div', { class: 'composer' });
@@ -389,6 +390,7 @@ async function pageCompose(editId) {
         h('button', { type: 'button', class: 'add', onclick: () => pickMedia((picked) => { s.media.push(...picked); render(); }) }, '+ Foto / video')),
       sel.length ? h('div', {}, sel.map(perAccount)) : null,
       h('div', { class: 'per-acc' }, h('h3', {}, 'Kapan'),
+        h('p', { class: 'muted small' }, 'Media disimpan sampai posting berhasil terbit di semua tujuan, lalu dihapus dari server. Simpan salinan asli Anda.'),
         h('div', { class: 'when-box' },
           h('div', { class: 'seg' },
             h('button', { type: 'button', class: s.when === 'now' ? 'on' : '', onclick: () => { s.when = 'now'; render(); }, disabled: !!editing }, 'Terbitkan sekarang'),
@@ -446,10 +448,20 @@ async function pageCompose(editId) {
       const mediaEl = (x) => x.type === 'video' ? h('video', { src: x.url, muted: true, autoplay: true, loop: true, playsinline: true }) : h('img', { src: x.url, alt: x.alt_text || '' });
       if (a.platform === 'instagram') {
         const story = p.options.format === 'story';
+        const index = Math.min(slides[a.id] || 0, Math.max(0, m.length - 1));
+        const item = m[index];
+        const ratio = story ? '9 / 16' : m[0]?.width && m[0]?.height ? String(m[0].width / m[0].height) : '4 / 5';
+        const move = (delta) => { slides[a.id] = (index + delta + m.length) % m.length; renderPreview(); };
         return h('div', { class: 'pv instagram' },
           h('div', { class: 'hd' }, avatar(a), a.username, h('span', { class: 'when' }, when)),
-          h('div', { class: `img ${story ? 'story' : ''}` }, m[0] ? mediaEl(m[0]) : 'Instagram wajib ada foto atau video', m.length > 1 && !story ? h('div', { class: 'dots' }, m.map(() => h('i'))) : null),
+          h('div', { class: `img ${story ? 'story' : ''}`, style: { aspectRatio: ratio } }, item ? mediaEl(item) : 'Instagram wajib ada foto atau video',
+            m.length > 1 ? h('span', { class: 'slide-count' }, `${index + 1}/${m.length}`) : null,
+            m.length > 1 ? h('button', { type: 'button', class: 'slide-prev', 'aria-label': 'Slide sebelumnya', onclick: () => move(-1) }, '‹') : null,
+            m.length > 1 ? h('button', { type: 'button', class: 'slide-next', 'aria-label': 'Slide berikutnya', onclick: () => move(1) }, '›') : null),
+          !story ? h('div', { class: 'ig-actions', 'aria-hidden': 'true' }, '♡  ♧  ➤', h('span', {}, '♧')) : null,
+          m.length > 1 && !story ? h('div', { class: 'slide-dots' }, m.map((_, i) => h('button', { type: 'button', class: i === index ? 'on' : '', 'aria-label': `Slide ${i + 1}`, 'aria-pressed': String(i === index), onclick: () => { slides[a.id] = i; renderPreview(); } }))) : null,
           !story && text ? h('div', { class: 'cap' }, h('b', {}, a.username), text) : null,
+          h('div', { class: 'pv-note' }, story ? 'Pratinjau Story' : m.length > 1 ? 'Pratinjau carousel' : item?.type === 'video' ? 'Pratinjau Reels' : 'Pratinjau feed', ' · Tampilan akhir mengikuti Instagram.'),
           len(text) > 2200 ? h('div', { class: 'warn' }, `Kelebihan ${len(text) - 2200} karakter`) : null);
       }
       const parts = p.options.thread || [];
@@ -461,7 +473,7 @@ async function pageCompose(editId) {
         parts.map((t) => h('div', { class: 'tpart' }, typeof t === 'string' ? t : t.text)),
         len(text) > 500 ? h('div', { class: 'warn' }, `Kelebihan ${len(text) - 500} karakter — Threads maks 500`) : null);
     });
-    right.replaceChildren(h('h3', {}, 'Preview'), h('div', { class: 'previews' }, cards.length ? cards : h('div', { class: 'pv-empty' }, 'Pilih akun untuk melihat preview Instagram dan Threads berdampingan.')));
+    right.replaceChildren(h('h3', {}, 'Pratinjau sebelum terbit'), h('div', { class: 'previews' }, cards.length ? cards : h('div', { class: 'pv-empty' }, 'Pilih akun untuk melihat preview Instagram dan Threads berdampingan.')));
   }
 
   async function submit(e) {
@@ -603,12 +615,13 @@ async function pagePost(id) {
       h('div', { class: 'grid2' },
         h('div', { class: 'panel' }, h('h2', {}, 'Isi'),
           h('p', { style: { whiteSpace: 'pre-wrap' } }, p.content || h('span', { class: 'faint' }, '(tanpa teks bersama)')),
-          p.media.length ? h('div', { class: 'media-strip' }, p.media.map((m) => h('div', { class: 'tile' }, m.type === 'video' ? h('video', { src: m.url, muted: true, controls: true }) : h('img', { src: m.url, alt: m.alt_text || '' })))) : null,
+          p.media.length ? h('div', { class: 'media-strip' }, p.media.filter(m => m.url).map((m) => h('div', { class: 'tile' }, m.type === 'video' ? h('video', { src: m.url, muted: true, controls: true }) : h('img', { src: m.url, alt: m.alt_text || '' })))) : null,
+          p.media.some(m => m.status === 'purged') ? h('p', { class: 'muted small' }, 'File media sudah dihapus dari server setelah terbit. Gunakan tautan posting di sebelah untuk melihat hasilnya.') : null,
           h('p', { class: 'faint small' }, `Sumber: ${p.source === 'mcp' ? 'AI (MCP)' : p.source === 'api' ? 'REST API' : 'dashboard'}`)),
         h('div', { class: 'panel' }, h('h2', {}, 'Status per akun'),
           p.targets.map((t) => h('div', { class: 'target-row' },
             plat(t.platform), h('b', {}, `@${t.username}`), h('span', { class: 'spacer' }), status(t.status),
-            t.permalink ? h('a', { class: 'btn sm', href: t.permalink, target: '_blank', rel: 'noopener' }, 'Lihat post') : null,
+            t.permalink ? h('a', { class: 'btn sm', href: t.permalink, target: '_blank', rel: 'noopener' }, t.platform === 'instagram' ? 'Buka di Instagram ↗' : 'Buka di Threads ↗') : t.status === 'published' ? h('span', { class: 'muted small' }, t.options?.format === 'story' ? 'Story tidak memiliki tautan posting permanen.' : 'Tautan posting belum tersedia dari Meta.') : null,
             t.error_code ? h('div', { class: 'err-box' }, h('b', {}, ERR[t.error_code] || t.error_code), t.error_message ? h('div', {}, t.error_message) : null,
               t.error_code === 'account_expired' ? h('a', { class: 'btn sm', style: { marginTop: '6px' }, href: `/connect/${t.platform}` }, 'Sambungkan ulang') : null) : null,
             t.content != null ? h('div', { class: 'small muted', style: { width: '100%', whiteSpace: 'pre-wrap' } }, `Teks khusus: ${t.content || '(kosong)'}`) : null)))),

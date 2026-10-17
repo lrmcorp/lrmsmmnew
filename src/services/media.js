@@ -222,8 +222,26 @@ export function deleteMedia(mediaId) {
   run('DELETE FROM media WHERE id=?', mediaId);
 }
 
+/** Remove published uploads once every reference is finished; keep metadata for history. */
+export function purgePublishedMedia() {
+  let removed = 0;
+  for (const m of all("SELECT * FROM media WHERE status='ready'")) {
+    const like = `%"${m.id}"%`;
+    if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) continue;
+    const uses = all(`SELECT t.status FROM post_targets t JOIN posts p ON p.id=t.post_id
+      WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?`, like, like, like);
+    if (!uses.some(u => u.status === 'published')) continue;
+    if (uses.some(u => !['published', 'cancelled'].includes(u.status))) continue;
+    if (m.path) fs.rmSync(m.path, { force: true });
+    run("UPDATE media SET path=NULL, size_bytes=0, status='purged', in_library=0 WHERE id=?", m.id);
+    removed++;
+  }
+  return removed;
+}
+
 /** Garbage-collect non-library media: 7 days if never used, 30 days after last use finished. */
 export function gcMedia() {
+  purgePublishedMedia();
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
   const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
   for (const m of all('SELECT * FROM media WHERE in_library=0 AND created_at < ?', weekAgo)) {

@@ -116,3 +116,19 @@ async function tickOnce() {
 
 export const pendingCount = () => one("SELECT COUNT(*) n FROM post_targets WHERE status='pending' AND run_at <= ?", now()).n;
 export { all };
+
+/** Retry only the permalink lookup; never publish again to obtain a link. */
+export async function refreshMissingPermalinks() {
+  const since = new Date(Date.now() - 7 * 864e5).toISOString();
+  const targets = all(`SELECT t.* FROM post_targets t JOIN accounts a ON a.id=t.account_id
+    WHERE t.status='published' AND t.permalink IS NULL AND t.platform_post_id IS NOT NULL
+    AND t.published_at > ? AND a.platform='instagram' AND a.status='active' LIMIT 50`, since);
+  for (const t of targets) {
+    if (parseJSON(t.options, {}).format === 'story') continue;
+    try {
+      const acc = one('SELECT * FROM accounts WHERE id=?', t.account_id);
+      const link = await clients.instagram.postPermalink(t.platform_post_id, tokenOf(acc));
+      if (link) run('UPDATE post_targets SET permalink=? WHERE id=?', link, t.id);
+    } catch { /* Keep the confirmed published status; retry on the next job. */ }
+  }
+}

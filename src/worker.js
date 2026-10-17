@@ -1,13 +1,14 @@
 // Background jobs, run in-process. Single instance only (SQLite).
 import { kvGet, kvSet } from './db.js';
 import { config } from './config.js';
-import { runPublisherTick } from './services/publisher.js';
+import { runPublisherTick, refreshMissingPermalinks } from './services/publisher.js';
 import { syncAllComments, syncInsights } from './services/engagement.js';
 import { refreshExpiringTokens, refreshAllProfiles } from './services/accounts.js';
-import { gcMedia } from './services/media.js';
+import { gcMedia, purgePublishedMedia } from './services/media.js';
 import { syncAllMessages } from './services/messages.js';
 
 const JOBS = [
+  { name: 'permalinks', everyMs: 5 * 60_000, fn: refreshMissingPermalinks },
   { name: 'profiles', everyMs: 6 * 3600_000, fn: refreshAllProfiles },
   { name: 'comments', everyMs: 10 * 60_000, fn: syncAllComments },
   { name: 'messages', everyMs: 2 * 60_000, fn: syncAllMessages },
@@ -33,7 +34,7 @@ export async function runJobNow(name) {
 export function startWorker() {
   if (config.disableWorker) { console.log('[worker] disabled'); return; }
   const tick = async () => {
-    try { await runPublisherTick(); } catch (e) { console.error('[publisher]', e); }
+    try { await runPublisherTick(); purgePublishedMedia(); } catch (e) { console.error('[publisher]', e); }
     for (const j of JOBS) {
       const last = Number(kvGet(`job:${j.name}`) || 0);
       if (Date.now() - last >= j.everyMs) runJob(j);

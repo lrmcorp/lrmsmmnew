@@ -132,6 +132,38 @@ await step('validation: IG requires media, Threads 500 chars, poll text-only', a
   assert.equal(r.json.error.code, 'invalid_options');
 });
 
+await step('published uploads are removed only after all uses finish; history and links remain', async () => {
+  const { saveBuffer, purgePublishedMedia } = await import('../src/services/media.js');
+  const { all } = await import('../src/db.js');
+  // Use a new account because the preceding deauthorization test disconnects ig.
+  const account = all("SELECT * FROM accounts WHERE status='active' AND platform='threads'")[0];
+  assert.ok(account);
+  const bytes = await sharp({ create: { width: 1080, height: 1080, channels: 3, background: '#abe' } }).jpeg().toBuffer();
+  const m = await saveBuffer(null, bytes, { inLibrary: true });
+  const disk = one('SELECT path FROM media WHERE id=?', m.id).path;
+  const first = await http('POST', '/v1/posts', { auth: writeKey, body: { content: 'retention first', media_ids: [m.id], targets: [{ account_id: account.id }] } });
+  const second = await http('POST', '/v1/posts', { auth: writeKey, body: { content: 'retention scheduled', media_ids: [m.id], scheduled_at: new Date(Date.now() + 3600000).toISOString(), targets: [{ account_id: account.id }] } });
+  assert.equal(first.status, 201, JSON.stringify(first.json));
+  assert.equal(second.status, 201, JSON.stringify(second.json));
+  await tick();
+  purgePublishedMedia();
+  assert.ok(fs.existsSync(disk), 'shared scheduled media must survive');
+  run("UPDATE post_targets SET status='failed' WHERE post_id=?", second.json.id);
+  purgePublishedMedia();
+  assert.ok(fs.existsSync(disk), 'failed media must survive for retry');
+  run("UPDATE post_targets SET status='pending', run_at=? WHERE post_id=?", new Date().toISOString(), second.json.id);
+  await tick();
+  purgePublishedMedia();
+  assert.equal(fs.existsSync(disk), false);
+  assert.equal((await fetch(m.url)).status, 404);
+  const row = one('SELECT * FROM media WHERE id=?', m.id);
+  assert.equal(row.status, 'purged'); assert.equal(row.path, null); assert.equal(row.size_bytes, 0);
+  const history = (await http('GET', `/v1/posts/${first.json.id}`, { auth: readKey })).json;
+  assert.equal(history.status, 'published');
+  assert.equal(history.media[0].url, null);
+  assert.match(history.targets[0].permalink, /^https:\/\//);
+});
+
 await step('publish now to IG + Threads, with idempotency', async () => {
   const key = crypto.randomUUID();
   const body = { content: 'Menu baru minggu ini: es kopi gula aren ☕', media_ids: [imgId], targets: [{ account_id: ig.id }, { account_id: th.id }] };
@@ -145,6 +177,13 @@ await step('publish now to IG + Threads, with idempotency', async () => {
   const g = await http('GET', `/v1/posts/${post1}`, { auth: readKey });
   assert.equal(g.json.status, 'published', JSON.stringify(g.json.targets));
   for (const t of g.json.targets) assert.match(t.permalink, /^https:\/\//);
+  const target = g.json.targets.find(t => t.platform === 'instagram');
+  run('UPDATE post_targets SET permalink=NULL WHERE id=?', target.id);
+  const { refreshMissingPermalinks } = await import('../src/services/publisher.js');
+  await refreshMissingPermalinks();
+  assert.equal(one('SELECT permalink FROM post_targets WHERE id=?', target.id).permalink, target.permalink);
+  assert.equal(one('SELECT platform_post_id FROM post_targets WHERE id=?', target.id).platform_post_id, target.platform_post_id);
+
 });
 
 await step('carousel IG + per-account override + Threads poll', async () => {
@@ -619,6 +658,7 @@ await step('Meta data-deletion callback (signed_request) disconnects account', a
   const page = await fetch(r.url).then((x) => x.text());
   assert.match(page, /selesai/);
 });
+
 
 server.close();
 fs.rmSync(tmp, { recursive: true, force: true });

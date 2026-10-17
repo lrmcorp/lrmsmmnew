@@ -511,3 +511,13 @@ dialog .df { padding: 1rem 1.5rem; border-top: 1px solid var(--slate-100); displ
   .crumb span { display:none; }
   .crumb b { overflow:hidden; text-overflow:ellipsis; }
 }
+/* Instagram feed preview: carousel navigation and familiar visual chrome. */
+.pv .slide-count { position: absolute; right: 10px; top: 10px; background: #17212cbb; color: white; border-radius: 20px; padding: 3px 9px; font-size: 12px; }
+.pv .slide-prev, .pv .slide-next { position: absolute; top: 48%; border: 0; border-radius: 50%; width: 30px; height: 30px; background: #ffffffdd; color: #17212c; font-size: 24px; cursor: pointer; display: grid; place-items: center; padding: 0; }
+.pv .slide-prev { left: 8px; } .pv .slide-next { right: 8px; }
+.pv .ig-actions { display: flex; justify-content: space-between; padding: 8px 12px; color: #17212c; font-size: 23px; }
+.pv .slide-dots { display: flex; justify-content: center; gap: 6px; padding: 4px; }
+.pv .slide-dots button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: #cbd5e1; cursor: pointer; }
+.pv .slide-dots button.on { background: #3897f0; }
+.pv .pv-note { padding: 8px 12px; font-size: 11px; color: var(--slate-400); }
+.previews:has(> .pv:only-child) { grid-template-columns: minmax(0, 420px); justify-content: center; }

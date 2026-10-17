@@ -173,3 +173,8 @@ export async function sendMessage(igUserId, recipientId, text, token) {
   const r = await gpost(G(`/${igUserId}/messages`), { recipient: { id: recipientId }, message: { text }, access_token: token });
   return { id: String(r.message_id || r.id), recipient_id: r.recipient_id };
 }
+
+/** A missing permalink can be queried later without publishing a duplicate. */
+export async function postPermalink(postId, token) {
+  return (await gget(G(`/${postId}`), { fields: 'permalink', access_token: token })).permalink || null;
+}
