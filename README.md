@@ -1,3 +1,5 @@
+> **Alur ChatGPT terbaru:** setiap pengguna menambahkan konektor MCP `https://lrmsosmed.playgo.id/mcp` di akun ChatGPT masing-masing dan memberi OAuth memakai login LRMsmm sendiri. OAuth mengirim caption/gambar sebagai draf pribadi ke **Tulis Post**, bukan menerbitkan post langsung. Lihat [panduan handoff](deploy/CHATGPT_HANDOFF.md). Representative hanya memiliki menu Operasional dan Interaksi.
+
 # LRMsmm
 
 **Shared VPS deployment:** use [deploy/SHARED_VPS.md](deploy/SHARED_VPS.md). The active GitHub workflow uses the dedicated Docker receiver and the existing Nginx Proxy Manager; the older standalone installer below is not used for this VPS.
@@ -10,7 +12,7 @@ Aplikasi internal HR Group untuk **membuat, menjadwalkan, dan membalas komentar 
 |---|---|---|
 | Dashboard | `public/` | Tulis post + preview IG/Threads, kalender bulan/minggu/3 hari, **Pesan (DM Instagram)**, komentar, insights, akun, media, API key, tim, admin |
 | REST API | `/v1` (`src/routes/api.js`) | Semua yang bisa di dashboard, plus `Idempotency-Key`, rate limit, error code stabil |
-| MCP server | `/mcp` (`src/mcp.js`) | 24 tool untuk Claude, ChatGPT, Claude Code, Cursor, n8n (termasuk baca & balas DM). Tool tulis hanya muncul dengan akses baca-tulis |
+| MCP server | `/mcp` (`src/mcp.js`) | tool OAuth draf pribadi untuk ChatGPT/Claude dan tool API key Owner untuk otomasi (termasuk baca & balas DM). Tool tulis hanya muncul dengan akses baca-tulis |
 | OAuth server | `/oauth/*` (`src/routes/oauth.js`) | OAuth 2.1 + PKCE + dynamic client registration, supaya bisa "Add custom connector" di Claude |
 | Worker | `src/worker.js` | Posting terjadwal (cek tiap 15 dtk), retry otomatis, sinkron DM (2 mnt) & komentar (10 mnt) sebagai cadangan webhook, statistik (6 jam), perpanjang token (12 jam), bersih-bersih media |
 | Real-time | `/webhooks/*` + `/v1/events` | Webhook Meta bertanda tangan → dashboard diperbarui langsung (Server-Sent Events) |
@@ -32,7 +34,7 @@ Mode lokal memakai Instagram/Threads **tiruan** — tidak ada yang benar-benar t
 ```bash
 npm install
 npm run dev          # META_MOCK=1, buka http://localhost:3000
-npm test             # 37 tes end-to-end terhadap Meta tiruan
+npm test             # 38 tes end-to-end terhadap Meta tiruan
 ```
 
 Di mode mock, layar login Instagram/Threads adalah tiruan dan tidak ada yang benar-benar terposting. Caption berisi `#fail-expired`, `#fail-transient`, atau `#fail-permission` mensimulasikan error Meta.

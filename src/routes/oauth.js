@@ -85,9 +85,9 @@ oauth.get('/oauth/authorize', (req, res, next) => {
 <p class="muted">Masuk sebagai <b>${esc(user.email)}</b>. Aplikasi ini akan bisa memakai akun Instagram & Threads yang terhubung di LRMsmm.</p>
 ${hidden}<input type="hidden" name="csrf" value="${csrf}">
 <label class="opt"><input type="radio" name="scope" value="read" ${wantWrite ? '' : 'checked'}><span><b>Baca saja</b><br><small>Lihat akun, post, komentar, statistik</small></span></label>
-<label class="opt"><input type="radio" name="scope" value="read write" ${wantWrite ? 'checked' : ''}><span><b>Baca dan tulis</b><br><small>Juga membuat/menjadwalkan post dan membalas komentar</small></span></label>
+<label class="opt"><input type="radio" name="scope" value="read write" ${wantWrite ? 'checked' : ''}><span><b>Baca dan kirim draf</b><br><small>Kirim caption dan gambar ke Tulis Post milik akun ini; balas DM/komentar dengan konfirmasi. Post hanya diterbitkan setelah disetujui di dashboard LRMsmm.</small></span></label>
 <div class="row"><button class="btn" name="decision" value="deny" type="submit">Tolak</button><button class="btn primary" name="decision" value="allow" type="submit">Izinkan</button></div>
-<p class="muted small">Akses bisa dicabut kapan saja dari menu API key → Aplikasi terhubung.</p>
+<p class="muted small">Setiap anggota menghubungkan akun LRMsmm sendiri. Akses hanya ke perusahaan/akun yang ditugaskan. Cabut koneksi dari Tulis Post → Koneksi AI pribadi.</p>
 </form></body></html>`);
   } catch (e) { next(e); }
 });

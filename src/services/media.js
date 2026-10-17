@@ -97,7 +97,10 @@ export async function saveBuffer(userId, buf, opts = {}) {
   const p = path.join(config.mediaDir, mid);
   fs.writeFileSync(p, buf);
   try { const m = await finalize(mid, p); if (opts.alt_text) return setAlt(mid, opts.alt_text); return m; }
-  catch (e) { run('DELETE FROM media WHERE id=?', mid); throw e; }
+  catch (e) {
+    for (const suffix of ['', '.jpg', '.png', '.mp4', '.mov']) fs.rmSync(p + suffix, { force: true });
+    run('DELETE FROM media WHERE id=?', mid); throw e;
+  }
 }
 
 // ---- SSRF-safe fetch from a public URL ----
@@ -206,6 +209,7 @@ export function listMedia({ limit = 50, cursor } = {}) {
 
 function mediaInActiveUse(mediaId) {
   const like = `%"${mediaId}"%`;
+  if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) return true;
   return !!one(`SELECT 1 FROM post_targets t JOIN posts p ON p.id=t.post_id
     WHERE t.status IN ('pending','publishing') AND (p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?)`, like, like, like);
 }
@@ -224,6 +228,7 @@ export function gcMedia() {
   const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
   for (const m of all('SELECT * FROM media WHERE in_library=0 AND created_at < ?', weekAgo)) {
     const like = `%"${m.id}"%`;
+    if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) continue;
     const uses = all('SELECT t.status, t.published_at, p.updated_at FROM post_targets t JOIN posts p ON p.id=t.post_id WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?', like, like, like);
     const busy = uses.some((u) => ['pending', 'publishing'].includes(u.status) || (u.published_at || u.updated_at) > monthAgo);
     if (!busy) { if (m.path) fs.rmSync(m.path, { force: true }); run('DELETE FROM media WHERE id=?', m.id); }

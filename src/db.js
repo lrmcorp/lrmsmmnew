@@ -197,6 +197,14 @@ CREATE INDEX IF NOT EXISTS messages_conv ON messages(conversation_id, sent_at);
 `);
 
 // migrations
+db.exec(`CREATE TABLE IF NOT EXISTS ai_drafts (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  oauth_token_id TEXT REFERENCES oauth_tokens(id) ON DELETE SET NULL,
+  request_id TEXT NOT NULL, request_hash TEXT NOT NULL,
+  content TEXT NOT NULL, media_ids TEXT NOT NULL, targets TEXT NOT NULL,
+  scheduled_at TEXT, status TEXT NOT NULL DEFAULT 'pending', post_id TEXT,
+  created_at TEXT NOT NULL, UNIQUE(user_id, request_id)
+);`);
 db.exec(`CREATE TABLE IF NOT EXISTS companies (
   id TEXT PRIMARY KEY, name TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))

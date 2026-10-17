@@ -15,6 +15,7 @@ import { audit, listAudit } from '../services/audit.js';
 import { bus } from '../services/events.js';
 import { stats as webhookStats } from './webhooks.js';
 import { config } from '../config.js';
+import * as aiDrafts from '../services/ai-drafts.js';
 
 export const api = express.Router();
 
@@ -37,6 +38,31 @@ api.use(authenticate, (req, res, next) => {
 const sessionOnly = (req, _res, next) => (req.auth.via === 'session' ? next() : next(err(403, 'forbidden', 'Endpoint ini hanya untuk dashboard')));
 const W = requireWrite;
 const U = (req) => req.auth.user;
+const privateMedia = (req) => {
+  const record = media.getMedia(req.params.id);
+  if (!record.in_library && record.user_id !== U(req).id) throw err(404, 'not_found', 'Media pribadi tidak ditemukan.');
+  return record;
+};
+api.use((req, _res, next) => {
+  if (req.auth.via === 'oauth' && req.method !== 'GET' && /^\/posts(?:\/|$)/.test(req.path)) return next(err(403, 'dashboard_approval_required', 'AI hanya mengirim draf. Setujui dan terbitkan lewat Tulis Post di dashboard.'));
+  next();
+});
+api.get('/ai/connection', sessionOnly, (req, res) => {
+  const apps = all(`SELECT t.id,t.scope,t.last_used_at,c.name FROM oauth_tokens t JOIN oauth_clients c ON c.client_id=t.client_id
+    WHERE t.user_id=? AND t.revoked_at IS NULL AND (t.access_expires_at>? OR t.refresh_expires_at>?)`, U(req).id, now(), now());
+  res.json({ connected: apps.some(a => a.scope.includes('write')), apps, mcp_url: `${config.publicUrl}/mcp` });
+});
+api.delete('/ai/connections/:id', sessionOnly, (req, res) => {
+  run('UPDATE oauth_tokens SET revoked_at=? WHERE id=? AND user_id=?', now(), req.params.id, U(req).id);
+  res.status(204).end();
+});
+api.get('/ai/drafts', sessionOnly, (req, res) => res.json({ data: aiDrafts.listDrafts(U(req)) }));
+api.get('/ai/drafts/:id', sessionOnly, (req, res) => res.json(aiDrafts.getDraft(U(req), req.params.id)));
+api.delete('/ai/drafts/:id', sessionOnly, (req, res) => {
+  aiDrafts.getDraft(U(req), req.params.id);
+  run("UPDATE ai_drafts SET status='cancelled' WHERE id=? AND user_id=? AND status='pending'", req.params.id, U(req).id);
+  res.status(204).end();
+});
 const source = (req) => (req.auth.via === 'session' ? 'dashboard' : req.auth.via === 'oauth' ? 'mcp' : 'api');
 const kick = () => setImmediate(() => runPublisherTick().catch(() => {}));
 
@@ -76,14 +102,21 @@ api.delete('/accounts/:id', W, requireOwner, (req, res) => {
 });
 api.get('/accounts/:id/publishing-limit', async (req, res) => { assertAccount(U(req), req.params.id); res.json(await accounts.publishingLimit(req.params.id)); });
 api.get('/accounts/:id/insights', (req, res) => { assertAccount(U(req), req.params.id); res.json(eng.accountInsights(req.params.id, req.query)); });
-api.post('/connect/:platform', W, (req, res) => res.json({ url: accounts.beginConnect(req.params.platform, U(req).id, req.body?.return_to) }));
+api.post('/connect/:platform', W, requireOwner, (req, res) => res.json({ url: accounts.beginConnect(req.params.platform, U(req).id, req.body?.return_to) }));
 api.get('/platform-rules', (_req, res) => res.json(RULES));
 
 // ---- posts ----
 api.post('/posts', W, (req, res) => {
+  const draftId = req.body?.ai_draft_id;
+  if (draftId) {
+    if (req.auth.via !== 'session') throw err(403, 'dashboard_approval_required', 'Persetujuan draf hanya dari dashboard.');
+    const previous = aiDrafts.approvedPost(U(req), draftId);
+    if (previous) return res.json(posts.publicPost(posts.getPost(previous)));
+  }
   const key = req.get('Idempotency-Key') || null;
   if (key && key.length > 200) throw err(400, 'validation_failed', 'Idempotency-Key terlalu panjang');
-  const { post, replayed } = posts.createPost(U(req), req.body || {}, { idempotencyKey: key, source: source(req) });
+  const { post, replayed } = posts.createPost(U(req), req.body || {}, { idempotencyKey: key, source: draftId ? 'mcp' : source(req) });
+  if (draftId) { aiDrafts.markApproved(U(req), draftId, post.id); audit(req.auth, 'ai.draft.approve', 'ai_draft', draftId, { post_id: post.id }); }
   if (!replayed) {
     audit(req.auth, post.scheduled_at ? 'post.schedule' : 'post.publish', 'post', post.id, { accounts: post.targets.map((t) => `@${t.username}`), scheduled_at: post.scheduled_at });
     if (!post.scheduled_at) kick();
@@ -122,12 +155,13 @@ api.get('/media/:id/parts', (req, res) => res.json(media.listParts(req.params.id
 api.put('/media/:id/parts/:n', W, rawPart, (req, res) => { media.putPart(req.params.id, req.params.n, req.body); res.status(204).end(); });
 api.post('/media/:id/complete', W, async (req, res) => res.json(await media.completeUpload(req.params.id)));
 api.get('/media', (req, res) => res.json(media.listMedia(req.query)));
-api.get('/media/:id', (req, res) => res.json(media.publicMedia(media.getMedia(req.params.id))));
+api.get('/media/:id', (req, res) => res.json(media.publicMedia(privateMedia(req))));
 api.patch('/media/:id', W, (req, res) => {
+  privateMedia(req);
   if (req.body?.in_library != null) run('UPDATE media SET in_library=? WHERE id=?', req.body.in_library ? 1 : 0, req.params.id);
   res.json(req.body?.alt_text !== undefined ? media.setAlt(req.params.id, req.body.alt_text) : media.publicMedia(media.getMedia(req.params.id)));
 });
-api.delete('/media/:id', W, (req, res) => { media.deleteMedia(req.params.id); audit(req.auth, 'media.delete', 'media', req.params.id); res.status(204).end(); });
+api.delete('/media/:id', W, (req, res) => { privateMedia(req); media.deleteMedia(req.params.id); audit(req.auth, 'media.delete', 'media', req.params.id); res.status(204).end(); });
 
 // ---- comments ----
 api.get('/comments', (req, res) => res.json(eng.listComments({ ...req.query, reply_status: req.query.reply_status ?? 'unreplied', include_own: req.query.include_own === 'true' }, U(req))));

@@ -12,7 +12,7 @@ Object.assign(process.env, { META_MOCK: '1', PORT: String(PORT), PUBLIC_URL: `ht
 
 const { app } = await import('../src/server.js');
 const { runPublisherTick } = await import('../src/services/publisher.js');
-const { run } = await import('../src/db.js');
+const { run, one } = await import('../src/db.js');
 const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
 const sharp = (await import('sharp')).default;
@@ -310,32 +310,84 @@ async function mcp(token) {
   return c;
 }
 
-await step('MCP (OAuth, write): tools, list_accounts, create_post, dedupe, comments', async () => {
+await step('MCP OAuth delivers images and caption as a private draft; only dashboard approval creates a post', async () => {
   const c = await mcp(oauthAccess);
-  const { tools } = await c.listTools();
-  const names = tools.map((t) => t.name);
-  for (const n of ['list_accounts', 'create_post', 'reply_to_comment', 'list_comments', 'upload_media_from_url']) assert.ok(names.includes(n), `missing ${n}`);
-  const acc = JSON.parse((await c.callTool({ name: 'list_accounts', arguments: {} })).content[0].text);
-  assert.equal(acc.length, 2);
-  const args = { content: 'Diposting dari Claude lewat MCP 🤖', targets: [{ account_id: th.id }] };
-  const r1 = JSON.parse((await c.callTool({ name: 'create_post', arguments: args })).content[0].text);
-  assert.equal(r1.post.status, 'published', JSON.stringify(r1));
-  const r2 = JSON.parse((await c.callTool({ name: 'create_post', arguments: args })).content[0].text);
-  assert.equal(r2.replayed, true); assert.equal(r2.post.id, r1.post.id);
-  const bad = await c.callTool({ name: 'create_post', arguments: { content: 'tanpa foto', targets: [{ account_id: ig.id }] } });
-  assert.equal(bad.isError, true); assert.match(bad.content[0].text, /media_required/);
-  const cm = JSON.parse((await c.callTool({ name: 'list_comments', arguments: { reply_status: 'all' } })).content[0].text);
-  assert.match(cm._notice, /UNTRUSTED/);
-  const up = await c.callTool({ name: 'upload_media_from_url', arguments: { url: `${B}/m/does-not-exist.jpg` } });
-  assert.equal(up.isError, true);
+  const names = (await c.listTools()).tools.map(t => t.name);
+  for (const name of ['list_accounts','submit_post_draft','reply_to_comment','list_comments']) assert.ok(names.includes(name));
+  for (const name of ['create_post','publish_now','retry_post','update_scheduled_post']) assert.ok(!names.includes(name));
+  const before = one('SELECT COUNT(*) n FROM posts').n;
+  const image = await sharp({ create: { width: 1080, height: 1080, channels: 3, background: '#357' } }).png().toBuffer();
+  const args = { request_id: 'oauth-image-fixture', content: 'Final caption from ChatGPT', images: [{ base64: image.toString('base64') }], targets: [{ account_id: ig.id }, { account_id: th.id }] };
+  const r1 = JSON.parse((await c.callTool({ name: 'submit_post_draft', arguments: args })).content[0].text);
+  assert.equal(r1.draft.status, 'pending'); assert.equal(r1.draft.media.length, 1);
+  assert.equal(r1.draft.media[0].mime_type, 'image/jpeg');
+  assert.equal(one('SELECT COUNT(*) n FROM posts').n, before);
+  assert.match(r1.compose_url, /compose\?ai_draft=/);
+  const again = JSON.parse((await c.callTool({ name: 'submit_post_draft', arguments: args })).content[0].text);
+  assert.equal(again.draft.id, r1.draft.id);
+  const conflict = await c.callTool({ name: 'submit_post_draft', arguments: { ...args, content: 'changed without new request id' } });
+  assert.equal(conflict.isError, true);
+  assert.equal(JSON.parse(conflict.content[0].text).error.code, 'idempotency_conflict');
+  assert.equal((await http('GET', '/v1/ai/drafts/' + r1.draft.id)).status, 200);
+  const body = { ai_draft_id: r1.draft.id, content: r1.draft.content, media_ids: r1.draft.media_ids, targets: r1.draft.targets,
+    scheduled_at: new Date(Date.now() + 3600000).toISOString() };
+  assert.equal((await http('POST', '/v1/posts', { auth: oauthAccess, body })).status, 403);
+  const approved = await http('POST', '/v1/posts', { body });
+  assert.equal(approved.status, 201); assert.equal(approved.json.status, 'scheduled');
+  assert.equal((await http('POST', '/v1/posts', { body })).json.id, approved.json.id);
+  assert.equal(one('SELECT COUNT(*) n FROM posts').n, before + 1);
+  const bad = await c.callTool({ name: 'submit_post_draft', arguments: { ...args, request_id: 'unsafe-url-fixture', images: [{ url: 'https://127.0.0.1/private' }] } });
+  assert.equal(bad.isError, true);
+  const beforeFiles = fs.readdirSync(path.join(tmp, 'media')).length;
+  const corrupt = await c.callTool({ name: 'submit_post_draft', arguments: { ...args, request_id: 'corrupt-image-fixture', images: [{ base64: Buffer.from([255,216,255,0,0,0,0,0]).toString('base64') }] } });
+  assert.equal(corrupt.isError, true);
+  assert.equal(fs.readdirSync(path.join(tmp, 'media')).length, beforeFiles, 'Failed imports clean their temporary files');
   await c.close();
 });
 
 await step('MCP (OAuth, read-only): write tools hidden', async () => {
   const c = await mcp(oauthReadAccess);
   const names = (await c.listTools()).tools.map((t) => t.name);
-  assert.ok(names.includes('list_posts')); assert.ok(!names.includes('create_post'));
+  assert.ok(names.includes('list_posts')); assert.ok(!names.includes('create_post')); assert.ok(!names.includes('submit_post_draft'));
   await c.close();
+});
+
+await step('personal OAuth isolates AI drafts and images between members and revokes new handoffs', async () => {
+  const member = (await http('POST', '/v1/users', { body: { email: 'ai-member@fixture.id', password: 'fixture-password', role: 'rep', account_ids: [ig.id] } })).json;
+  const other = (await http('POST', '/v1/users', { body: { email: 'ai-other@fixture.id', password: 'fixture-password', role: 'rep', account_ids: [ig.id] } })).json;
+  const ownerCookie = cookie;
+  let personalCookie, otherCookie, token, draft, connectionId;
+  await asCookie('', async () => { await http('POST', '/auth/login', { body: { email: member.email, password: 'fixture-password' } }); personalCookie = cookie; token = (await oauthFlow('read write')).access_token; });
+  await asCookie('', async () => { await http('POST', '/auth/login', { body: { email: other.email, password: 'fixture-password' } }); otherCookie = cookie; });
+  const repKey = await asCookie(personalCookie, async () => (await http('POST', '/v1/api-keys', { body: { name: 'not-for-AI', scope: 'write' } })).json.key);
+  await assert.rejects(mcp(repKey), 'Representative MCP requires personal OAuth');
+  const c = await mcp(token);
+  const image = await sharp({ create: { width: 1080, height: 1080, channels: 3, background: '#456' } }).jpeg().toBuffer();
+  const args = { request_id: 'member-image-fixture', content: 'Private AI caption', images: [{ base64: image.toString('base64') }], targets: [{ account_id: ig.id }] };
+  draft = JSON.parse((await c.callTool({ name: 'submit_post_draft', arguments: args })).content[0].text).draft;
+  assert.ok(draft.id); assert.equal(draft.status, 'pending');
+  await asCookie(personalCookie, async () => {
+    const status = (await http('GET', '/v1/ai/connection')).json;
+    assert.equal(status.connected, true); connectionId = status.apps[0].id;
+    assert.equal((await http('GET', '/v1/ai/drafts')).json.data.length, 1);
+    assert.equal((await http('DELETE', '/v1/media/' + draft.media_ids[0])).status, 409, 'Pending drafts retain their images');
+  });
+  await asCookie(otherCookie, async () => {
+    assert.equal((await http('GET', '/v1/ai/connection')).json.connected, false);
+    assert.deepEqual((await http('GET', '/v1/ai/drafts')).json.data, []);
+    assert.equal((await http('GET', '/v1/ai/drafts/' + draft.id)).status, 404);
+    assert.equal((await http('GET', '/v1/media/' + draft.media_ids[0])).status, 404);
+    assert.equal((await http('POST', '/v1/posts', { body: { ai_draft_id: draft.id, content: 'stolen', targets: draft.targets, media_ids: draft.media_ids } })).status, 404);
+    assert.equal((await http('POST', '/v1/posts', { body: { content: 'stolen', targets: draft.targets, media_ids: draft.media_ids } })).status, 404);
+  });
+  const forbidden = await c.callTool({ name: 'submit_post_draft', arguments: { ...args, request_id: 'unassigned-fixture', targets: [{ account_id: th.id }] } });
+  assert.equal(forbidden.isError, true);
+  await http('PUT', '/v1/users/' + member.id + '/accounts', { body: { account_ids: [] } });
+  await asCookie(personalCookie, async () => assert.equal((await http('GET', '/v1/ai/drafts/' + draft.id)).status, 404));
+  await asCookie(personalCookie, async () => { await http('DELETE', '/v1/ai/connections/' + connectionId); assert.equal((await http('GET', '/v1/ai/connection')).json.connected, false); });
+  await assert.rejects(c.callTool({ name: 'list_accounts', arguments: {} }));
+  await c.close();
+  assert.equal(cookie, ownerCookie);
 });
 
 await step('MCP with API key (Claude Code / Cursor style)', async () => {

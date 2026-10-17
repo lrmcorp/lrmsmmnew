@@ -45,7 +45,7 @@ app.use(['/mcp', '/oauth', '/.well-known'], (req, res, next) => {
 app.use(webhooks);
 app.use(oauth);
 app.use(metaCb);
-app.all('/mcp', express.json({ limit: '4mb' }), mcpHandler);
+app.all('/mcp', express.json({ limit: '30mb' }), mcpHandler);
 
 // ---- public media (Meta fetches these URLs when publishing) ----
 app.get('/m/:file', (req, res) => {
@@ -88,6 +88,7 @@ app.get('/connect/:platform', (req, res, next) => {
   try {
     const u = sessionUser(req);
     if (!u) return res.redirect('/#/login');
+    if (u.role !== 'owner') return res.redirect('/#/compose');
     res.redirect(beginConnect(req.params.platform, u.id));
   } catch (e) { res.redirect(`/#/accounts?error=${encodeURIComponent(e.message)}`); }
 });

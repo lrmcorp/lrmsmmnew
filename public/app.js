@@ -125,8 +125,8 @@ function navGroups() {
   return [
     ['Operasional', [['/', 'home', 'Beranda'], ['/compose', 'pen', 'Tulis Post'], ['/calendar', 'cal', 'Kalender Konten']]],
     ['Interaksi', [['/messages', 'chat', 'Pesan (DM)', 'messages'], ['/inbox', 'inbox', 'Komentar', 'comments'], ['/insights', 'chart', 'Insights']]],
-    ['Administrasi & Integrasi', [['/accounts', 'users', 'Perusahaan & Akun'], ['/media', 'img', 'Pustaka Media'], ['/developer', 'key', 'API & AI'],
-      ['/team', 'team', isOwner() ? 'Tim & Akses' : 'Akun Saya'], ...(isOwner() ? [['/admin', 'shield', 'Jejak Audit']] : [])]],
+    ...(isOwner() ? [['Administrasi & Integrasi', [['/accounts', 'users', 'Perusahaan & Akun'], ['/media', 'img', 'Pustaka Media'], ['/developer', 'key', 'API & AI'],
+      ['/team', 'team', isOwner() ? 'Tim & Akses' : 'Akun Saya'], ['/admin', 'shield', 'Jejak Audit']]]] : []),
   ];
 }
 const PAGE_LABEL = () => Object.fromEntries(navGroups().flatMap(([g, items]) => items.map(([p, , l]) => [p, { label: l, group: g }])));
@@ -148,7 +148,7 @@ function shell(active, content) {
             h('div', { class: 'nav-items' }, items.map(([p, ic, label, badge]) =>
               h('a', { href: `#${p}`, class: active === p ? 'on' : '', onclick: close }, icon(ic), h('span', { class: 'lbl' }, label), badge ? badgeEl(badge) : null))))))),
       h('div', { class: 'side-foot' },
-        h('a', { class: 'ucard', href: '#/team' },
+        h('a', { class: 'ucard', href: isOwner() ? '#/team' : '#/compose' },
           h('div', { class: 'who' }, h('div', { class: 'ini' }, initials(state.user?.name || state.user?.email)),
             h('div', { style: { minWidth: 0 } }, h('div', { class: 'nm' }, state.user?.name || state.user?.email), h('div', { class: 'rl' }, ROLE[state.user?.role] || ''))),
           icon('right')),
@@ -287,9 +287,9 @@ async function pageHome() {
       h('div', { class: 'row' },
         stats.messages_overdue ? h('a', { class: 'btn primary sm', href: '#/messages' }, 'Balas Pesan', icon('right')) : null,
         attention.length ? h('a', { class: 'btn sm', href: `#/posts/${attention[0].id}` }, 'Tinjau Post Gagal') : null,
-        expired.length ? h('a', { class: 'btn sm', href: '#/accounts' }, 'Sambungkan Ulang') : null)) : null,
+        expired.length ? isOwner() ? h('a', { class: 'btn sm', href: '#/accounts' }, 'Sambungkan Ulang') : h('span', {}, 'Minta Owner menyambungkan ulang akun') : null)) : null,
     h('div', { class: 'strip' },
-      stat('#/accounts', 'users', stats.accounts, 'Akun Sosial Aktif', `${ig} Instagram · ${state.accounts.length - ig} Threads`, 'em'),
+      stat(isOwner() ? '#/accounts' : '#/compose', 'users', stats.accounts, 'Akun Sosial Aktif', `${ig} Instagram · ${state.accounts.length - ig} Threads`, 'em'),
       stat('#/calendar', 'cal', stats.scheduled, 'Post Terjadwal', upcoming[0] ? `Berikutnya ${fmtDT(upcoming[0].scheduled_at)}` : 'Belum ada jadwal', 'sky', false, 'Kalender →'),
       stat('#/messages', 'chat', stats.messages_waiting, 'Pesan Menunggu', stats.messages_overdue ? `${stats.messages_overdue} lewat 5 menit` : 'Semua dalam batas', stats.messages_overdue ? 'ro' : 'am', !!stats.messages_overdue, 'Balas →'),
       stat('#/inbox', 'inbox', stats.unreplied, 'Komentar Baru', stats.failed_7d ? `${stats.failed_7d} post gagal (7 hari)` : 'Belum dibalas', 'pu', false, 'Buka →')),
@@ -301,8 +301,8 @@ async function pageHome() {
         ['#/compose', 'pen', 'Tulis Post', 'IG & Threads', 'em'], ['#/calendar', 'cal', 'Kalender', 'Jadwal Konten', 'sky'],
         ['#/messages', 'chat', 'Pesan', 'DM Instagram', 'ro'], ['#/inbox', 'inbox', 'Komentar', 'Balas & Moderasi', 'am'],
         ['#/insights', 'chart', 'Insights', 'Statistik Akun', 'pu'], ['#/media', 'img', 'Media', 'Pustaka Foto', 'em'],
-      ].map(([href, ic, t, d, tone]) => h('a', { class: `q-${tone}`, href }, h('div', { class: 'ico' }, icon(ic)), h('b', {}, t), h('small', {}, d))))),
-    !state.accounts.length ? h('div', { class: 'panel empty' }, h('h2', {}, 'Sambungkan akun pertama'), h('p', {}, 'Hubungkan Instagram Business/Creator atau Threads untuk mulai posting.'), h('a', { class: 'btn primary', href: '#/accounts' }, 'Sambungkan Akun')) : null,
+      ].filter(([href]) => isOwner() || href !== '#/media').map(([href, ic, t, d, tone]) => h('a', { class: `q-${tone}`, href }, h('div', { class: 'ico' }, icon(ic)), h('b', {}, t), h('small', {}, d))))),
+    !state.accounts.length && isOwner() ? h('div', { class: 'panel empty' }, h('h2', {}, 'Sambungkan akun pertama'), h('p', {}, 'Hubungkan Instagram Business/Creator atau Threads untuk mulai posting.'), h('a', { class: 'btn primary', href: '#/accounts' }, 'Sambungkan Akun')) : null,
     attention.length ? h('div', {}, secHead('warn', 'Perlu Dicek', 'Post yang gagal terbit di salah satu akun.', ['#/admin?t=failed', isOwner() ? 'Lihat Semua →' : '']), postList(attention)) : null,
     h('div', { class: 'grid2' },
       h('div', {}, secHead('cal', 'Terbit Berikutnya', 'Post terjadwal terdekat.', ['#/calendar', 'Lihat Kalender →']),
@@ -329,19 +329,25 @@ function postList(posts) {
 // ---------------- composer ----------------
 async function pageCompose(editId) {
   await loadAccounts();
-  const atParam = new URLSearchParams(location.hash.split('?')[1] || '').get('at');
+  const query = new URLSearchParams(location.hash.split('?')[1] || '');
+  const atParam = query.get('at');
+  const aiId = query.get('ai_draft');
+  const aiDraft = aiId && !editId ? await api('GET', '/v1/ai/drafts/' + encodeURIComponent(aiId)) : null;
+  if (aiDraft?.post_id) { go('/posts/' + aiDraft.post_id); return shell('/compose', h('div')); }
+  const [connection, inbox] = await Promise.all([api('GET', '/v1/ai/connection'), api('GET', '/v1/ai/drafts')]);
   const editing = editId ? await api('GET', `/v1/posts/${editId}`) : null;
   const active = state.accounts.filter((a) => a.status === 'active');
+  const initial = editing || aiDraft;
   const s = {
     key: crypto.randomUUID(),
-    selected: new Set(editing ? editing.targets.map((t) => t.account_id) : active.length === 1 ? [active[0].id] : []),
-    content: editing?.content || '',
-    media: editing ? editing.media : [],
+    selected: new Set(initial ? initial.targets.map((t) => t.account_id) : active.length === 1 ? [active[0].id] : []),
+    content: initial?.content || '',
+    media: initial ? initial.media : [],
     per: {}, // account_id -> { content?, options:{} }
-    when: editing || atParam ? 'later' : 'now',
-    at: editing?.scheduled_at ? toLocalInput(editing.scheduled_at) : toLocalInput(atParam || new Date(Date.now() + 3600_000).toISOString()),
+    when: initial?.scheduled_at || atParam ? 'later' : 'now',
+    at: initial?.scheduled_at ? toLocalInput(initial.scheduled_at) : toLocalInput(atParam || new Date(Date.now() + 3600_000).toISOString()),
   };
-  if (editing) for (const t of editing.targets) s.per[t.account_id] = { content: t.content ?? undefined, options: t.options || {} };
+  if (initial) for (const t of initial.targets) s.per[t.account_id] = { content: t.content ?? undefined, options: t.options || {} };
   const per = (id) => (s.per[id] ||= { options: {} });
 
   const root = h('div', { class: 'composer' });
@@ -390,7 +396,7 @@ async function pageCompose(editId) {
           s.when === 'later' ? h('input', { type: 'datetime-local', value: s.at, oninput: (e) => { s.at = e.target.value; renderPreview(); }, 'aria-label': 'Waktu terbit' }) : null)),
       h('div', { class: 'row end', style: { marginTop: '18px' } },
         editing ? h('a', { class: 'btn', href: `#/posts/${editing.id}` }, 'Batal') : null,
-        h('button', { class: 'btn primary', onclick: submit, disabled: !sel.length }, editing ? 'Simpan perubahan' : s.when === 'now' ? 'Terbitkan' : 'Jadwalkan')),
+        h('button', { class: 'btn primary', onclick: submit, disabled: !sel.length }, editing ? 'Simpan perubahan' : aiDraft ? (s.when === 'now' ? 'Setujui & Terbitkan' : 'Setujui & Jadwalkan') : s.when === 'now' ? 'Terbitkan' : 'Jadwalkan')),
     ];
   }
 
@@ -471,7 +477,7 @@ async function pageCompose(editId) {
       if (Object.keys(o).length) t.options = o;
       return t;
     });
-    const body = { content: s.content, media_ids: s.media.map((m) => m.id), targets };
+    const body = { content: s.content, media_ids: s.media.map((m) => m.id), targets, ...(aiDraft ? { ai_draft_id: aiDraft.id } : {}) };
     if (s.when === 'later') {
       if (!s.at) return toast('Isi waktu terbit', true);
       body.scheduled_at = new Date(s.at).toISOString();
@@ -489,7 +495,26 @@ async function pageCompose(editId) {
   }
 
   render();
-  return shell('/compose', h('div', {}, pagehead(editing ? 'Ubah post terjadwal' : 'Tulis post', 'Tulis sekali, cek tampilan di tiap platform sebelum terbit.'), root));
+  function connectionHelp() {
+    modal('Hubungkan ChatGPT milik Anda', h('div', {},
+      h('p', {}, 'Buka ChatGPT dengan akun pribadi Anda. Di Settings → Apps/Connectors, tambahkan custom MCP connector (ketersediaan bergantung paket dan workspace ChatGPT).'),
+      h('p', {}, 'URL konektor: ', h('code', {}, connection.mcp_url)),
+      h('p', {}, 'Pilih OAuth, login memakai akun LRMsmm Anda sendiri, lalu izinkan Baca dan kirim draf. Jangan menggunakan login atau API key Owner.'),
+      h('p', {}, 'Di ChatGPT buat gambar dan caption, tentukan akun tujuan, lalu minta kirim draf melalui submit_post_draft. Buka link hasilnya untuk meninjau dan menerbitkan di Tulis Post.'),
+      h('p', { class: 'muted small' }, 'Gambar harus tersedia sebagai URL unduh HTTPS atau base64 JPEG/PNG. Tautan sandbox ChatGPT tidak bisa diunduh VPS. Jika file tidak tersedia ke konektor, unggah gambar lewat Insert Media di sini.'),
+      h('a', { class: 'btn primary', href: 'https://chatgpt.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Buka ChatGPT')));
+  }
+  const aiPanel = h('section', { class: 'panel', 'aria-label': 'Koneksi AI pribadi' },
+    h('div', { class: 'sec-h' }, h('h2', {}, 'Koneksi AI pribadi'), h('button', { class: 'btn', onclick: connectionHelp }, 'Hubungkan ChatGPT / Petunjuk')),
+    h('p', { class: 'muted small' }, `Akun LRMsmm: ${state.user.email}. ${connection.connected ? 'OAuth pribadi tersambung.' : 'Belum ada koneksi OAuth dengan izin kirim draf.'} Draf dari AI tidak diterbitkan otomatis.`),
+    connection.apps.map(app => h('div', { class: 'row' }, h('span', {}, app.name || 'Aplikasi AI OAuth'),
+      h('button', { class: 'btn sm ghost', onclick: async () => { try { await api('DELETE', '/v1/ai/connections/' + app.id); toast('Koneksi pribadi dicabut'); route(); } catch(error) { toast(errMsg(error), true); } } }, 'Cabut koneksi'))),
+    h('button', { class: 'btn sm', onclick: route }, 'Muat draf dari ChatGPT'),
+    inbox.data.length ? h('div', { class: 'list' }, inbox.data.map(draft => h('a', { class: 'item', href: '#/compose?ai_draft=' + draft.id },
+      draft.media[0] ? h('img', { class: 'thumb', src: draft.media[0].url, alt: 'Gambar draf AI' }) : null,
+      h('div', { class: 'body' }, h('b', {}, 'Draf AI · menunggu persetujuan'), h('p', {}, draft.content.slice(0, 160)), h('span', { class: 'faint small' }, fmtDT(draft.created_at)))))) : h('p', { class: 'faint small' }, 'Belum ada draf AI yang menunggu persetujuan.'));
+  return shell('/compose', h('div', {}, pagehead(editing ? 'Ubah post terjadwal' : 'Tulis Post', 'Tinjau caption, gambar dan akun tujuan sebelum persetujuan akhir.'), aiPanel,
+    aiDraft ? h('div', { class: 'banner' }, 'Draf AI dimuat. Periksa gambar, caption, akun, dan jadwal. Klik tombol terbit/jadwalkan hanya setelah semuanya sesuai.') : null, root));
 }
 function toLocalInput(iso) {
   const d = new Date(iso); const z = (n) => String(n).padStart(2, '0');
@@ -1236,6 +1261,7 @@ async function route() {
       state.stats = await api('GET', '/v1/stats');
       state.lastOverdue = 0;
     }
+    if (!isOwner() && /^\/(accounts|media|developer|team|admin)(?:\/|$)/.test(path)) { go('/compose'); return; }
     live.start();
     if (path === '/login') { go('/'); return; }
     let m, view;

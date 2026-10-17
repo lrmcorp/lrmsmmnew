@@ -60,15 +60,20 @@ function normalizeTargets(body, user) {
     const mediaIds = Array.isArray(t.media_ids) ? t.media_ids : sharedMedia;
     const media = mediaIds.map((m) => {
       const r = getMedia(m);
+      if (!r.in_library && r.user_id !== user?.id) throw err(404, 'not_found', 'Media pribadi tidak ditemukan.');
       return { id: r.id, kind: r.kind, width: r.width, height: r.height, duration_ms: r.duration_ms, size: r.size_bytes };
     });
     const options = t.options && typeof t.options === 'object' ? structuredClone(t.options) : {};
     // validate referenced media inside options
     if (options.cover_media_id) {
       const cm = getMedia(options.cover_media_id);
+      if (!cm.in_library && cm.user_id !== user?.id) throw err(404, 'not_found', 'Cover pribadi tidak ditemukan.');
       if (cm.kind !== 'image') throw err(400, 'invalid_options', 'cover_media_id harus gambar');
     }
-    for (const part of options.thread || []) if (typeof part === 'object') for (const mid of part.media_ids || []) getMedia(mid);
+    for (const part of options.thread || []) if (typeof part === 'object') for (const mid of part.media_ids || []) {
+      const image = getMedia(mid);
+      if (!image.in_library && image.user_id !== user?.id) throw err(404, 'not_found', 'Media pribadi tidak ditemukan.');
+    }
     validateTarget(acc.platform, { content, media, options, accountId: acc.id });
     return {
       account: acc, options,
