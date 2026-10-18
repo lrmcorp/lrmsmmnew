@@ -236,3 +236,24 @@ export function tx(fn) {
 
 export const kvGet = (k) => one('SELECT v FROM kv WHERE k=?', k)?.v ?? null;
 export const kvSet = (k, v) => run('INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', k, String(v));
+
+// Sosmed Generator: private provider credentials and durable, bounded workflows.
+db.exec(`CREATE TABLE IF NOT EXISTS generator_keys (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL, secret_enc TEXT NOT NULL, updated_at TEXT NOT NULL,
+  PRIMARY KEY(user_id,provider)
+);
+CREATE TABLE IF NOT EXISTS generator_settings (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  agents TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS generator_runs (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  request_id TEXT NOT NULL, request_hash TEXT NOT NULL,
+  brief TEXT NOT NULL, targets TEXT NOT NULL, slide_count INTEGER NOT NULL,
+  agents TEXT NOT NULL, scheduled_at TEXT, status TEXT NOT NULL DEFAULT 'queued',
+  steps TEXT NOT NULL DEFAULT '{}', media_ids TEXT NOT NULL DEFAULT '[]',
+  caption TEXT NOT NULL DEFAULT '', error TEXT, draft_id TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  UNIQUE(user_id,request_id)
+);`);

@@ -5,6 +5,7 @@ import { runPublisherTick, refreshMissingPermalinks } from './services/publisher
 import { syncAllComments, syncInsights } from './services/engagement.js';
 import { refreshExpiringTokens, refreshAllProfiles } from './services/accounts.js';
 import { gcMedia, purgePublishedMedia } from './services/media.js';
+import { runGeneratorTick } from './services/generator.js';
 import { syncAllMessages } from './services/messages.js';
 
 const JOBS = [
@@ -34,6 +35,7 @@ export async function runJobNow(name) {
 export function startWorker() {
   if (config.disableWorker) { console.log('[worker] disabled'); return; }
   const tick = async () => {
+    try { runGeneratorTick(); } catch { console.error('[generator] background tick failed'); }
     try { await runPublisherTick(); purgePublishedMedia(); } catch (e) { console.error('[publisher]', e); }
     for (const j of JOBS) {
       const last = Number(kvGet(`job:${j.name}`) || 0);

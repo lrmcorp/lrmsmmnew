@@ -123,7 +123,7 @@ function badgeEl(key) {
 // Navigation grouped like the HRD sidebar
 function navGroups() {
   return [
-    ['Operasional', [['/', 'home', 'Beranda'], ['/compose', 'pen', 'Tulis Post'], ['/calendar', 'cal', 'Kalender Konten']]],
+    ['Operasional', [['/', 'home', 'Beranda'], ['/compose', 'pen', 'Tulis Post'], ['/generator', 'bolt', 'Sosmed Generator'], ['/calendar', 'cal', 'Kalender Konten']]],
     ['Interaksi', [['/messages', 'chat', 'Pesan (DM)', 'messages'], ['/inbox', 'inbox', 'Komentar', 'comments'], ['/insights', 'chart', 'Insights']]],
     ...(isOwner() ? [['Administrasi & Integrasi', [['/accounts', 'users', 'Perusahaan & Akun'], ['/media', 'img', 'Pustaka Media'], ['/developer', 'key', 'API & AI'],
       ['/team', 'team', isOwner() ? 'Tim & Akses' : 'Akun Saya'], ['/admin', 'shield', 'Jejak Audit']]]] : []),
@@ -645,6 +645,115 @@ async function pagePost(id) {
   }
   draw(); poll();
   return shell('/calendar', box);
+}
+
+// ---------------- Sosmed Generator ----------------
+async function pageGenerator() {
+  await loadAccounts();
+  let config = await api('GET', '/v1/generator/settings');
+  const labels = { concept: 'Konsep Creator', revision: 'Concept Reviewer', image: 'Image Creator', final: 'Final Reviewer' };
+  const phaseNames = { queued: 'Menunggu', running: 'Agen bekerja', review: 'Siap ditinjau', failed: 'Perlu tindakan', cancelled: 'Dibatalkan', drafted: 'Dikirim ke Tulis Post' };
+  const inputs = {}, selected = new Set();
+  const accountBox = h('div', { class: 'acc-picker' });
+  const company = h('select', { 'aria-label': 'Perusahaan generator', onchange: () => { selected.clear(); drawAccounts(); } }, h('option', { value: '' }, 'Semua perusahaan'), companyGroups().filter(c => c.accounts.length).map(c => h('option', { value: c.id || 'none' }, c.name)));
+  function drawAccounts() {
+    accountBox.replaceChildren(...state.accounts.filter(a => a.status === 'active' && (!company.value || (a.company_id || 'none') === company.value)).map(a => h('label', { class: 'acc-chip' }, h('input', { type: 'checkbox', 'aria-label': `Pilih @${a.username}`, onchange: e => e.target.checked ? selected.add(a.id) : selected.delete(a.id) }), avatar(a), `@${a.username}`)));
+  }
+  drawAccounts();
+  const agentCards = Object.entries(labels).map(([role, name], i) => {
+    const agent = config.agents[role];
+    const model = h('input', { value: agent.model, 'aria-label': `Model ${name}`, placeholder: 'Nama model API' });
+    const prompt = h('textarea', { 'aria-label': `Instruksi ${name}`, maxlength: 4000 }, agent.instructions);
+    const provider = h('select', { 'aria-label': `Provider ${name}`, onchange: () => { model.value = role === 'image' ? config.providers[provider.value].imageModel : config.providers[provider.value].textModel; } }, Object.entries(config.providers).filter(([,p]) => role !== 'image' || p.image).map(([id,p]) => h('option', { value: id, selected: agent.provider === id }, p.name)));
+    inputs[role] = { provider, model, prompt };
+    return h('div', { class: 'gen-agent' }, h('span', { class: 'gen-number' }, String(i + 1)), h('h3', {}, name), h('p', { class: 'muted small' }, ['Menyusun ide, caption dan urutan slide.', 'Mengkritik dan memperbaiki konsep.', 'Menghasilkan gambar setiap slide.', 'Melihat hasil gambar dan memberi catatan final.'][i]), provider, model, h('details', {}, h('summary', {}, 'Instruksi agen'), prompt));
+  });
+  const collectAgents = () => Object.fromEntries(Object.entries(inputs).map(([r,v]) => [r, { provider: v.provider.value, model: v.model.value.trim(), instructions: v.prompt.value }]));
+  const keys = h('div', { class: 'gen-keys' });
+  function drawKeys() {
+    keys.replaceChildren(...Object.entries(config.providers).map(([provider, p]) => {
+      const saved = config.keys.some(k => k.provider === provider);
+      const input = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'API key pribadi', 'aria-label': `API key ${p.name}` });
+      const button = (text, fn) => h('button', { class: 'btn sm', onclick: async e => { e.currentTarget.disabled = true; try { await fn(); } catch(error) { toast(errMsg(error), true); } finally { e.target.disabled = false; } } }, text);
+      return h('div', { class: 'gen-key' }, h('h3', {}, p.name), h('span', { class: 'faint small' }, saved ? 'Key terenkripsi tersimpan; akses model belum tentu terverifikasi.' : 'Belum ada key'), input,
+        h('div', { class: 'row' }, button('Simpan key', async () => { await api('PUT', '/v1/generator/keys/' + provider, { key: input.value.trim() }); input.value = ''; config = await api('GET', '/v1/generator/settings'); drawKeys(); toast('API key pribadi disimpan terenkripsi'); }),
+          saved ? button('Tes koneksi', async () => { const r = await api('POST', '/v1/generator/keys/' + provider + '/test', { model: p.textModel }); toast(r.note); }) : null,
+          saved ? button('Hapus', async () => { if (!confirm('Hapus API key pribadi ini?')) return; await api('DELETE', '/v1/generator/keys/' + provider); config = await api('GET', '/v1/generator/settings'); drawKeys(); }) : null));
+    }));
+  }
+  drawKeys();
+  const brief = h('textarea', { 'aria-label': 'Brief campaign', placeholder: 'Contoh: Buat carousel 3 slide untuk Hannabeauty. Tujuan, audiens, penawaran yang sudah benar, gaya warna, bahasa, CTA, larangan klaim…', maxlength: 10000, rows: 5 });
+  const count = h('input', { type: 'number', min: 1, max: 10, value: 1, 'aria-label': 'Jumlah slide' });
+  const at = h('input', { type: 'datetime-local', 'aria-label': 'Usulan jadwal' });
+  const paid = h('input', { type: 'checkbox', 'aria-label': 'Setujui biaya API' });
+  const history = h('div', { class: 'gen-history' }), detail = h('div', { class: 'gen-detail' });
+  let selectedId = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
+  let lastSignature = '', stopped = false, fetching = false;
+  const captions = {}, slides = {};
+  let submissionSignature = '', submissionId = '';
+  const startButton = h('button', { class: 'btn primary', onclick: async () => {
+    startButton.disabled = true;
+    try {
+      if (!paid.checked) throw new Error('Setujui penggunaan API berbayar terlebih dahulu.');
+      const body = { brief: brief.value, account_ids: [...selected], slide_count: Number(count.value), agents: collectAgents(), scheduled_at: at.value ? new Date(at.value).toISOString() : null, confirm_cost: true };
+      const signature = JSON.stringify(body);
+      if (signature !== submissionSignature) { submissionSignature = signature; submissionId = crypto.randomUUID(); }
+      const r = await api('POST', '/v1/generator/runs', { ...body, request_id: submissionId });
+      submissionSignature = ''; selectedId = r.id; lastSignature = ''; toast('Tim agen mulai bekerja. Hasil belum diposting.'); await refresh();
+    } catch(error) { toast(errMsg(error), true); } finally { startButton.disabled = false; }
+  } }, 'Jalankan tim agen');
+  const action = (text, fn, danger = false) => h('button', { class: `btn ${danger ? 'danger' : ''}`, onclick: async e => { e.currentTarget.disabled = true; try { await fn(); lastSignature = ''; await refresh(); } catch(error) { toast(errMsg(error), true); } finally { e.target.disabled = false; } } }, text);
+  function drawRun(r) {
+    const index = Math.min(slides[r.id] || 0, Math.max(0, r.media.length - 1));
+    const image = r.media[index];
+    const acc = state.accounts.find(a => a.id === r.targets[0]?.account_id);
+    const caption = h('textarea', { 'aria-label': 'Caption final generator', maxlength: 2200, oninput: e => { captions[r.id] = e.target.value; } }, captions[r.id] ?? r.caption);
+    detail.replaceChildren(h('div', { class: 'panel' }, h('div', { class: 'row' }, h('h2', {}, 'Proses campaign'), h('span', { class: 'spacer' }), h('span', { class: 'pill' }, phaseNames[r.status])),
+      h('p', { class: 'gen-brief' }, r.brief),
+      h('div', { class: 'gen-flow' }, Object.entries(labels).map(([role,name]) => {
+        const step = r.steps[role];
+        const output = step?.output;
+        return h('div', { class: `gen-stage ${step?.status || ''}` }, h('b', {}, name), h('span', { class: 'small muted' }, `${r.agents[role].provider} · ${r.agents[role].model}`), h('span', {}, step?.status === 'done' ? '✓ Selesai' : step?.status === 'running' ? (r.status === 'failed' ? 'Terhenti' : 'Sedang bekerja…') : 'Menunggu'),
+          role === 'image' && step ? h('small', {}, `${step.completed_slides || 0}/${r.slide_count} slide`) : null,
+          output ? h('details', {}, h('summary', {}, 'Lihat hasil'), h('pre', {}, typeof output === 'string' ? output : JSON.stringify(output, null, 2)), step.usage ? h('pre', { class: 'faint small' }, JSON.stringify(step.usage, null, 2)) : null) : null);
+      })),
+      r.error ? h('div', { class: 'err-box' }, r.error) : null,
+      h('div', { class: 'row' },
+        r.status === 'failed' ? action('Coba ulang tahap gagal', async () => { if (confirm('Tahap selesai dipertahankan. Panggilan ulang dapat dikenakan biaya API lagi. Lanjutkan?')) await api('POST', `/v1/generator/runs/${r.id}/retry`); }) : null,
+        ['queued','running','review','failed'].includes(r.status) ? action('Batalkan', async () => { if (confirm('Hentikan tahap berikutnya? Panggilan provider yang sudah berjalan mungkin tetap ditagihkan.')) await api('DELETE', `/v1/generator/runs/${r.id}`); }, true) : null)),
+      image ? h('div', { class: 'gen-review-grid' },
+        h('div', { class: 'pv instagram gen-feed' }, h('div', { class: 'hd' }, acc ? avatar(acc) : null, acc?.username || 'Pratinjau feed'),
+          h('div', { class: 'img' }, image.url ? h('img', { src: image.url, alt: `Slide ${index + 1}` }) : 'File telah dibersihkan setelah terbit.'),
+          h('div', { class: 'row gen-slide-controls' }, action('‹', () => { slides[r.id] = (index + r.media.length - 1) % r.media.length; drawRun(r); }), h('span', {}, `${index + 1}/${r.media.length}`), action('›', () => { slides[r.id] = (index + 1) % r.media.length; drawRun(r); })),
+          h('div', { class: 'cap' }, h('b', {}, acc?.username || ''), r.caption)),
+        h('div', { class: 'panel' }, h('h2', {}, 'Tinjauan manusia'), h('p', { class: 'muted small' }, 'Periksa gambar, klaim, ejaan dan caption. Agen final memberi saran, bukan persetujuan publikasi.'), caption,
+          r.steps.final?.output ? h('div', { class: 'gen-findings' }, r.steps.final.output) : null,
+          r.status === 'review' ? action('Kirim ke Tulis Post', async () => { const d = await api('POST', `/v1/generator/runs/${r.id}/draft`, { content: caption.value }); go('/compose?ai_draft=' + d.draft_id); }) : null,
+          r.draft_id ? h('a', { class: 'btn primary', href: '#/compose?ai_draft=' + r.draft_id }, 'Buka di Tulis Post') : null)) : null);
+  }
+  async function refresh() {
+    if (stopped || fetching) return;
+    fetching = true;
+    try {
+      const { data } = await api('GET', '/v1/generator/runs');
+      if (stopped) return;
+      history.replaceChildren(h('h3', {}, 'Riwayat campaign'), ...data.map(r => h('button', { class: `gen-history-item ${selectedId === r.id ? 'on' : ''}`, onclick: () => { selectedId = r.id; lastSignature = ''; refresh(); } }, h('b', {}, r.brief.slice(0, 75)), h('small', {}, `${phaseNames[r.status]} · ${fmtDT(r.created_at)}`))));
+      const r = data.find(r => r.id === selectedId) || (!selectedId ? data[0] : null);
+      if (r) { selectedId = r.id; const signature = JSON.stringify(r); if (lastSignature !== signature) { lastSignature = signature; drawRun(r); } }
+      else detail.replaceChildren(h('div', { class: 'panel empty' }, 'Isi brief dan jalankan tim agen untuk melihat hasil setiap tahap.'));
+    } catch(error) { if (!stopped) toast(errMsg(error), true); } finally { fetching = false; }
+  }
+  await refresh();
+  const timer = setInterval(refresh, 4000);
+  pageCleanup = () => { stopped = true; clearInterval(timer); };
+  return shell('/generator', h('div', {}, pagehead('Sosmed Generator', 'Brief → konsep → revisi → gambar → review → Tulis Post. Anda menyetujui hasil akhir.'),
+    h('details', { class: 'panel gen-settings' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen'),
+      h('p', { class: 'muted small' }, 'Gunakan API key pribadi, bukan login/langganan ChatGPT, Claude atau Gemini. Biaya API ditagih provider. Key disimpan terenkripsi dan tidak dibagikan ke anggota lain. Nama model bisa diubah sesuai akses API Anda.'), keys,
+      h('div', { class: 'gen-flow' }, agentCards), action('Simpan preset agen', async () => { config = await api('PUT', '/v1/generator/settings', { agents: collectAgents() }); toast('Preset pribadi disimpan'); })),
+    h('section', { class: 'panel gen-start' }, h('h2', {}, 'Brief campaign baru'), brief,
+      h('div', { class: 'gen-form-row' }, h('label', {}, 'Perusahaan', company), h('label', {}, 'Jumlah slide', count), h('label', {}, 'Usulan jadwal (opsional)', at)), accountBox,
+      h('label', { class: 'check' }, paid, 'Saya setuju memakai API berbayar: 3 tahap teks/vision + 1 panggilan gambar per slide. Tidak ada retry otomatis.'), startButton),
+    h('div', { class: 'gen-workspace' }, history, detail)));
 }
 
 // ---------------- calendar ----------------
@@ -1311,6 +1420,7 @@ async function route() {
     let m, view;
     if (path === '/') view = await pageHome();
     else if (path === '/compose') view = await pageCompose();
+    else if (path === '/generator') view = await pageGenerator();
     else if ((m = path.match(/^\/compose\/(.+)$/))) view = await pageCompose(m[1]);
     else if ((m = path.match(/^\/posts\/(.+)$/))) view = await pagePost(m[1]);
     else if (path === '/calendar') view = await pageCalendar();

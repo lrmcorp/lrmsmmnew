@@ -2,7 +2,7 @@ name: Test & Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, sosmed-generator]
   pull_request:
   workflow_dispatch:
 
@@ -30,7 +30,7 @@ jobs:
       - name: Deployment boundary and closed initial setup tests
         run: |
           python3 -m unittest discover -s deploy/tests -v
-          node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js
+          node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js
 
   deploy:
     needs: test
@@ -66,7 +66,7 @@ jobs:
           IMAGE: ghcr.io/lrmcorp/lrmsmmnew:${{ github.sha }}
         run: |
           docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings test/e2e.js
-          docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js
+          docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js
       - name: Publish tested image
         id: publish
         env:

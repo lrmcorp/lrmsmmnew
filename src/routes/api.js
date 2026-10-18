@@ -15,6 +15,7 @@ import { audit, listAudit } from '../services/audit.js';
 import { bus } from '../services/events.js';
 import { stats as webhookStats } from './webhooks.js';
 import { config } from '../config.js';
+import * as generator from '../services/generator.js';
 import * as aiDrafts from '../services/ai-drafts.js';
 
 export const api = express.Router();
@@ -65,6 +66,42 @@ api.delete('/ai/drafts/:id', sessionOnly, (req, res) => {
 });
 const source = (req) => (req.auth.via === 'session' ? 'dashboard' : req.auth.via === 'oauth' ? 'mcp' : 'api');
 const kick = () => setImmediate(() => runPublisherTick().catch(() => {}));
+
+// Generator credentials and paid jobs are controlled by the signed-in user only.
+api.get('/generator/settings', sessionOnly, (req, res) => res.json(generator.settings(U(req))));
+api.put('/generator/settings', sessionOnly, (req, res) => res.json(generator.saveSettings(U(req), req.body || {})));
+api.put('/generator/keys/:provider', sessionOnly, (req, res) => {
+  generator.saveKey(U(req), req.params.provider, req.body?.key);
+  audit(req.auth, 'generator.key.save', 'provider', req.params.provider);
+  res.status(204).end();
+});
+api.delete('/generator/keys/:provider', sessionOnly, (req, res) => {
+  generator.deleteKey(U(req), req.params.provider);
+  audit(req.auth, 'generator.key.delete', 'provider', req.params.provider);
+  res.status(204).end();
+});
+api.post('/generator/keys/:provider/test', sessionOnly, async (req, res) => res.json(await generator.testKey(U(req), req.params.provider, req.body?.model)));
+api.get('/generator/runs', sessionOnly, (req, res) => res.json({ data: generator.listRuns(U(req)) }));
+api.get('/generator/runs/:id', sessionOnly, (req, res) => res.json(generator.getRun(U(req), req.params.id)));
+api.post('/generator/runs', sessionOnly, (req, res) => {
+  const result = generator.createRun(U(req), req.body || {});
+  audit(req.auth, 'generator.start', 'generator_run', result.id, { slides: result.slide_count });
+  setImmediate(() => generator.runGeneratorTick());
+  res.status(result.replayed ? 200 : 201).json(result);
+});
+api.post('/generator/runs/:id/retry', sessionOnly, (req, res) => {
+  const result = generator.retryRun(U(req), req.params.id);
+  audit(req.auth, 'generator.retry', 'generator_run', result.id);
+  setImmediate(() => generator.runGeneratorTick()); res.json(result);
+});
+api.delete('/generator/runs/:id', sessionOnly, (req, res) => {
+  generator.cancelRun(U(req), req.params.id); audit(req.auth, 'generator.cancel', 'generator_run', req.params.id); res.status(204).end();
+});
+api.post('/generator/runs/:id/draft', sessionOnly, async (req, res) => {
+  const result = await generator.handoff(U(req), req.params.id, req.body || {});
+  audit(req.auth, 'generator.handoff', 'generator_run', req.params.id, { draft_id: result.draft_id });
+  res.json(result);
+});
 
 // External agents submit private drafts; approval stays in the dashboard.
 api.post('/agent/drafts', W, async (req, res) => {
