@@ -1,6 +1,6 @@
 # Sosmed Generator
 
-Feature branch: `sosmed-generator`. Entry point: **Operasional → Sosmed Generator**, `/#/generator`. The feature branch does not deploy to the production VPS; merge/release is separate.
+Integrated application: **https://lrmsosmed.playgo.id/#/generator**, under **Operasional → Sosmed Generator**. Developed on `sosmed-generator` and merged into `main` for the existing deployment pipeline. It uses the same application, user sessions, companies, accounts, SQLite database, media storage and Tulis Post approval flow.
 
 ## Workflow
 

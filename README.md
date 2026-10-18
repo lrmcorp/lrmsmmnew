@@ -224,8 +224,8 @@ python3 examples/agent-upload.py --account acc_YOUR_ID --caption 'Final caption'
 
 Default is a draft. Add `--mode schedule` to activate the schedule or `--mode now` to publish immediately. Save media IDs from upload responses when building a retryable production agent.
 
-## Sosmed Generator (feature branch)
+## Sosmed Generator
 
 **Operasional → Sosmed Generator** provides a four-agent workflow: concept → revision → image generation → visual final review. Each user configures their own encrypted API keys, models and role instructions for OpenAI, Claude and Gemini. Generated images and the final caption go to a private **Tulis Post** draft for human approval; no automatic publishing from generator runs. Claude is supported for text/vision, while image generation uses OpenAI or Gemini.
 
-See [workflow, provider setup, boundaries and GitHub references](deploy/SOSMED_GENERATOR.md). This feature is developed on `sosmed-generator` and is not deployed by pushing that branch.
+See [workflow, provider setup, boundaries and GitHub references](deploy/SOSMED_GENERATOR.md). Sosmed Generator is integrated into the main application on the same domain and uses the existing users, companies, accounts, media and Tulis Post approval flow.
