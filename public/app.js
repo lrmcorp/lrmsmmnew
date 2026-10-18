@@ -311,11 +311,11 @@ async function pageHome() {
         published.length ? postList(published) : h('div', { class: 'list empty' }, 'Belum ada post yang terbit.')))));
 }
 
-function postList(posts) {
+function postList(posts, linkAttrs = p => ({ href: `#/posts/${p.id}` })) {
   return h('div', { class: 'list' }, posts.map((p) => {
     const m = p.media[0];
-    return h('a', { class: 'item', href: `#/posts/${p.id}` },
-      m ? (m.type === 'video' ? h('video', { class: 'thumb', src: m.url, muted: true, preload: 'metadata' }) : h('img', { class: 'thumb', src: m.url, alt: '' })) : h('div', { class: 'thumb' }),
+    return h('a', { class: 'item', ...linkAttrs(p) },
+      m?.url ? (m.type === 'video' ? h('video', { class: 'thumb', src: m.url, muted: true, preload: 'metadata' }) : h('img', { class: 'thumb', src: m.url, alt: '' })) : h('div', { class: 'thumb' }),
       h('div', { class: 'body' },
         h('div', { class: 'title' }, p.content || h('span', { class: 'faint' }, '(tanpa teks)')),
         h('div', { class: 'meta' },
@@ -654,8 +654,29 @@ const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); r
 const mondayOf = (d) => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
 
 async function pageCalendar() {
+  await loadAccounts();
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   const view = q.get('v') || 'month';
+  const company = q.get('company') || 'all';
+  const accounts = state.accounts.filter(a => company === 'all' || (a.company_id || 'none') === company);
+  const account = accounts.some(a => a.id === q.get('account')) ? q.get('account') : '';
+  const allowedIds = new Set(accounts.filter(a => !account || a.id === account).map(a => a.id));
+  const calendarUrl = (patch = {}) => {
+    const next = new URLSearchParams(q);
+    for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
+    return `/calendar?${next}`;
+  };
+  const linkAttrs = p => {
+    const links = p.targets.filter(t => t.status === 'published' && t.permalink);
+    if (links.length === 1) return { href: links[0].permalink, target: '_blank', rel: 'noopener noreferrer', title: 'Buka posting yang sudah terbit' };
+    if (links.length > 1) return { href: `#/posts/${p.id}`, onclick: e => {
+      e.preventDefault(); e.stopPropagation();
+      const dialog = modal('Pilih posting yang ingin dibuka', h('div', { class: 'list' }, links.map(t => h('a', { class: 'item', href: t.permalink, target: '_blank', rel: 'noopener noreferrer' }, `@${t.username} · ${PLAT[t.platform]} ↗`))), [h('a', { class: 'btn', href: `#/posts/${p.id}` }, 'Detail posting')]);
+      dialog.querySelector('a[href^="#"]').addEventListener('click', () => dialog.close());
+    } };
+    return { href: `#/posts/${p.id}`, title: 'Lihat status posting' };
+  };
+
   const anchor = q.get('d') ? new Date(`${q.get('d')}T00:00:00`) : new Date();
   let start, end, label;
   if (view === 'month') {
@@ -669,26 +690,27 @@ async function pageCalendar() {
     start = mondayOf(anchor); end = addDays(start, 7);
     label = `${start.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} – ${addDays(end, -1).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
   }
-  const { data } = await api('GET', `/v1/calendar?from=${start.toISOString()}&to=${end.toISOString()}`);
+  const response = await api('GET', `/v1/calendar?from=${start.toISOString()}&to=${end.toISOString()}`);
+  const data = response.data.map(p => ({ ...p, targets: p.targets.filter(t => allowedIds.has(t.account_id)) })).filter(p => p.targets.length);
   const step = view === 'month' ? null : view === '3day' ? 3 : 7;
   const nav = (dir) => {
     let d;
     if (!dir) d = new Date();
     else if (view === 'month') d = new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1);
     else d = addDays(anchor, dir * step);
-    go(`/calendar?v=${view}&d=${ymd(d)}`);
+    go(calendarUrl({ v: view, d: ymd(d) }));
   };
   const today = startOfDay(new Date()).getTime();
   const at = (p) => new Date(p.scheduled_at || p.created_at);
   const dayPosts = (d) => data.filter((p) => startOfDay(at(p)).getTime() === d.getTime());
   const createAt = (d) => { const x = new Date(d); x.setHours(9, 0, 0, 0); if (x < new Date()) { x.setTime(Date.now() + 3600_000); x.setMinutes(0, 0, 0); } return `/compose?at=${encodeURIComponent(x.toISOString())}`; };
-  const ev = (p) => h('a', { class: `ev ${p.status}`, href: `#/posts/${p.id}`, onclick: (e) => e.stopPropagation() },
+  const ev = (p) => h('a', { class: `ev ${p.status}`, ...linkAttrs(p), onclick: (e) => { e.stopPropagation(); linkAttrs(p).onclick?.(e); } },
     h('time', {}, fmtTime(at(p).toISOString())), h('span', { class: 't' }, p.content || '(media)'),
     h('span', { class: 'icons' }, [...new Set(p.targets.map((t) => t.platform))].map(icon)));
 
   let body;
   if (view === 'list') {
-    body = data.length ? postList(data) : h('div', { class: 'list empty' }, 'Tidak ada post di rentang ini.');
+    body = data.length ? postList(data, linkAttrs) : h('div', { class: 'list empty' }, 'Tidak ada post di rentang ini.');
   } else if (view === 'month') {
     const cells = [...Array(42)].map((_, i) => addDays(start, i));
     body = h('div', { class: 'month' },
@@ -697,10 +719,10 @@ async function pageCalendar() {
         const ps = dayPosts(d); const past = d.getTime() < today; const other = d.getMonth() !== anchor.getMonth();
         return h('div', { class: `mc ${other ? 'other' : ''} ${d.getTime() === today ? 'today' : ''} ${past ? 'past' : ''}`,
           role: past ? null : 'button', tabindex: past ? null : 0, title: past ? null : `Buat post tanggal ${d.getDate()}`,
-          onclick: past ? null : () => go(createAt(d)), onkeydown: past ? null : (e) => { if (e.key === 'Enter') go(createAt(d)); } },
+          onclick: past ? null : () => go(createAt(d)), onkeydown: past ? null : (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) go(createAt(d)); } },
         h('div', { class: 'mn' }, d.getDate()),
         ps.slice(0, 3).map(ev),
-        ps.length > 3 ? h('a', { class: 'more', href: `#/calendar?v=3day&d=${ymd(d)}`, onclick: (e) => e.stopPropagation() }, `+${ps.length - 3} lagi`) : null);
+        ps.length > 3 ? h('a', { class: 'more', href: '#' + calendarUrl({ v: '3day', d: ymd(d) }), onclick: (e) => e.stopPropagation() }, `+${ps.length - 3} lagi`) : null);
       }));
   } else {
     const days = [...Array(step)].map((_, i) => addDays(start, i));
@@ -714,11 +736,17 @@ async function pageCalendar() {
   }
   return shell('/calendar', h('div', {},
     pagehead('Kalender', label,
-      h('div', { class: 'seg' }, [['month', 'Bulan'], ['week', 'Minggu'], ['3day', '3 hari'], ['list', 'Daftar']].map(([v, l]) => h('button', { class: view === v ? 'on' : '', onclick: () => go(`/calendar?v=${v}&d=${ymd(anchor)}`) }, l))),
+      h('div', { class: 'seg' }, [['month', 'Bulan'], ['week', 'Minggu'], ['3day', '3 hari'], ['list', 'Daftar']].map(([v, l]) => h('button', { class: view === v ? 'on' : '', onclick: () => go(calendarUrl({ v, d: ymd(anchor) })) }, l))),
       h('button', { class: 'btn', onclick: () => nav(-1), 'aria-label': 'Sebelumnya' }, '‹'),
       h('button', { class: 'btn', onclick: () => nav(0) }, 'Hari ini'),
       h('button', { class: 'btn', onclick: () => nav(1), 'aria-label': 'Berikutnya' }, '›'),
       h('a', { class: 'btn primary', href: '#/compose' }, 'Tulis post')),
+    h('div', { class: 'calendar-filters' },
+      h('label', {}, 'Perusahaan', h('select', { 'aria-label': 'Filter perusahaan', onchange: e => go(calendarUrl({ company: e.target.value, account: '' })) },
+        h('option', { value: 'all', selected: company === 'all' }, 'Semua perusahaan'),
+        companyGroups().filter(c => c.accounts.length).map(c => h('option', { value: c.id || 'none', selected: company === (c.id || 'none') }, c.name)))),
+      h('label', {}, 'Akun', h('select', { 'aria-label': 'Filter akun', onchange: e => go(calendarUrl({ account: e.target.value })) },
+        h('option', { value: '', selected: !account }, 'Semua akun'), accounts.map(a => h('option', { value: a.id, selected: a.id === account }, `@${a.username} · ${PLAT[a.platform]}`))))),
     body,
     view === 'month' ? h('p', { class: 'faint small', style: { marginTop: '10px' } }, 'Klik tanggal untuk membuat post di hari itu.') : null));
 }

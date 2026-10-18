@@ -521,3 +521,6 @@ dialog .df { padding: 1rem 1.5rem; border-top: 1px solid var(--slate-100); displ
 .pv .slide-dots button.on { background: #3897f0; }
 .pv .pv-note { padding: 8px 12px; font-size: 11px; color: var(--slate-400); }
 .previews:has(> .pv:only-child) { grid-template-columns: minmax(0, 420px); justify-content: center; }
+.calendar-filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.calendar-filters label { display: grid; gap: 6px; min-width: 0; flex: 1 1 220px; font-size: 12px; color: var(--slate-500); }
+.calendar-filters select { width: 100%; }
