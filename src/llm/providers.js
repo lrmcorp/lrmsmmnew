@@ -9,7 +9,7 @@ export const PROVIDERS = {
 
 async function jsonRequest(url, headers, body) {
   let res;
-  try { res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(180000) }); }
+  try { res = await fetch(url, { method: 'POST', headers: { ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...headers }, body: body instanceof FormData ? body : JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(180000) }); }
   catch { throw err(502, 'provider_unavailable', 'Provider tidak merespons. Periksa koneksi lalu coba ulang tahap ini.'); }
   // Do not expose raw provider responses, prompts or secrets in error messages.
   if (!res.ok) {
@@ -44,13 +44,20 @@ export async function generateText({ provider, model, key, system, prompt, image
   return { text, usage: result.usage || result.usageMetadata || null };
 }
 
-export async function generateImage({ provider, model, key, prompt }) {
+export async function generateImage({ provider, model, key, prompt, references = [] }) {
   let result, base64;
   if (provider === 'openai') {
-    result = await jsonRequest('https://api.openai.com/v1/images/generations', { Authorization: `Bearer ${key}` }, { model, prompt, n: 1, size: '1024x1024', output_format: 'png' });
+    if (references.length) {
+      const form = new FormData();
+      for (const [k,v] of Object.entries({ model, prompt, n: '1', size: '1024x1024', output_format: 'png', input_fidelity:'high' })) form.append(k,v);
+      references.forEach((ref,i) => form.append('image[]',new Blob([ref.buffer],{type:ref.mime}),`reference-${i+1}.jpg`));
+      result = await jsonRequest('https://api.openai.com/v1/images/edits', { Authorization: `Bearer ${key}` }, form);
+    } else {
+      result = await jsonRequest('https://api.openai.com/v1/images/generations', { Authorization: `Bearer ${key}` }, { model, prompt, n: 1, size: '1024x1024', output_format: 'png' });
+    }
     base64 = result.data?.[0]?.b64_json;
   } else if (provider === 'gemini') {
-    result = await jsonRequest(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { 'x-goog-api-key': key }, { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } });
+    result = await jsonRequest(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { 'x-goog-api-key': key }, { contents: [{ role: 'user', parts: [...references.map(ref=>({inlineData:{mimeType:ref.mime,data:ref.buffer.toString('base64')}})),{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } });
     base64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.mimeType?.startsWith('image/'))?.inlineData?.data;
   } else throw err(400, 'image_provider_invalid', 'Pilih OpenAI atau Gemini untuk pembuatan gambar. Claude tidak menghasilkan gambar.');
   if (typeof base64 !== 'string' || base64.length > 12 * 1024 * 1024) throw err(502, 'provider_image_invalid', 'Provider tidak mengembalikan gambar yang valid (maksimal 8 MB).');

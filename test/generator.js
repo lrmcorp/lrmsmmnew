@@ -22,9 +22,9 @@ const secret = 'fixture-secret-DO-NOT-EXPOSE';
 globalThis.fetch = async (url, opts) => {
   const origin = new URL(url).origin;
   if (!['https://api.openai.com', 'https://api.anthropic.com', 'https://generativelanguage.googleapis.com'].includes(origin)) return realFetch(url, opts);
-  const body = JSON.parse(opts.body);
-  providerCalls.push({ origin, url, headers: opts.headers, body });
-  const imageRequest = String(url).includes('/images/generations') || body.generationConfig?.responseModalities;
+  const body = opts.body instanceof FormData ? Object.fromEntries(opts.body.entries()) : JSON.parse(opts.body);
+  providerCalls.push({ origin, url, headers: opts.headers, body, form:opts.body instanceof FormData ? opts.body : null });
+  const imageRequest = (String(url).includes('/images/generations') || String(url).includes('/images/edits')) || body.generationConfig?.responseModalities;
   if (imageRequest) {
     imageCalls++;
     if (gate) { blocked?.(); await gate; }
@@ -161,6 +161,27 @@ test('personal credentials, provider contracts, durable pipeline and final hando
         assert.equal(call.headers.Authorization || call.headers['x-api-key'] || call.headers['x-goog-api-key'], call.origin.includes('openai') ? 'Bearer ' + secret : secret);
         assert.ok(!String(call.url).includes(secret));
       }
+    });
+    await t.test('owned visual references reach image-edit/vision providers and survive draft cleanup', async()=>{
+      const {saveBuffer}=await import('../src/services/media.js');
+      const ref=await saveBuffer(user.id,image,{inLibrary:false});
+      const r=make({slide_count:1,reference_media_ids:[ref.id],reference_notes:'Match the warm palette and spacious layout'});
+      assert.deepEqual(r.reference_media_ids,[ref.id]);
+      assert.throws(()=>deleteMedia(ref.id),/dipakai/);
+      const result=await execute(r);assert.equal(result.status,'review');
+      const edit=providerCalls.findLast(c=>String(c.url).includes('/images/edits'));
+      assert.ok(edit.form instanceof FormData);assert.equal(edit.form.getAll('image[]').length,1);
+      assert.ok((await edit.form.get('image[]').arrayBuffer()).byteLength>0);
+      assert.ok(edit.form.get('prompt').includes('warm palette'));
+      const before=providerCalls.length;
+      const agents=structuredClone(gen.DEFAULT_AGENTS);agents.image={...agents.image,provider:'gemini',model:'gemini-2.5-flash-image'};
+      const gem=await execute(make({slide_count:1,agents,reference_media_ids:[ref.id],reference_notes:'Soft light'}));assert.equal(gem.status,'review');
+      const call=providerCalls.slice(before).find(c=>c.body.generationConfig?.responseModalities);
+      assert.equal(call.body.contents[0].parts.filter(p=>p.inlineData).length,1);
+      assert.throws(()=>gen.createRun(other,{request_id:'stolen-ref',brief:'Example',account_ids:['ig-generator'],slide_count:1,confirm_cost:true,reference_media_ids:[ref.id]}),/unggah sendiri/);
+      assert.throws(()=>make({reference_media_ids:[ref.id,ref.id]}),/referensi/);
+      run("UPDATE media SET created_at='2000-01-01T00:00:00.000Z' WHERE id=?",ref.id);gcMedia();assert.ok(one('SELECT id FROM media WHERE id=?',ref.id));
+      gen.cancelRun(user,result.id);gen.cancelRun(user,gem.id);
     });
     await t.test('image failure is safe, keeps completed slides and requires explicit retry', async () => {
       imageCalls = 0; failAfterSlide = 2;

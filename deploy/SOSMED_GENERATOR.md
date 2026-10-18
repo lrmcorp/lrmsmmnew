@@ -81,3 +81,11 @@ Live provider/image quality and real Meta publication must be checked separately
 - Old Tulis Post draft handoff remains supported. Draft Konten also recognizes when those drafts have been approved into posts.
 
 Additional routes (dashboard session only): `/v1/generator/timing`, `/plans`, `/plans/{id}/start`, `/runs/{id}/start`, `PATCH /runs/{id}`, `/runs/{id}/revise`, `/runs/{id}/approve`. Planning uses stable `request_id` retries; starting a plan requires explicit paid-call consent. Approval uses a stable post idempotency key and does not publish immediately when a date is missing/past.
+
+## Visual references and visible agent activity
+
+- Image Creator accepts up to four JPEG/PNG reference uploads and a separate visual-direction note (palette, mood, typography style, layout, lighting). References are private to their uploader, normalized to bounded JPEG inputs, and retained while a planned/running/review/failed run needs them.
+- References are included in single-run/plan snapshots and retained across prompt revisions. Draft Konten lets users replace/add references before a new generation. Reference images are not automatically attached to the published carousel.
+- Concept Creator and Concept Reviewer receive the reference images through their vision-capable text model. OpenAI Image Creator uses `/v1/images/edits` with real multipart image files and high input fidelity; Gemini Image Creator receives `inlineData` image parts. This is reference-conditioned generation, not a guarantee of identical rendering. Additional vision/edit usage is billed by the selected provider.
+- Agent activity shows four desks, actual persisted stage state, completed-stage progress, and image counts. Only the currently executing stage animates; queued/completed/failed stages do not pretend to be working. `prefers-reduced-motion` disables decorative animation. The pipeline is sequential even though multiple role cards are visible.
+- Tests check actual reference bytes in both provider contracts, private ownership and cleanup protection, and browser checks for active-stage animation, reduced motion, upload, preview and approval handoff. Live visual similarity requires a real paid-provider run and human review.

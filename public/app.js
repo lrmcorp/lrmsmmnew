@@ -647,6 +647,33 @@ async function pagePost(id) {
   return shell('/calendar', box);
 }
 
+function agentActivity(r) {
+  const roles=[['concept','Konsep','KC'],['revision','Revisi','KR'],['image','Image Creator','IC'],['final','Final Review','FR']];
+  const done=roles.filter(([role])=>r.steps[role]?.status==='done').length;
+  return h('section',{class:'agent-activity','aria-label':'Aktivitas agen'},
+    h('div',{class:'agent-activity-head'},h('b',{},'Tim kreatif Anda'),h('span',{class:'muted small'},r.status==='running'?'Agen bekerja bergantian sesuai alur':r.status==='queued'?'Menunggu giliran proses':r.status==='failed'?'Proses terhenti; periksa tahap yang gagal':`${done}/4 tahap selesai`)),
+    h('div',{class:'agent-workfloor'},roles.map(([role,name,initials])=>{
+      const step=r.steps[role];
+      const state=step?.status==='done'?'done':step?.status==='running'&&r.status==='running'?'working':step?.status==='running'&&r.status==='failed'?'error':'waiting';
+      return h('div',{class:`agent-desk ${state}`,'data-agent':role,'data-state':state},h('div',{class:'agent-orbit'},h('div',{class:'agent-face'},initials),h('i',{class:'agent-signal'})),h('b',{},name),h('span',{class:'agent-state'},state==='working'?'Sedang bekerja…':state==='done'?'Selesai ✓':state==='error'?'Perlu tindakan':'Menunggu'),role==='image'&&step?h('small',{},`${step.completed_slides||0}/${r.slide_count} gambar`):null,h('div',{class:'agent-wave','aria-hidden':'true'},h('i'),h('i'),h('i'),h('i')));
+    })),h('div',{class:'agent-total-progress',role:'progressbar','aria-label':'Tahap agen selesai','aria-valuemin':'0','aria-valuemax':'4','aria-valuenow':String(done)},h('i',{style:{width:`${done*25}%`}})));
+}
+function visualReferences(initial = [], initialNotes = '', onChange = () => {}) {
+  let refs=[...initial];
+  const grid=h('div',{class:'reference-grid'});
+  const notes=h('textarea',{'aria-label':'Arahan referensi visual',maxlength:3000,placeholder:'Contoh: warna pastel, layout minimalis, tipografi tegas, pencahayaan hangat. Jelaskan yang perlu dipertahankan dan yang perlu diubah.',oninput:()=>onChange(refs,notes.value)},initialNotes);
+  const files=h('input',{type:'file',accept:'image/jpeg,image/png',multiple:true,hidden:true,onchange:async()=>{
+    const chosen=[...files.files];
+    if(refs.length+chosen.length>4){toast('Maksimal 4 gambar referensi.',true);return;}
+    add.disabled=true;
+    try { for(const file of chosen){if(!['image/jpeg','image/png'].includes(file.type))throw new Error('Referensi harus JPEG atau PNG.');refs.push(await uploadFile(file,{inLibrary:false}));}}
+    catch(error){toast(errMsg(error),true);}finally{onChange(refs,notes.value);draw();add.disabled=false;files.value='';}
+  }});
+  const add=h('button',{type:'button',class:'btn',onclick:()=>files.click()},'+ Referensi visual');
+  function draw(){grid.replaceChildren(...refs.map((m,i)=>h('div',{class:'reference-tile'},h('img',{src:m.url,alt:`Referensi visual ${i+1}`}),h('button',{type:'button',class:'btn sm','aria-label':`Hapus referensi ${i+1}`,onclick:()=>{refs.splice(i,1);onChange(refs,notes.value);draw();}},'×'))));}
+  draw();
+  return {element:h('section',{class:'reference-panel'},h('h3',{},'Referensi Image Creator'),h('p',{class:'muted small'},'Unggah hingga 4 gambar untuk mengarahkan vibes, warna, layout dan desain. Gambar benar-benar dikirim ke model; kemiripan tidak dapat dijamin identik.'),grid,add,files,notes),get:()=>({reference_media_ids:refs.map(m=>m.id),reference_notes:notes.value})};
+}
 const wibInput = iso => iso ? new Date(Date.parse(iso) + 7 * 3600000).toISOString().slice(0,16) : '';
 const wibIso = value => value ? new Date(value + ':00+07:00').toISOString() : null;
 async function pageContentDrafts() {
@@ -664,7 +691,8 @@ async function pageContentDrafts() {
   const labels={planned:'Rencana / belum dibuat',queued:'Menunggu agen',running:'Agen bekerja',review:'Perlu persetujuan',failed:'Gagal / bisa direvisi',drafted:'Draf Tulis Post',approved:'Terjadwal',cancelled:'Dibatalkan'};
   const act=(text,fn,primary=false)=>h('button',{class:`btn ${primary?'primary':''}`,onclick:async e=>{e.currentTarget.disabled=true;try{await fn();last='';await refresh();}catch(error){toast(errMsg(error),true);}finally{e.target.disabled=false;}}},text);
   function draw(r) {
-    const edit=edits[r.id] ||= {content:r.caption,brief:r.brief,at:wibInput(r.scheduled_at)};
+    const edit=edits[r.id] ||= {content:r.caption,brief:r.brief,at:wibInput(r.scheduled_at),references:r.references||[],reference_notes:r.reference_notes||''};
+    const refs=visualReferences(edit.references,edit.reference_notes,(images,notes)=>{edit.references=[...images];edit.reference_notes=notes;});
     const editable=['planned','review','failed'].includes(r.status);
     const caption=h('textarea',{'aria-label':'Caption draft',maxlength:2200,oninput:e=>{edit.content=e.target.value;}},edit.content);
     const prompt=h('textarea',{'aria-label':'Prompt draft',maxlength:10000,oninput:e=>{edit.brief=e.target.value;}},edit.brief);
@@ -673,13 +701,14 @@ async function pageContentDrafts() {
     const index=Math.min(previewSlides[r.id]||0,Math.max(0,images.length-1));
     const acc=state.accounts.find(a=>a.id===r.targets[0]?.account_id);
     const save=async()=>{
-      const data={content:edit.content,brief:edit.brief,scheduled_at:wibIso(edit.at)};
+      const data={content:edit.content,brief:edit.brief,scheduled_at:wibIso(edit.at),...refs.get()};
       if(chosenMedia[r.id]) data.media_ids=chosenMedia[r.id].map(m=>m.id);
       const updated=await api('PATCH',`/v1/generator/runs/${r.id}`,data);delete chosenMedia[r.id];return updated;
     };
     const mediaPicker=()=>pickMedia(picked=>{chosenMedia[r.id]=picked;previewSlides[r.id]=0;draw(r);});
     const image=images[index];
     detail.replaceChildren(h('div',{class:'panel'},h('div',{class:'row'},h('h2',{},r.title||'Draft Konten'),h('span',{class:'spacer'}),h('span',{class:'pill'},labels[r.status]||r.status)),
+      ['queued','running','failed'].includes(r.status)?agentActivity(r):null,
       h('p',{class:'muted small'},r.targets.map(t=>state.accounts.find(a=>a.id===t.account_id)?.username||'').map(u=>'@'+u).join(', ')),
       h('div',{class:'draft-review'},
         h('div',{class:'pv instagram'},h('div',{class:'hd'},acc?avatar(acc):null,acc?.username||'Pratinjau Instagram'),h('div',{class:'img'},image?.url ? image.type==='video'?h('video',{src:image.url,controls:true,muted:true}):h('img',{src:image.url,alt:`Slide ${index+1}`}):image?.status==='purged'?'File telah dibersihkan setelah terbit.':'Belum ada foto. Buat dengan agen atau unggah sendiri.'),
@@ -696,7 +725,7 @@ async function pageContentDrafts() {
           },true):null,
           r.post_id?h('a',{class:'btn primary',href:'#/posts/'+r.post_id},'Lihat jadwal / posting'):null,
           r.status==='drafted'&&r.draft_id?h('a',{class:'btn',href:'#/compose?ai_draft='+r.draft_id},'Lanjut di Tulis Post'):null)),
-      editable?h('details',{},h('summary',{},'Edit prompt / buat ulang sampai sesuai'),prompt,
+      editable?h('details',{},h('summary',{},'Edit prompt / buat ulang sampai sesuai'),prompt,refs.element,
         h('p',{class:'muted small'},'Upload foto sendiri tidak memakai biaya AI. Buat ulang menjalankan agen lagi dengan biaya API; versi sebelumnya ditandai batal.'),
         h('div',{class:'row'},r.status==='planned'?act('Buat gambar dengan agen',async()=>{await save();if(confirm(`Jalankan agen untuk ${r.slide_count} slide dengan API berbayar?`))await api('POST',`/v1/generator/runs/${r.id}/start`,{confirm_cost:true});}):null,
           act('Revisi prompt & Generate ulang',async()=>{if(!confirm('Jalankan ulang agen memakai prompt ini? Biaya API berlaku.'))return;await save();const next=await api('POST',`/v1/generator/runs/${r.id}/revise`,{request_id:crypto.randomUUID(),brief:edit.brief,confirm_cost:true});selectedId=next.id;}))) : null,
@@ -758,6 +787,7 @@ async function pageGenerator() {
   }
   drawKeys();
   const brief = h('textarea', { 'aria-label': 'Brief campaign', placeholder: 'Contoh: Buat carousel 3 slide untuk Hannabeauty. Tujuan, audiens, penawaran yang sudah benar, gaya warna, bahasa, CTA, larangan klaim…', maxlength: 10000, rows: 5 });
+  const reference=visualReferences();
   const count = h('input', { type: 'number', min: 1, max: 10, value: 1, 'aria-label': 'Jumlah slide' });
   const at = h('input', { type: 'datetime-local', 'aria-label': 'Usulan jadwal' });
   const paid = h('input', { type: 'checkbox', 'aria-label': 'Setujui biaya API' });
@@ -773,7 +803,7 @@ async function pageGenerator() {
     e.currentTarget.disabled=true;
     try {
       if(planningMode.value==='ai'&&!paid.checked)throw new Error('Setujui biaya API untuk menyusun ide. Mode manual tidak memakai AI.');
-      const body={brief:brief.value,account_ids:[...selected],content_count:Number(totalContents.value),slide_count:Number(count.value),start_date:fromDate.value,end_date:endDate.value,times:postTimes.value.split(',').map(t=>t.trim()).filter(Boolean),manual:planningMode.value==='manual',confirm_cost:paid.checked,agents:collectAgents()};
+      const body={brief:brief.value,account_ids:[...selected],content_count:Number(totalContents.value),slide_count:Number(count.value),start_date:fromDate.value,end_date:endDate.value,times:postTimes.value.split(',').map(t=>t.trim()).filter(Boolean),manual:planningMode.value==='manual',confirm_cost:paid.checked,agents:collectAgents(),...reference.get()};
       const signature=JSON.stringify(body);if(signature!==planSignature){planSignature=signature;planRequest=crypto.randomUUID();}
       const result=await api('POST','/v1/generator/plans',{...body,request_id:planRequest});go('/generator/drafts?plan='+result.id);
     }catch(error){toast(errMsg(error),true);}finally{e.target.disabled=false;}
@@ -792,7 +822,7 @@ async function pageGenerator() {
     startButton.disabled = true;
     try {
       if (!paid.checked) throw new Error('Setujui penggunaan API berbayar terlebih dahulu.');
-      const body = { brief: brief.value, account_ids: [...selected], slide_count: Number(count.value), agents: collectAgents(), scheduled_at: at.value ? new Date(at.value).toISOString() : null, confirm_cost: true };
+      const body = { brief: brief.value, account_ids: [...selected], slide_count: Number(count.value), agents: collectAgents(), scheduled_at: at.value ? new Date(at.value).toISOString() : null, confirm_cost: true, ...reference.get() };
       const signature = JSON.stringify(body);
       if (signature !== submissionSignature) { submissionSignature = signature; submissionId = crypto.randomUUID(); }
       const r = await api('POST', '/v1/generator/runs', { ...body, request_id: submissionId });
@@ -806,7 +836,7 @@ async function pageGenerator() {
     const acc = state.accounts.find(a => a.id === r.targets[0]?.account_id);
     const caption = h('textarea', { 'aria-label': 'Caption final generator', maxlength: 2200, oninput: e => { captions[r.id] = e.target.value; } }, captions[r.id] ?? r.caption);
     detail.replaceChildren(h('div', { class: 'panel' }, h('div', { class: 'row' }, h('h2', {}, 'Proses campaign'),h('a',{class:'btn sm',href:'#/generator/drafts?id='+r.id},'Buka Draft Konten'), h('span', { class: 'spacer' }), h('span', { class: 'pill' }, phaseNames[r.status])),
-      h('p', { class: 'gen-brief' }, r.brief),
+      h('p', { class: 'gen-brief' }, r.brief),agentActivity(r),
       h('div', { class: 'gen-flow' }, Object.entries(labels).map(([role,name]) => {
         const step = r.steps[role];
         const output = step?.output;
@@ -847,7 +877,7 @@ async function pageGenerator() {
     h('details', { class: 'panel gen-settings' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen'),
       h('p', { class: 'muted small' }, 'Gunakan API key pribadi, bukan login/langganan ChatGPT, Claude atau Gemini. Biaya API ditagih provider. Key disimpan terenkripsi dan tidak dibagikan ke anggota lain. Nama model bisa diubah sesuai akses API Anda.'), keys,
       h('div', { class: 'gen-flow' }, agentCards), action('Simpan preset agen', async () => { config = await api('PUT', '/v1/generator/settings', { agents: collectAgents() }); toast('Preset pribadi disimpan'); })),
-    h('section', { class: 'panel gen-start' }, h('h2', {}, 'Brief campaign baru'), brief,
+    h('section', { class: 'panel gen-start' }, h('h2', {}, 'Brief campaign baru'), brief,reference.element,
       h('div', { class: 'gen-form-row' }, h('label', {}, 'Perusahaan', company), h('label', {}, 'Jumlah slide', count), h('label', {}, 'Usulan jadwal (opsional)', at)), accountBox,
       h('label', { class: 'check' }, paid, 'Saya setuju memakai API berbayar: planner 1 panggilan teks; setiap konten yang digenerate 3 tahap teks/vision + 1 panggilan gambar per slide.'),planner,h('h3',{},'Atau buat satu konten langsung'), startButton),
     h('div', { class: 'gen-workspace' }, history, detail)));
