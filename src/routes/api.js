@@ -81,6 +81,32 @@ api.delete('/generator/keys/:provider', sessionOnly, (req, res) => {
   res.status(204).end();
 });
 api.post('/generator/keys/:provider/test', sessionOnly, async (req, res) => res.json(await generator.testKey(U(req), req.params.provider, req.body?.model)));
+api.post('/generator/timing', sessionOnly, (req,res) => res.json(generator.timingRecommendation(U(req),req.body?.account_ids)));
+api.get('/generator/plans', sessionOnly, (req,res) => res.json({data:generator.listPlans(U(req))}));
+api.post('/generator/plans', sessionOnly, async (req,res) => {
+  const plan = await generator.createPlan(U(req),req.body || {});
+  audit(req.auth,'generator.plan','generator_plan',plan.id,{count:plan.content_count});
+  res.status(plan.replayed ? 200 : 201).json(plan);
+});
+api.post('/generator/plans/:id/start', sessionOnly, (req,res) => {
+  if (req.body?.confirm_cost !== true) throw err(400,'cost_confirmation_required','Konfirmasi biaya pembuatan seluruh konten.');
+  const result=generator.startPlan(U(req),req.params.id); audit(req.auth,'generator.plan.start','generator_plan',req.params.id,result);
+  setImmediate(()=>generator.runGeneratorTick());res.json(result);
+});
+api.post('/generator/runs/:id/start', sessionOnly, (req,res) => {
+  if (req.body?.confirm_cost !== true) throw err(400,'cost_confirmation_required','Konfirmasi biaya pembuatan konten.');
+  const result=generator.startPlanned(U(req),req.params.id);setImmediate(()=>generator.runGeneratorTick());res.json(result);
+});
+api.patch('/generator/runs/:id', sessionOnly, (req,res) => {
+  const result=generator.updateContent(U(req),req.params.id,req.body || {}); audit(req.auth,'generator.edit','generator_run',req.params.id);res.json(result);
+});
+api.post('/generator/runs/:id/revise', sessionOnly, (req,res) => {
+  const result=generator.reviseContent(U(req),req.params.id,req.body || {});audit(req.auth,'generator.revise','generator_run',result.id);
+  setImmediate(()=>generator.runGeneratorTick());res.status(result.replayed ? 200 : 201).json(result);
+});
+api.post('/generator/runs/:id/approve', sessionOnly, (req,res) => {
+  const post=generator.approveContent(U(req),req.params.id,req.body || {});audit(req.auth,'generator.approve','post',post.id);res.json(post);
+});
 api.get('/generator/runs', sessionOnly, (req, res) => res.json({ data: generator.listRuns(U(req)) }));
 api.get('/generator/runs/:id', sessionOnly, (req, res) => res.json(generator.getRun(U(req), req.params.id)));
 api.post('/generator/runs', sessionOnly, (req, res) => {

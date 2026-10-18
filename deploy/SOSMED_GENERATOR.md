@@ -26,8 +26,8 @@ The generator currently creates still-image feed/carousel campaigns, not AI-gene
 
 ## Reliability and access
 
-- Persistent SQLite runs with config snapshots, stage outputs, generated media IDs and states: queued → running → review → drafted; failed/cancelled are explicit.
-- Maximum two running jobs overall and one per user. Maximum ten active queued/running/review campaigns per user and ten slides per campaign. No automatic paid retries or indefinite agent loops. These are call-count bounds, not a currency spending cap.
+- Persistent SQLite runs with config snapshots, stage outputs, generated media IDs and states: planned (optional) → queued → running → review → approved (Calendar) or drafted (Tulis Post); failed/cancelled are explicit.
+- Maximum two running jobs overall and one per user. Maximum forty active queued/running/review individual campaigns per user and ten slides per campaign. No automatic paid retries or indefinite agent loops. These are call-count bounds, not a currency spending cap.
 - A failed stage can be retried explicitly. Successful stages/slides remain intact. A call interrupted before its result is saved can be billed again on retry. Cancel prevents later stages/results from being committed; an already dispatched provider call may still be billed.
 - After a worker crash, a stale running job becomes failed after ten minutes and requires manual retry. Queued jobs resume when the worker ticks. Existing app's single-process SQLite deployment constraint remains.
 - Scope is checked at creation, between expensive calls, when displaying results and on handoff. Company/account access uses existing live assignments, including role changes. A creator can still cancel their own inaccessible run after access is revoked.
@@ -66,3 +66,18 @@ No source code or runtime dependencies from these projects were copied or instal
 The existing `npm test` suite must remain green. Browser review covers per-role provider choices, real generated fixture image rendering, carousel navigation, desktop/mobile layout, edited caption handoff and no post creation before human approval.
 
 Live provider/image quality and real Meta publication must be checked separately using an authorized user's API keys; no production API keys were requested or used during implementation.
+
+## Content planning and Draft Konten
+
+**Sosmed Generator → Draft Konten** is a submenu of the same application. Campaign planning separates **content count** from **slides per content**: 12 contents create 12 independent draft slots, each with its own title, prompt, media and proposed schedule.
+
+- Select assigned company/accounts, content count (1–30), inclusive date range (up to 90 days, at most one year in the future), slides/content and candidate posting times in **Asia/Jakarta / WIB**.
+- **AI planning** uses the configured Concept Creator for one text call producing distinct topics and briefs. It does not generate images or activate schedules. **Manual planning** needs no provider API key and creates slots for your own captions/photos.
+- Candidate slots default to 12:15 and 19:15 WIB. These are transparent general starting points, **not account-specific analytics, follower-online analysis, or a promise of optimal engagement**. Users can change candidate hours and each draft's final date/time. Selection spreads content evenly across available slots and excludes slots within 30 minutes of active scheduled targets or the user's own existing draft reservations for overlapping accounts. If capacity is insufficient, expand dates or add hours.
+- Plans begin as `planned`, not paid generation jobs. Generate one slot, explicitly start all remaining slots of a selected plan (paid API confirmation), or upload your own media. No automatic AI image spending merely from creating a plan.
+- Draft Konten lists proposed dates and states, filters plans/companies/status, previews photo/video/carousel, allows editing caption/prompt/schedule, and lets the user replace media with their own uploads. Manual replacement does not call a provider; prior AI review is explicitly marked outdated/manual.
+- **Revisi prompt & Generate ulang** starts a new explicitly paid run with the same plan/slot, retaining a parent reference. The preceding version is marked cancelled, so it cannot accidentally be approved as a second post. Successful previous workflow stages are not silently reused for a new creative brief.
+- **Setujui & Masukkan Kalender** validates the actual media/caption/account access and a schedule at least one minute in the future. It creates an idempotent normal scheduled post. Unapproved drafts never create active calendar/post targets. Existing publishing worker runs it at the approved time.
+- Old Tulis Post draft handoff remains supported. Draft Konten also recognizes when those drafts have been approved into posts.
+
+Additional routes (dashboard session only): `/v1/generator/timing`, `/plans`, `/plans/{id}/start`, `/runs/{id}/start`, `PATCH /runs/{id}`, `/runs/{id}/revise`, `/runs/{id}/approve`. Planning uses stable `request_id` retries; starting a plan requires explicit paid-call consent. Approval uses a stable post idempotency key and does not publish immediately when a date is missing/past.

@@ -27,17 +27,17 @@ async function jsonRequest(url, headers, body) {
   catch { throw err(502, 'provider_response_invalid', 'Respons provider bukan JSON yang valid.'); }
 }
 
-export async function generateText({ provider, model, key, system, prompt, images = [] }) {
+export async function generateText({ provider, model, key, system, prompt, images = [], maxTokens = 2400 }) {
   let result, text;
   if (provider === 'openai') {
     const content = [{ type: 'text', text: prompt }, ...images.map(x => ({ type: 'image_url', image_url: { url: `data:${x.mime};base64,${x.data}`, detail: 'low' } }))];
-    result = await jsonRequest('https://api.openai.com/v1/chat/completions', { Authorization: `Bearer ${key}` }, { model, max_completion_tokens: 2400, messages: [{ role: 'system', content: system }, { role: 'user', content }] });
+    result = await jsonRequest('https://api.openai.com/v1/chat/completions', { Authorization: `Bearer ${key}` }, { model, max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content }] });
     text = result.choices?.[0]?.message?.content;
   } else if (provider === 'anthropic') {
-    result = await jsonRequest('https://api.anthropic.com/v1/messages', { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, { model, max_tokens: 2400, system, messages: [{ role: 'user', content: [...images.map(x => ({ type: 'image', source: { type: 'base64', media_type: x.mime, data: x.data } })), { type: 'text', text: prompt }] }] });
+    result = await jsonRequest('https://api.anthropic.com/v1/messages', { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, { model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: [...images.map(x => ({ type: 'image', source: { type: 'base64', media_type: x.mime, data: x.data } })), { type: 'text', text: prompt }] }] });
     text = result.content?.filter(c => c.type === 'text').map(c => c.text).join('\n');
   } else if (provider === 'gemini') {
-    result = await jsonRequest(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { 'x-goog-api-key': key }, { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }, ...images.map(x => ({ inlineData: { mimeType: x.mime, data: x.data } }))] }], generationConfig: { maxOutputTokens: 4096 } });
+    result = await jsonRequest(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { 'x-goog-api-key': key }, { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }, ...images.map(x => ({ inlineData: { mimeType: x.mime, data: x.data } }))] }], generationConfig: { maxOutputTokens: Math.max(4096, maxTokens) } });
     text = result.candidates?.[0]?.content?.parts?.filter(p => p.text).map(p => p.text).join('\n');
   } else throw err(400, 'provider_invalid', 'Provider tidak didukung.');
   if (typeof text !== 'string' || !text.trim() || text.length > 40000) throw err(502, 'provider_response_invalid', 'Provider tidak mengembalikan teks yang dapat dipakai.');

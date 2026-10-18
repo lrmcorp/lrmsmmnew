@@ -552,3 +552,16 @@ dialog .df { padding: 1rem 1.5rem; border-top: 1px solid var(--slate-100); displ
 .gen-detail, .gen-key input, .gen-agent input { min-width: 0; }
 @media(max-width:1100px) { .gen-flow { grid-template-columns: repeat(2,minmax(0,1fr)); } .gen-workspace { grid-template-columns: minmax(0,1fr); } .gen-history { max-height: 240px; overflow-y: auto; } }
 @media(max-width:639px) { .gen-keys, .gen-review-grid, .gen-flow { grid-template-columns: minmax(0,1fr); } }
+.nav-items a.nav-sub { margin-left: 24px; font-size: .82rem; border-left: 2px solid var(--slate-200); border-radius: 0 10px 10px 0; }
+.gen-planner { margin: 18px 0; }
+.gen-planner summary { font-weight: 700; cursor: pointer; }
+.draft-workspace { display: grid; grid-template-columns: 260px minmax(0,1fr); gap: 20px; margin-top: 18px; }
+.draft-list { display: grid; gap: 10px; align-content: start; max-height: 85vh; overflow-y: auto; }
+.draft-review { display: grid; grid-template-columns: minmax(0,350px) minmax(0,1fr); gap: 22px; margin: 16px 0; align-items: start; }
+.draft-review label { display: grid; gap: 8px; margin-bottom: 14px; }
+.draft-review .btn { margin: 6px 0; }
+.draft-editor, .draft-review > div { min-width: 0; }
+.draft-editor details { margin-top: 18px; }
+.draft-editor details textarea { margin: 12px 0; }
+@media(max-width:1100px) { .draft-workspace { grid-template-columns:minmax(0,1fr); } .draft-list { max-height: 280px; } }
+@media(max-width:639px) { .draft-review { grid-template-columns:minmax(0,1fr); } }

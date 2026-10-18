@@ -257,3 +257,13 @@ CREATE TABLE IF NOT EXISTS generator_runs (
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
   UNIQUE(user_id,request_id)
 );`);
+
+for (const [column, definition] of [['plan_id','TEXT'], ['title',"TEXT NOT NULL DEFAULT ''"], ['post_id','TEXT'], ['parent_id','TEXT']]) {
+  if (!db.prepare('PRAGMA table_info(generator_runs)').all().some(c => c.name === column)) db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
+}
+db.exec(`CREATE TABLE IF NOT EXISTS generator_plans (
+ id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ request_id TEXT NOT NULL, request_hash TEXT NOT NULL, brief TEXT NOT NULL,
+ start_date TEXT NOT NULL, end_date TEXT NOT NULL, content_count INTEGER NOT NULL,
+ recommendation TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(user_id,request_id)
+);`);

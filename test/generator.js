@@ -33,7 +33,10 @@ globalThis.fetch = async (url, opts) => {
   }
   const system = body.system || body.messages?.[0]?.content || body.systemInstruction?.parts?.[0]?.text || '';
   let text = 'Visual review: inspect the CTA before publishing. No auto approval.';
-  if (system.includes('Return ONLY JSON')) {
+  if (system.includes('distinct content ideas')) {
+    const n=Number(system.match(/Exactly (\d+) distinct/)[1]);
+    text=JSON.stringify({contents:Array.from({length:n},(_,i)=>({title:'Topic '+(i+1),brief:'Unique wellness angle '+(i+1)}))});
+  } else if (system.includes('Return ONLY JSON')) {
     const n = Number(system.match(/Exactly (\d+) slides/)[1]);
     text = malformed ? '{malformed' : JSON.stringify({ title: 'Campaign', caption: 'Final caption', slides: Array.from({ length: n }, (_, i) => ({ prompt: 'Green brand image slide ' + (i + 1) })) });
   }
@@ -73,13 +76,65 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.throws(() => make({ account_ids: ['unassigned'] }), /tidak ditemukan/);
       assert.throws(() => make({ agents: { ...gen.DEFAULT_AGENTS, image: { ...gen.DEFAULT_AGENTS.image, provider: 'anthropic' } } }), /Provider/);
     });
+    await t.test('12-content date range planning, manual upload/edit and approval enter calendar only after approval', async () => {
+      const date = days => new Date(Date.now()+days*864e5+7*3600000).toISOString().slice(0,10);
+      const body={request_id:'plan-12',brief:'Twelve wellness posts for the campaign',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:date(1),end_date:date(6),confirm_cost:true};
+      const countBefore=one('SELECT COUNT(*) n FROM posts').n;
+      const plan=await gen.createPlan(user,body);
+      assert.equal(plan.slots.length,12);assert.equal(new Set(plan.slots).size,12);
+      assert.equal(plan.recommendation.basis,'heuristic');
+      const rows=gen.listRuns(user).filter(r=>r.plan_id===plan.id);
+      assert.equal(rows.length,12);assert.ok(rows.every(r=>r.status==='planned'));
+      assert.equal(one('SELECT COUNT(*) n FROM posts').n,countBefore);
+      assert.equal((await gen.createPlan(user,body)).id,plan.id);
+      await assert.rejects(()=>gen.createPlan(user,{...body,brief:'Changed'}),/request_id/);
+      await assert.rejects(()=>gen.createPlan(user,{...body,request_id:'too-many',content_count:30,start_date:date(1),end_date:date(1)}),/belum cukup/);
+      await assert.rejects(()=>gen.createPlan(user,{...body,request_id:'outside',account_ids:['outside']}),/tidak ditemukan/);
+      await assert.rejects(()=>gen.createPlan(user,{...body,request_id:'invalid-date',start_date:'2026-02-30'}),/tanggal/);
+      assert.equal(gen.listPlans(other).length,0);
+      assert.throws(()=>gen.startPlan(other,plan.id),/tidak ditemukan/);
+      const target=rows[0];
+      const {saveBuffer}=await import('../src/services/media.js');
+      const img=await saveBuffer(user.id,image,{inLibrary:false});
+      assert.throws(()=>gen.approveContent(user,target.id,{}),/Lengkapi/);
+      const edited=gen.updateContent(user,target.id,{content:'Human caption with own photo',media_ids:[img.id],brief:'Edited prompt before approval'});
+      assert.equal(edited.status,'review');assert.equal(edited.steps.image.source,'manual');
+      assert.equal((await http('POST','/runs/'+target.id+'/approve',{},otherCookie)).status,404);
+      assert.throws(()=>gen.approveContent(user,target.id,{scheduled_at:new Date(Date.now()-1000).toISOString()}),/minimal/);
+      const approved=gen.approveContent(user,target.id,{});
+      assert.equal(approved.status,'scheduled');assert.equal(gen.getRun(user,target.id).status,'approved');
+      assert.equal(gen.approveContent(user,target.id,{}).id,approved.id);
+      assert.equal(one('SELECT COUNT(*) n FROM posts').n,countBefore+1);
+      const calendar=await realFetch(base+'/v1/calendar?from='+date(1)+'T00:00:00%2B07:00&to='+date(7)+'T00:00:00%2B07:00',{headers:{Cookie:cookie}}).then(r=>r.json());
+      assert.ok(calendar.data.some(p=>p.id===approved.id));
+      assert.throws(()=>gen.updateContent(user,target.id,{content:'Too late'}),/disetujui/);
+      assert.throws(()=>gen.reviseContent(user,target.id,{brief:'Too late'}),/direvisi/);
+      // Batch start is explicit. No paid jobs are launched just by creating a plan.
+      const started=gen.startPlan(user,plan.id);assert.equal(started.queued,11);
+      for(const r of rows.filter(r=>r.id!==target.id))gen.cancelRun(user,r.id);
+      assert.equal(gen.startPlan(user,plan.id).queued,0);
+      const manual=await gen.createPlan(other,{...body,request_id:'manual-no-key',content_count:1,manual:true,confirm_cost:false});
+      const manualRow=gen.listRuns(other).find(r=>r.plan_id===manual.id);
+      assert.equal(manualRow.status,'planned');
+      assert.notEqual(manualRow.scheduled_at,approved.scheduled_at,'new plan avoids an occupied schedule');
+      assert.throws(()=>gen.updateContent(other,manualRow.id,{media_ids:[img.id]}),/unggah sendiri/);
+      gen.cancelRun(other,manualRow.id);
+    });
+    await t.test('prompt revisions create a new version with the same proposed slot and retain previous history', async()=>{
+      const original=await execute(make({slide_count:1,scheduled_at:new Date(Date.now()+864e5).toISOString()}));
+      const revision=gen.reviseContent(user,original.id,{request_id:'revision-new',brief:'Revised visual style with softer colors',confirm_cost:true});
+      assert.equal(revision.parent_id,original.id);assert.equal(revision.scheduled_at,original.scheduled_at);
+      assert.equal(gen.getRun(user,original.id).status,'cancelled');
+      const done=await execute(revision);assert.equal(done.status,'review');assert.notEqual(done.media_ids[0],original.media_ids[0]);
+      gen.cancelRun(user,revision.id);
+    });
     await t.test('concept → Claude revision → OpenAI images → Gemini visual review, no publishing', async () => {
       const r = make(); const postCount = one('SELECT COUNT(*) n FROM posts').n;
       const done = await execute(r);
       assert.equal(done.status, 'review'); assert.equal(done.media.length, 2);
       assert.ok(done.media.every(m => m.mime_type === 'image/jpeg' && m.url));
       for (const role of gen.ROLES) assert.equal(done.steps[role].status, 'done');
-      const final = providerCalls.find(c => c.origin.includes('googleapis') && !c.body.generationConfig?.responseModalities);
+      const final = providerCalls.findLast(c => c.origin.includes('googleapis') && !c.body.generationConfig?.responseModalities);
       assert.equal(final.body.contents[0].parts.filter(p => p.inlineData).length, 2, 'reviewer sees actual image bytes');
       assert.equal(one('SELECT COUNT(*) n FROM posts').n, postCount);
       assert.equal((await http('GET', '/runs/' + r.id, undefined, otherCookie)).status, 404);
