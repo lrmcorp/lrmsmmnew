@@ -1,0 +1,929 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LRMsmm Agent Publishing API",
+    "version": "1.2.0",
+    "description": "Authenticated external agent publishing and private review drafts. See /agent-api.md for limits, chunking, retries and approval rules."
+  },
+  "servers": [
+    {
+      "url": "https://lrmsosmed.playgo.id/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Personal LRMsmm API key (lrm_live_...) or personal OAuth token. OAuth is draft-only for publishing."
+      }
+    },
+    "schemas": {
+      "Target": {
+        "type": "object",
+        "required": [
+          "account_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "Submission": {
+        "type": "object",
+        "required": [
+          "content",
+          "targets"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "media_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ordered ready uploads; 2\u201310 for Instagram carousel."
+          },
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/Target"
+            }
+          },
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timezone required. Draft: proposed schedule only. POST /posts: omit to publish now."
+          }
+        }
+      },
+      "Draft": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Submission"
+          },
+          {
+            "type": "object",
+            "required": [
+              "request_id"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "images": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "base64": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DraftResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "cancelled"
+            ]
+          },
+          "compose_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "post_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/me": {
+      "get": {
+        "summary": "List me",
+        "operationId": "get_me",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        }
+      }
+    },
+    "/companies": {
+      "get": {
+        "summary": "List companies",
+        "operationId": "get_companies",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        }
+      }
+    },
+    "/accounts": {
+      "get": {
+        "summary": "List accounts",
+        "operationId": "get_accounts",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        }
+      }
+    },
+    "/platform-rules": {
+      "get": {
+        "summary": "List platform-rules",
+        "operationId": "get_platform-rules",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        }
+      }
+    },
+    "/agent/drafts": {
+      "post": {
+        "summary": "Submit a private draft for dashboard approval",
+        "operationId": "post_agent_drafts",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Draft"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List your pending private drafts",
+        "operationId": "get_agent_drafts",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        }
+      }
+    },
+    "/agent/drafts/{id}": {
+      "get": {
+        "summary": "Get your draft status and compose_url",
+        "operationId": "get_agent_drafts_id",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/posts": {
+      "post": {
+        "summary": "Schedule or publish (API key only; OAuth requires draft approval)",
+        "operationId": "post_posts",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          },
+          "201": {
+            "description": "Created"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Submission"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    },
+    "/posts/{id}": {
+      "get": {
+        "summary": "Poll confirmed status and per-target Instagram permalink",
+        "operationId": "get_posts_id",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Update a still-scheduled post",
+        "operationId": "patch_posts_id",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string"
+                  },
+                  "media_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Ordered ready uploads; 2\u201310 for Instagram carousel."
+                  },
+                  "targets": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/components/schemas/Target"
+                    }
+                  },
+                  "scheduled_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Timezone required. Draft: proposed schedule only. POST /posts: omit to publish now."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Cancel pending targets",
+        "operationId": "delete_posts_id",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/posts/{id}/retry": {
+      "post": {
+        "summary": "Retry failed targets",
+        "operationId": "post_posts_id_retry",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          },
+          "201": {
+            "description": "Created"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/media/upload": {
+      "post": {
+        "summary": "Upload raw JPEG/PNG/MP4/MOV bytes",
+        "operationId": "post_media_upload",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          },
+          "201": {
+            "description": "Created"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "in_library",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ]
+      }
+    },
+    "/media/uploads": {
+      "post": {
+        "summary": "Start a resumable chunked upload",
+        "operationId": "post_media_uploads",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          },
+          "201": {
+            "description": "Created"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mime_type",
+                  "size_bytes"
+                ],
+                "properties": {
+                  "mime_type": {
+                    "type": "string",
+                    "enum": [
+                      "image/jpeg",
+                      "image/png",
+                      "video/mp4",
+                      "video/quicktime"
+                    ]
+                  },
+                  "size_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 314572800
+                  },
+                  "original_name": {
+                    "type": "string"
+                  },
+                  "in_library": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/media/{id}/parts": {
+      "get": {
+        "summary": "List received parts (upload owner only)",
+        "operationId": "get_media_id_parts",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/media/{id}/parts/{n}": {
+      "put": {
+        "summary": "Write exact part bytes (1-based)",
+        "operationId": "put_media_id_parts_n",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "n",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/media/{id}/complete": {
+      "post": {
+        "summary": "Validate and finalize upload",
+        "operationId": "post_media_id_complete",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          },
+          "201": {
+            "description": "Created"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/media/{id}": {
+      "get": {
+        "summary": "Get media metadata",
+        "operationId": "get_media_id",
+        "responses": {
+          "200": {
+            "description": "Success (creation may return 201; completion/part writes may return 204)"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "Scope or account access denied"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Rate limited; honor RateLimit-Reset"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

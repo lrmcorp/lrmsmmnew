@@ -521,10 +521,10 @@ async function pageCompose(editId) {
     h('p', { class: 'muted small' }, `Akun LRMsmm: ${state.user.email}. ${connection.connected ? 'OAuth pribadi tersambung.' : 'Belum ada koneksi OAuth dengan izin kirim draf.'} Draf dari AI tidak diterbitkan otomatis.`),
     connection.apps.map(app => h('div', { class: 'row' }, h('span', {}, app.name || 'Aplikasi AI OAuth'),
       h('button', { class: 'btn sm ghost', onclick: async () => { try { await api('DELETE', '/v1/ai/connections/' + app.id); toast('Koneksi pribadi dicabut'); route(); } catch(error) { toast(errMsg(error), true); } } }, 'Cabut koneksi'))),
-    h('button', { class: 'btn sm', onclick: route }, 'Muat draf dari ChatGPT'),
+    h('button', { class: 'btn sm', onclick: route }, 'Muat draf dari AI / agen'),
     inbox.data.length ? h('div', { class: 'list' }, inbox.data.map(draft => h('a', { class: 'item', href: '#/compose?ai_draft=' + draft.id },
-      draft.media[0] ? h('img', { class: 'thumb', src: draft.media[0].url, alt: 'Gambar draf AI' }) : null,
-      h('div', { class: 'body' }, h('b', {}, 'Draf AI · menunggu persetujuan'), h('p', {}, draft.content.slice(0, 160)), h('span', { class: 'faint small' }, fmtDT(draft.created_at)))))) : h('p', { class: 'faint small' }, 'Belum ada draf AI yang menunggu persetujuan.'));
+      draft.media[0]?.url ? (draft.media[0].type === 'video' ? h('video', { class: 'thumb', src: draft.media[0].url, muted: true, preload: 'metadata' }) : h('img', { class: 'thumb', src: draft.media[0].url, alt: 'Media draf' })) : null,
+      h('div', { class: 'body' }, h('b', {}, `${draft.source} · menunggu persetujuan`), h('p', {}, draft.content.slice(0, 160)), h('span', { class: 'faint small' }, fmtDT(draft.created_at)))))) : h('p', { class: 'faint small' }, 'Belum ada draf AI yang menunggu persetujuan.'));
   return shell('/compose', h('div', {}, pagehead(editing ? 'Ubah post terjadwal' : 'Tulis Post', 'Tinjau caption, gambar dan akun tujuan sebelum persetujuan akhir.'), aiPanel,
     aiDraft ? h('div', { class: 'banner' }, 'Draf AI dimuat. Periksa gambar, caption, akun, dan jadwal. Klik tombol terbit/jadwalkan hanya setelah semuanya sesuai.') : null, root));
 }
@@ -1118,6 +1118,9 @@ async function pageDeveloper() {
       h('div', { class: 'secret', style: { background: 'var(--primary-t)' } }, h('code', {}, mcpUrl), h('button', { class: 'btn sm', onclick: () => copy(mcpUrl) }, 'Salin')),
       h('p', { class: 'muted small' }, 'Claude Code (pakai API key):'),
       h('div', { class: 'secret', style: { background: 'var(--bg-2)' } }, h('code', {}, `claude mcp add --transport http lrmsmm ${mcpUrl} --header "Authorization: Bearer lrm_live_..."`))),
+    h('div', { class: 'panel' }, h('h2', {}, 'Agent API'),
+      h('p', { class: 'muted' }, 'Kirim foto/video, carousel, caption dan waktu posting melalui REST API. Pilih draf untuk persetujuan, atau jadwalkan langsung memakai API key tulis.'),
+      h('div', { class: 'row' }, h('a', { class: 'btn', href: '/agent-api.md', target: '_blank', rel: 'noopener' }, 'Panduan API'), h('a', { class: 'btn', href: '/openapi.json', target: '_blank', rel: 'noopener' }, 'OpenAPI JSON'))),
     h('div', { class: 'panel' }, h('h2', {}, 'API key'),
       h('p', { class: 'muted' }, 'Untuk REST API (', h('code', {}, `${location.origin}/v1`), ') dan MCP dari Claude Code, Cursor, n8n. Key hanya ditampilkan sekali; LRMsmm cuma menyimpan hash-nya.'),
       h('div', { class: 'row', style: { marginBottom: '12px' } }, nameIn, scopeIn, h('button', { class: 'btn primary', onclick: async () => {

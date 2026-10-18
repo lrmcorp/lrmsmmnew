@@ -278,6 +278,50 @@ await step('chunked video upload (Reels)', async () => {
   assert.equal(del.status, 204);
 });
 
+await step('external agent API accepts private ordered media drafts and enforces ownership and scope', async () => {
+  const { createUser, createApiKey } = await import('../src/auth.js');
+  const { setAssignments } = await import('../src/services/scope.js');
+  const rep = createUser({ email: 'agent-rep@test.id', password: 'fixture-password', name: 'Agent Rep', role: 'rep' });
+  setAssignments(rep.id, [ig.id]);
+  const agentKey = createApiKey(rep.id, 'Test agent', 'write').key;
+  const other = createUser({ email: 'agent-other@test.id', password: 'fixture-password', name: 'Other Agent', role: 'rep' });
+  setAssignments(other.id, [ig.id]);
+  const otherKey = createApiKey(other.id, 'Other', 'write').key;
+  const raw = await sharp({ create: { width: 1080, height: 1080, channels: 3, background: '#135' } }).jpeg().toBuffer();
+  const upload = (await http('POST', '/v1/media/uploads', { auth: agentKey, body: { mime_type: 'image/jpeg', size_bytes: raw.length, in_library: false } })).json;
+  assert.equal((await http('GET', `/v1/media/${upload.id}/parts`, { auth: otherKey })).status, 404);
+  assert.equal((await http('PUT', `/v1/media/${upload.id}/parts/1`, { auth: otherKey, raw: true, body: raw })).status, 404);
+  assert.equal((await http('POST', `/v1/media/${upload.id}/complete`, { auth: otherKey })).status, 404);
+  assert.equal((await http('PUT', `/v1/media/${upload.id}/parts/1`, { auth: agentKey, raw: true, body: raw })).status, 204);
+  assert.equal((await http('POST', `/v1/media/${upload.id}/complete`, { auth: agentKey })).status, 200);
+  const second = (await http('POST', '/v1/media/upload?in_library=false', { auth: agentKey, raw: true, body: fs.readFileSync(path.join(tmp, 'v.mp4')), headers: { 'content-type': 'video/mp4' } })).json;
+  assert.equal(second.type, 'video');
+  const body = { request_id: 'external-agent-carousel', content: 'Review this carousel', media_ids: [second.id, upload.id], targets: [{ account_id: ig.id }], scheduled_at: new Date(Date.now() + 3600000).toISOString() };
+  const before = one('SELECT COUNT(*) n FROM posts').n;
+  let response = await http('POST', '/v1/agent/drafts', { auth: agentKey, body });
+  assert.equal(response.status, 201, JSON.stringify(response.json));
+  const draft = response.json;
+  assert.deepEqual(draft.media_ids, body.media_ids);
+  assert.equal(draft.status, 'pending'); assert.match(draft.compose_url, /ai_draft=/);
+  assert.equal(one('SELECT COUNT(*) n FROM posts').n, before, 'a draft never schedules or publishes');
+  assert.equal((await http('POST', '/v1/agent/drafts', { auth: agentKey, body })).status, 200);
+  assert.equal((await http('POST', '/v1/agent/drafts', { auth: agentKey, body: { ...body, content: 'different' } })).status, 409);
+  assert.equal((await http('POST', '/v1/agent/drafts', { auth: readKey, body })).status, 403);
+  assert.equal((await http('GET', `/v1/agent/drafts/${draft.id}`, { auth: otherKey })).status, 404);
+  assert.equal((await http('POST', '/v1/agent/drafts', { auth: otherKey, body })).status, 404);
+  assert.equal((await http('POST', '/v1/agent/drafts', { auth: agentKey, body: { ...body, request_id: 'outside-scope', targets: [{ account_id: th.id }] } })).status, 404);
+  assert.ok((await http('GET', '/v1/agent/drafts', { auth: agentKey })).json.data.some(d => d.id === draft.id));
+  const scheduled = await http('POST', '/v1/posts', { auth: agentKey, body, headers: { 'Idempotency-Key': 'agent-mixed-scheduled' } });
+  assert.equal(scheduled.status, 201, JSON.stringify(scheduled.json));
+  assert.equal(scheduled.json.status, 'scheduled');
+  assert.deepEqual(scheduled.json.media_ids, body.media_ids);
+  await tick();
+  assert.equal((await http('GET', `/v1/posts/${scheduled.json.id}`, { auth: agentKey })).json.status, 'scheduled');
+  assert.equal((await http('DELETE', `/v1/posts/${scheduled.json.id}`, { auth: agentKey })).status, 200);
+  run("UPDATE ai_drafts SET status='cancelled' WHERE id=?", draft.id);
+  assert.equal((await fetch(`http://localhost:${PORT}/openapi.json`)).status, 200);
+});
+
 let commentId;
 await step('comments: sync, reply, hide, status', async () => {
   const s = await http('POST', '/v1/comments/sync', { auth: writeKey });

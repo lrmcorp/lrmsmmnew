@@ -66,6 +66,15 @@ api.delete('/ai/drafts/:id', sessionOnly, (req, res) => {
 const source = (req) => (req.auth.via === 'session' ? 'dashboard' : req.auth.via === 'oauth' ? 'mcp' : 'api');
 const kick = () => setImmediate(() => runPublisherTick().catch(() => {}));
 
+// External agents submit private drafts; approval stays in the dashboard.
+api.post('/agent/drafts', W, async (req, res) => {
+  const draft = await aiDrafts.receiveDraft(req.auth, req.body || {}, { allowApiKey: true });
+  audit(req.auth, 'agent.draft.submit', 'ai_draft', draft.id, { replayed: !!draft.replayed });
+  res.status(draft.replayed ? 200 : 201).json(draft);
+});
+api.get('/agent/drafts', (req, res) => res.json({ data: aiDrafts.listDrafts(U(req)) }));
+api.get('/agent/drafts/:id', (req, res) => res.json(aiDrafts.getDraft(U(req), req.params.id)));
+
 // ---- me / accounts ----
 api.get('/me', (req, res) => res.json({ user: publicUser(U(req)), access: { via: req.auth.via, scope: req.auth.scope }, account_ids: scopeOf(U(req)), integrations: { instagram: accounts.platformConfigured('instagram'), threads: accounts.platformConfigured('threads') } }));
 api.get('/accounts', (req, res) => res.json({ data: accounts.listAccounts(U(req)) }));
@@ -144,6 +153,10 @@ api.get('/posts/:id/insights', (req, res) => { assertPostView(U(req), req.params
 // ---- media (shared team library) ----
 const raw = express.raw({ type: () => true, limit: '101mb' });
 const rawPart = express.raw({ type: () => true, limit: '9mb' });
+const ownUpload = (req, _res, next) => {
+  if (!one('SELECT 1 FROM media WHERE id=? AND user_id=?', req.params.id, U(req).id)) throw err(404, 'not_found', 'Upload tidak ditemukan.');
+  next();
+};
 api.post('/media/from-url', W, async (req, res) => res.status(201).json(await media.fromUrl(U(req).id, req.body?.url, req.body || {})));
 api.post('/media/upload', W, raw, async (req, res) => {
   const inLib = req.query.in_library !== 'false';
@@ -151,9 +164,9 @@ api.post('/media/upload', W, raw, async (req, res) => {
 });
 api.get('/media/usage', (_req, res) => res.json(media.usage()));
 api.post('/media/uploads', W, (req, res) => res.status(201).json(media.createUpload(U(req).id, req.body || {})));
-api.get('/media/:id/parts', (req, res) => res.json(media.listParts(req.params.id)));
-api.put('/media/:id/parts/:n', W, rawPart, (req, res) => { media.putPart(req.params.id, req.params.n, req.body); res.status(204).end(); });
-api.post('/media/:id/complete', W, async (req, res) => res.json(await media.completeUpload(req.params.id)));
+api.get('/media/:id/parts', ownUpload, (req, res) => res.json(media.listParts(req.params.id)));
+api.put('/media/:id/parts/:n', W, ownUpload, rawPart, (req, res) => { media.putPart(req.params.id, req.params.n, req.body); res.status(204).end(); });
+api.post('/media/:id/complete', W, ownUpload, async (req, res) => res.json(await media.completeUpload(req.params.id)));
 api.get('/media', (req, res) => res.json(media.listMedia(req.query)));
 api.get('/media/:id', (req, res) => res.json(media.publicMedia(privateMedia(req))));
 api.patch('/media/:id', W, (req, res) => {

@@ -16,16 +16,16 @@ export function getDraft(user, draftId) {
   const targets = parseJSON(draft.targets, []);
   for (const target of targets) assertAccount(user, target.account_id);
   return { id: draft.id, content: draft.content, targets, media_ids: parseJSON(draft.media_ids, []),
-    media: parseJSON(draft.media_ids, []).map(mid => media.publicMedia(media.getMedia(mid))),
+    media: parseJSON(draft.media_ids, []).map(mid => media.publicMedia(one('SELECT * FROM media WHERE id=?', mid))),
     scheduled_at: draft.scheduled_at, created_at: draft.created_at, status: draft.status, post_id: draft.post_id,
-    source: 'AI OAuth', compose_url: `${config.publicUrl}/#/compose?ai_draft=${draft.id}` };
+    source: draft.oauth_token_id ? 'AI OAuth' : 'Agent API', compose_url: `${config.publicUrl}/#/compose?ai_draft=${draft.id}` };
 }
 export function listDrafts(user) {
   return all("SELECT id FROM ai_drafts WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 50", user.id)
     .flatMap(d => { try { return [getDraft(user, d.id)]; } catch { return []; } });
 }
-export async function receiveDraft(auth, body) {
-  requireOAuth(auth);
+export async function receiveDraft(auth, body, { allowApiKey = false } = {}) {
+  if (!(allowApiKey && auth?.via === 'api_key' && auth.scope === 'write')) requireOAuth(auth);
   if (!Array.isArray(body.targets) || !body.targets.length || body.targets.length > 20) throw err(400, 'validation_failed', 'Pilih 1–20 akun tujuan.');
   if (body.targets.some(t => !t || typeof t.account_id !== 'string')) throw err(400, 'validation_failed', 'ID akun tujuan tidak valid.');
   for (const target of body.targets) assertAccount(auth.user, target.account_id);
@@ -75,7 +75,7 @@ export async function receiveDraft(auth, body) {
     for (const target of body.targets) assertAccount(auth.user, target.account_id);
     const draftId = id('ai');
     run('INSERT INTO ai_drafts(id,user_id,oauth_token_id,request_id,request_hash,content,media_ids,targets,scheduled_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
-      draftId, auth.user.id, auth.credentialId, requestId, hash, body.content, JSON.stringify([...existing, ...created]), JSON.stringify(body.targets), body.scheduled_at || null, now());
+      draftId, auth.user.id, auth.via === 'oauth' ? auth.credentialId : null, requestId, hash, body.content, JSON.stringify([...existing, ...created]), JSON.stringify(body.targets), body.scheduled_at || null, now());
     return getDraft(auth.user, draftId);
   } catch (error) {
     for (const mid of created) { try { media.deleteMedia(mid); } catch {} }

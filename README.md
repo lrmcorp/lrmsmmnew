@@ -209,3 +209,17 @@ Pemilih akun pada composer, filter DM/komentar, dan insights dikelompokkan menur
 Nama dan foto profil dari Meta ditampilkan di semua avatar akun, dengan fallback inisial bila foto kosong, kedaluwarsa, atau tidak bisa dimuat. Klik **Perbarui nama & foto** untuk memperbarui profil akun yang sudah tersambung tanpa mengganti token. Worker juga mencoba memperbarui profil akun aktif setiap 6 jam. Nilai yang tidak disediakan Meta tidak dibuat-buat; nama kosong memakai username.
 
 REST API: `GET/POST /v1/companies`, `PATCH /v1/companies/{id}`, `PUT /v1/accounts/{id}/company` (`company_id` atau null), dan `POST /v1/accounts/{id}/profile`. Buat/ubah anggota melalui `/v1/users` dengan `company_ids` opsional serta `account_ids` untuk grant individual. Daftar perusahaan dan jumlah akun difilter menurut akses pengguna.
+
+## External publishing agents
+
+See [Agent API guide](public/agent-api.md), [OpenAPI](public/openapi.json), and the dependency-free [Python upload example](examples/agent-upload.py). The deployed documentation is at `/agent-api.md` and `/openapi.json`, linked from **API & AI**.
+
+`POST /v1/agent/drafts` accepts a personal write API key or OAuth token and creates a private review draft (caption, ordered uploaded photos/videos, targets, proposed scheduled_at). Only the dashboard can approve it. `/v1/posts` remains available for explicitly trusted API-key automation that schedules/publishes directly; OAuth cannot use it to bypass approval.
+
+Example (set LRMSMM_API_KEY securely first):
+
+```bash
+python3 examples/agent-upload.py --account acc_YOUR_ID --caption 'Final caption' --request-id campaign-001 --at '2026-12-01T09:00:00+07:00' photo.jpg clip.mp4
+```
+
+Default is a draft. Add `--mode schedule` to activate the schedule or `--mode now` to publish immediately. Save media IDs from upload responses when building a retryable production agent.
