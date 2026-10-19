@@ -1,6 +1,6 @@
 # Sosmed Generator node workspace
 
-The generator page now uses an original dark node workspace inspired by [ComfyUI's visual node interface](https://github.com/Comfy-Org/ComfyUI). It stays inside the existing LRMsmm application at `/#/generator`.
+The generator page now uses an original light node workspace inspired by [ComfyUI's visual node interface](https://github.com/Comfy-Org/ComfyUI). It stays inside the existing LRMsmm application at `/#/generator`.
 
 ## Nodes and execution
 
