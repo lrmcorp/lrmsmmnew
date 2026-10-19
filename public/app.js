@@ -1,4 +1,5 @@
 // LRMsmm dashboard — vanilla JS SPA (no build step). UI mengikuti hrd.playgo.id.
+import { workflowCanvas } from './workflow-canvas.js';
 import { bindInteraction } from './interactions.js';
 import { HERO } from './icons.js';
 const $app = document.getElementById('app');
@@ -862,6 +863,7 @@ async function pageGenerator() {
     h('div',{class:'gen-form-row'},h('label',{},'Jam kandidat WIB, pisahkan koma',postTimes),h('label',{},'Susun topik',planningMode)),
     h('p',{class:'faint small'},'Usulan awal 12.15 dan 19.15 WIB. Waktu dibagi merata sepanjang rentang tanggal. Ini rekomendasi umum, belum analisis performa akun dan tidak menjamin hasil terbaik.'),planButton);
   const history = h('div', { class: 'gen-history' }), detail = h('div', { class: 'gen-detail' });
+  let workflow;
   let selectedId = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
   let lastSignature = '', stopped = false, fetching = false;
   const captions = {}, slides = {};
@@ -879,6 +881,7 @@ async function pageGenerator() {
   } }, 'Jalankan tim agen');
   const action = (text, fn, danger = false) => h('button', { class: `btn ${danger ? 'danger' : ''}`, onclick: async e => { e.currentTarget.disabled = true; try { await fn(); lastSignature = ''; await refresh(); } catch(error) { toast(errMsg(error), true); } finally { e.target.disabled = false; } } }, text);
   function drawRun(r) {
+    workflow?.setRun(r);
     const index = Math.min(slides[r.id] || 0, Math.max(0, r.media.length - 1));
     const image = r.media[index];
     const acc = state.accounts.find(a => a.id === r.targets[0]?.account_id);
@@ -918,17 +921,31 @@ async function pageGenerator() {
       else detail.replaceChildren(h('div', { class: 'panel empty' }, 'Isi brief dan jalankan tim agen untuk melihat hasil setiap tahap.'));
     } catch(error) { if (!stopped) toast(errMsg(error), true); } finally { fetching = false; }
   }
+  const briefNode=h('section',{class:'gen-start'},h('label',{},'Brief campaign',brief),h('label',{},'Jumlah slide per konten',count),h('label',{class:'check'},paid,'Saya setuju biaya API untuk proses yang dijalankan.'));
+  const targetNode=h('div',{},h('label',{},'Perusahaan',company),accountBox,h('p',{class:'muted small'},'Akun yang ditugaskan kepada Anda.'));
+  const scheduleNode=h('div',{},h('label',{},'Jadwal satu konten (opsional)',at),planner);
+  workflow=workflowCanvas({h,userId:state.user.id,history,
+    actions:[action('Simpan preset',async()=>{config=await api('PUT','/v1/generator/settings',{agents:collectAgents()});toast('Preset agen disimpan');}),h('button',{class:'btn sm',onclick:()=>workflow.focusNode('result')},'Hasil'),h('a',{class:'btn sm',href:'#/generator/drafts'},'Draft Konten'),startButton],
+    nodes:[
+      {id:'brief',title:'Brief & Prompt',subtitle:'Tulis tujuan, audiens, tone dan arahan campaign.',x:40,y:80,width:330,color:'#b899cb',content:briefNode},
+      {id:'concept',role:'concept',title:'Konsep Creator',x:460,y:80,width:295,color:'#88b7d1',content:agentCards[0]},
+      {id:'revision',role:'revision',title:'Concept Reviewer',x:835,y:80,width:295,color:'#b7a1d1',content:agentCards[1]},
+      {id:'image',role:'image',title:'Image Creator',x:1210,y:80,width:310,color:'#d0ad77',content:agentCards[2]},
+      {id:'final',role:'final',title:'Final Reviewer',x:1600,y:80,width:300,color:'#8ebd9e',content:agentCards[3]},
+      {id:'result',title:'Preview & Persetujuan',x:1990,y:80,width:470,color:'#91b0c8',content:detail},
+      {id:'reference',title:'Referensi Visual',subtitle:'Gambar acuan masuk langsung ke model Image Creator.',x:460,y:650,width:350,color:'#d0ad77',content:reference.element},
+      {id:'schedule',title:'Rencana & Jadwal',x:940,y:650,width:500,color:'#8ebd9e',content:scheduleNode},
+      {id:'targets',title:'Perusahaan & Akun',x:40,y:650,width:330,color:'#7eaba3',content:targetNode}
+    ],
+    edges:[{from:'brief',to:'concept'},{from:'concept',to:'revision'},{from:'revision',to:'image'},{from:'image',to:'final'},{from:'final',to:'result'},{from:'reference',to:'image'},{from:'schedule',to:'result'},{from:'targets',to:'result'}]
+  });
   await refresh();
-  const timer = setInterval(refresh, 4000);
-  pageCleanup = () => { stopped = true; clearInterval(timer); };
-  return shell('/generator', h('div', {}, pagehead('Sosmed Generator', 'Rencanakan campaign → Draft Konten → persetujuan → Kalender Konten.',h('a',{class:'btn',href:'#/generator/drafts'},'Buka Draft Konten')),
-    h('details', { class: 'panel gen-settings' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen'),
-      h('p', { class: 'muted small' }, 'Gunakan API key pribadi, bukan login/langganan ChatGPT, Claude atau Gemini. Biaya API ditagih provider. Key disimpan terenkripsi dan tidak dibagikan ke anggota lain. Nama model bisa diubah sesuai akses API Anda.'), keys,
-      h('div', { class: 'gen-flow' }, agentCards), action('Simpan preset agen', async () => { config = await api('PUT', '/v1/generator/settings', { agents: collectAgents() }); toast('Preset pribadi disimpan'); })),
-    h('section', { class: 'panel gen-start' }, h('h2', {}, 'Brief campaign baru'), brief,reference.element,
-      h('div', { class: 'gen-form-row' }, h('label', {}, 'Perusahaan', company), h('label', {}, 'Jumlah slide', count), h('label', {}, 'Usulan jadwal (opsional)', at)), accountBox,
-      h('label', { class: 'check' }, paid, 'Saya setuju memakai API berbayar: planner 1 panggilan teks; setiap konten yang digenerate 3 tahap teks/vision + 1 panggilan gambar per slide.'),planner,h('h3',{},'Atau buat satu konten langsung'), startButton),
-    h('div', { class: 'gen-workspace' }, history, detail)));
+  const timer = setInterval(refresh, 2500);
+  pageCleanup = () => { stopped = true; clearInterval(timer);workflow.dispose(); };
+  return shell('/generator', h('div', {class:'generator-node-page'}, pagehead('Sosmed Generator', 'Susun prompt, provider dan referensi di workflow visual, lalu tinjau hasil sebelum disetujui.'),
+    h('details', { class: 'panel gen-settings workflow-credentials' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen'),
+      h('p', { class: 'muted small' }, 'API key pribadi disimpan terenkripsi. Pilih model dan instruksi setiap agen di node workflow. Biaya API mengikuti provider Anda.'),keys,
+      h('p',{class:'faint small'},'Pengaturan model dan instruksi berada di setiap node. Gunakan Simpan preset di toolbar untuk menyimpan konfigurasi.')),workflow.element));
 }
 
 // ---------------- calendar ----------------
