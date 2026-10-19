@@ -2,9 +2,9 @@
 import { err } from '../util.js';
 
 export const PROVIDERS = {
-  openai: { name: 'OpenAI (ChatGPT models)', textModel: 'gpt-4.1-mini', imageModel: 'gpt-image-1', image: true },
-  anthropic: { name: 'Anthropic (Claude)', textModel: 'claude-sonnet-4-5', image: false },
-  gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image', image: true },
+  openai: { name: 'OpenAI (ChatGPT models)', textModel: 'gpt-4.1-mini', imageModel: 'gpt-image-1', image: true, textModels: [{id:'gpt-4.1-mini',name:'GPT-4.1 mini · Ringan'}, {id:'gpt-4.1',name:'GPT-4.1 · Detail'}, {id:'gpt-4o',name:'GPT-4o · Multimodal'}], imageModels: [{id:'gpt-image-1',name:'GPT Image 1'}] },
+  anthropic: { name: 'Anthropic (Claude)', textModel: 'claude-sonnet-4-5', image: false, textModels: [{id:'claude-sonnet-4-5',name:'Claude Sonnet 4.5'}, {id:'claude-haiku-4-5',name:'Claude Haiku 4.5 · Ringan'}, {id:'claude-opus-4-1',name:'Claude Opus 4.1 · Detail'}], imageModels: [] },
+  gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detail'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Ringan'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
 };
 
 async function jsonRequest(url, headers, body) {

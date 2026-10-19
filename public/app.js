@@ -827,11 +827,22 @@ async function pageGenerator() {
   drawAccounts();
   const agentCards = Object.entries(labels).map(([role, name], i) => {
     const agent = config.agents[role];
-    const model = h('input', { value: agent.model, 'aria-label': `Model ${name}`, placeholder: 'Nama model API' });
+    const model = h('select', { 'aria-label': `Model ${name}` });
+    const help = h('p',{class:'faint small generator-model-help'});
+    function drawModels(providerId,preferred) {
+      const p=config.providers[providerId];
+      const options=p[role==='image'?'imageModels':'textModels']||[];
+      const fallback=role==='image'?p.imageModel:p.textModel;
+      const available=[...options];
+      if(preferred&&!available.some(m=>m.id===preferred))available.push({id:preferred,name:`${preferred} · Preset tersimpan`});
+      model.replaceChildren(...available.map(m=>h('option',{value:m.id,selected:m.id===(preferred||fallback)},m.name)));
+      help.textContent=role==='image'?'Model pembuat gambar. Akses bergantung API key dan akun provider.':'Model teks + vision untuk konsep/review. Akses bergantung API key dan akun provider.';
+    }
+    drawModels(agent.provider,agent.model);
     const prompt = h('textarea', { 'aria-label': `Instruksi ${name}`, maxlength: 4000 }, agent.instructions);
-    const provider = h('select', { 'aria-label': `Provider ${name}`, onchange: () => { model.value = role === 'image' ? config.providers[provider.value].imageModel : config.providers[provider.value].textModel; } }, Object.entries(config.providers).filter(([,p]) => role !== 'image' || p.image).map(([id,p]) => h('option', { value: id, selected: agent.provider === id }, p.name)));
+    const provider = h('select', { 'aria-label': `Provider ${name}`, onchange: () => drawModels(provider.value) }, Object.entries(config.providers).filter(([,p]) => role !== 'image' || p.image).map(([id,p]) => h('option', { value: id, selected: agent.provider === id }, p.name)));
     inputs[role] = { provider, model, prompt };
-    return h('div', { class: 'gen-agent' }, h('span', { class: 'gen-number' }, String(i + 1)), h('h3', {}, name), h('p', { class: 'muted small' }, ['Menyusun ide, caption dan urutan slide.', 'Mengkritik dan memperbaiki konsep.', 'Menghasilkan gambar setiap slide.', 'Melihat hasil gambar dan memberi catatan final.'][i]), provider, model, h('details', {}, h('summary', {}, 'Instruksi agen'), prompt));
+    return h('div', { class: 'gen-agent' }, h('span', { class: 'gen-number' }, String(i + 1)), h('h3', {}, name), h('p', { class: 'muted small' }, ['Menyusun ide, caption dan urutan slide.', 'Mengkritik dan memperbaiki konsep.', 'Menghasilkan gambar setiap slide.', 'Melihat hasil gambar dan memberi catatan final.'][i]), h('label',{},'Provider',provider), h('label',{},'Model',model), help, h('details', {}, h('summary', {}, 'Instruksi agen'), prompt));
   });
   const collectAgents = () => Object.fromEntries(Object.entries(inputs).map(([r,v]) => [r, { provider: v.provider.value, model: v.model.value.trim(), instructions: v.prompt.value }]));
   const keys = h('div', { class: 'gen-keys' });
