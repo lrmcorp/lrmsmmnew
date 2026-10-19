@@ -823,15 +823,28 @@ async function pageGenerator() {
   });
   const collectAgents = () => Object.fromEntries(Object.entries(inputs).map(([r,v]) => [r, { provider: v.provider.value, model: v.model.value.trim(), instructions: v.prompt.value }]));
   const keys = h('div', { class: 'gen-keys' });
+  const keySummary = h('span', {class:'generator-key-summary'});
   function drawKeys() {
+    keySummary.textContent = config.keys.length ? ` · ${config.keys.length} provider tersimpan` : ' · Belum ada API key';
     keys.replaceChildren(...Object.entries(config.providers).map(([provider, p]) => {
-      const saved = config.keys.some(k => k.provider === provider);
-      const input = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'API key pribadi', 'aria-label': `API key ${p.name}` });
-      const button = (text, fn) => h('button', { class: 'btn sm', onclick: async e => { e.currentTarget.disabled = true; try { await fn(); } catch(error) { toast(errMsg(error), true); } finally { e.target.disabled = false; } } }, text);
-      return h('div', { class: 'gen-key' }, h('h3', {}, p.name), h('span', { class: 'faint small' }, saved ? 'Key terenkripsi tersimpan; akses model belum tentu terverifikasi.' : 'Belum ada key'), input,
-        h('div', { class: 'row' }, button('Simpan key', async () => { await api('PUT', '/v1/generator/keys/' + provider, { key: input.value.trim() }); input.value = ''; config = await api('GET', '/v1/generator/settings'); drawKeys(); toast('API key pribadi disimpan terenkripsi'); }),
-          saved ? button('Tes koneksi', async () => { const r = await api('POST', '/v1/generator/keys/' + provider + '/test', { model: p.textModel }); toast(r.note); }) : null,
-          saved ? button('Hapus', async () => { if (!confirm('Hapus API key pribadi ini?')) return; await api('DELETE', '/v1/generator/keys/' + provider); config = await api('GET', '/v1/generator/settings'); drawKeys(); }) : null));
+      const saved = config.keys.find(k => k.provider === provider);
+      const input = h('input', { type: 'password', autocomplete: 'new-password', placeholder: saved ? 'Masukkan API key pengganti' : 'Masukkan API key pribadi', 'aria-label': `API key ${p.name}` });
+      const button = (text, fn) => h('button', { type:'button', class:'btn sm', onclick:fn }, text);
+      const editor = h('div', {class:'generator-key-editor', hidden:!!saved});
+      const change = button('Ganti key', () => { editor.hidden=false; change.hidden=true; input.focus(); });
+      const status = h('div', {class:`generator-key-status ${saved?'saved':''}`, role:'status'}, saved ? '✓ API key tersimpan' : 'Belum ada API key');
+      editor.append(input, h('div', {class:'row'}, button(saved ? 'Simpan pengganti' : 'Simpan key', async () => {
+        await api('PUT', '/v1/generator/keys/' + provider, {key:input.value.trim()});
+        input.value='';
+        config.keys = [...config.keys.filter(k=>k.provider!==provider), {provider,updated_at:new Date().toISOString()}];
+        drawKeys(); toast(`API key ${p.name} berhasil disimpan`);
+      }), saved ? button('Batal', () => { input.value=''; editor.hidden=true; change.hidden=false; }) : null));
+      return h('div', {class:'gen-key','data-key-provider':provider}, h('h3',{},p.name), status,
+        saved ? h('p',{class:'muted small'},`Disimpan terenkripsi · ${fmtDT(saved.updated_at)}`) : null,
+        saved ? h('p',{class:'faint small'},'Key tidak ditampilkan kembali. Tes koneksi untuk memeriksa akses model.') : null,
+        editor, saved ? h('div',{class:'row'}, change,
+          button('Tes koneksi',async()=>{const r=await api('POST','/v1/generator/keys/'+provider+'/test',{model:p.textModel});toast(r.note);}),
+          button('Hapus',async()=>{if(!confirm('Hapus API key pribadi ini?'))return;await api('DELETE','/v1/generator/keys/'+provider);config.keys=config.keys.filter(k=>k.provider!==provider);drawKeys();toast(`API key ${p.name} dihapus`);})) : null);
     }));
   }
   drawKeys();
@@ -941,7 +954,7 @@ async function pageGenerator() {
   const timer = setInterval(refresh, 2500);
   pageCleanup = () => { stopped = true; clearInterval(timer);workflow.dispose(); };
   return shell('/generator', h('div', {class:'generator-node-page'}, pagehead('Sosmed Generator', 'Susun prompt, provider dan referensi di workflow visual, lalu tinjau hasil sebelum disetujui.'),
-    h('details', { class: 'panel gen-settings workflow-credentials' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen'),
+    h('details', { class: 'panel gen-settings workflow-credentials' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen', keySummary),
       h('p', { class: 'muted small' }, 'API key pribadi disimpan terenkripsi. Pilih model dan instruksi setiap agen di node workflow. Biaya API mengikuti provider Anda.'),keys,
       h('p',{class:'faint small'},'Pengaturan model dan instruksi berada di setiap node. Gunakan Simpan preset di toolbar untuk menyimpan konfigurasi.')),h('div',{class:'workflow-setup'},
         h('section',{class:'panel workflow-targets'},h('h2',{},'Perusahaan & Akun'),targetNode),
