@@ -267,6 +267,6 @@ db.exec(`CREATE TABLE IF NOT EXISTS generator_plans (
  start_date TEXT NOT NULL, end_date TEXT NOT NULL, content_count INTEGER NOT NULL,
  recommendation TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(user_id,request_id)
 );`);
-for (const [column, definition] of [['reference_media_ids', "TEXT NOT NULL DEFAULT '[]'"], ['reference_notes', "TEXT NOT NULL DEFAULT ''"]]) {
+for (const [column, definition] of [['reference_media_ids', "TEXT NOT NULL DEFAULT '[]'"], ['reference_notes', "TEXT NOT NULL DEFAULT ''"], ['reference_roles', "TEXT NOT NULL DEFAULT '{}'"]]) {
  if (!db.prepare('PRAGMA table_info(generator_runs)').all().some(c => c.name === column)) db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
 }

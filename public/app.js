@@ -707,22 +707,34 @@ function agentActivity(r) {
       return h('div',{class:`agent-desk ${state}`,'data-agent':role,'data-state':state},h('div',{class:'agent-orbit'},h('div',{class:'agent-face'},initials),h('i',{class:'agent-signal'})),h('b',{},name),h('span',{class:'agent-state'},state==='working'?'Sedang bekerja…':state==='done'?'Selesai ✓':state==='error'?'Perlu tindakan':'Menunggu'),role==='image'&&step?h('small',{},`${step.completed_slides||0}/${r.slide_count} gambar`):null,h('div',{class:'agent-wave','aria-hidden':'true'},h('i'),h('i'),h('i'),h('i')));
     })),h('div',{class:'agent-total-progress',role:'progressbar','aria-label':'Tahap agen selesai','aria-valuemin':'0','aria-valuemax':'4','aria-valuenow':String(done)},h('i',{style:{width:`${done*25}%`}})));
 }
-function visualReferences(initial = [], initialNotes = '', onChange = () => {}) {
+function visualReferences(initial = [], initialNotes = '', onChange = () => {}, initialRoles = {}) {
   let refs=[...initial];
-  const grid=h('div',{class:'reference-grid'});
-  const notes=h('textarea',{'aria-label':'Arahan referensi visual',maxlength:3000,placeholder:'Contoh: warna pastel, layout minimalis, tipografi tegas, pencahayaan hangat. Jelaskan yang perlu dipertahankan dan yang perlu diubah.',oninput:()=>onChange(refs,notes.value)},initialNotes);
-  const files=h('input',{type:'file',accept:'image/jpeg,image/png',multiple:true,hidden:true,onchange:async()=>{
-    const chosen=[...files.files];
-    if(refs.length+chosen.length>4){toast('Maksimal 4 gambar referensi.',true);return;}
-    add.disabled=true;
-    try { for(const file of chosen){if(!['image/jpeg','image/png'].includes(file.type))throw new Error('Referensi harus JPEG atau PNG.');refs.push(await uploadFile(file,{inLibrary:false}));}}
-    catch(error){toast(errMsg(error),true);}finally{onChange(refs,notes.value);draw();add.disabled=false;files.value='';}
-  }});
-  const add=h('button',{type:'button',class:'btn',onclick:()=>files.click()},'+ Referensi visual');
-  function draw(){grid.replaceChildren(...refs.map((m,i)=>h('div',{class:'reference-tile'},h('img',{src:m.url,alt:`Referensi visual ${i+1}`}),h('button',{type:'button',class:'btn sm','aria-label':`Hapus referensi ${i+1}`,onclick:()=>{refs.splice(i,1);onChange(refs,notes.value);draw();}},'×'))));}
+  const roles={...initialRoles};
+  const changed=()=>onChange(refs,notes.value,{...roles});
+  const notes=h('textarea',{'aria-label':'Arahan referensi visual',maxlength:3000,placeholder:'Jelaskan penggunaan logo, produk yang ditonjolkan, serta vibes, warna dan layout yang diinginkan.',oninput:changed},initialNotes);
+  const count=h('p',{class:'faint small',role:'status'});
+  const uploads=[];
+  const sections=Object.entries({logo:['Logo Brand','Pertahankan identitas, warna dan proporsi logo.'],visual:['Referensi Visual','Acuan vibes, warna, pencahayaan dan desain.'],product:['Foto Produk','Produk asli dan kemasannya sebagai acuan agen.']}).map(([role,[title,description]])=>{
+    const grid=h('div',{class:'reference-grid'});
+    const files=h('input',{type:'file',accept:'image/jpeg,image/png',multiple:true,hidden:true,'aria-label':`Upload ${title}`,onchange:async()=>{
+      const chosen=[...files.files];
+      if(refs.length+chosen.length>4){files.value='';toast('Maksimal 4 gambar total untuk logo, referensi visual dan produk.',true);return;}
+      uploads.forEach(x=>x.add.disabled=true);
+      try{for(const file of chosen){if(!['image/jpeg','image/png'].includes(file.type))throw new Error('Gambar harus JPEG atau PNG.');const m=await uploadFile(file,{inLibrary:false});refs.push(m);roles[m.id]=role;}}
+      catch(error){toast(errMsg(error),true);}finally{files.value='';changed();draw();}
+    }});
+    const add=h('button',{type:'button',class:'btn',onclick:()=>files.click()},`+ ${title}`);
+    uploads.push({role,grid,add});
+    return h('section',{class:'reference-category'},h('h3',{},title),h('p',{class:'muted small'},description),grid,add,files);
+  });
+  function draw(){
+    count.textContent=`${refs.length}/4 gambar · JPEG / PNG · Bisa pilih beberapa foto sekaligus.`;
+    for(const {role,grid,add} of uploads){add.disabled=refs.length>=4;grid.replaceChildren(...refs.filter(m=>(roles[m.id]||'visual')===role).map(m=>h('div',{class:'reference-tile'},h('img',{src:m.url,alt:`${role==='logo'?'Logo brand':role==='product'?'Foto produk':'Referensi visual'}`}),h('button',{type:'button',class:'btn sm','aria-label':`Hapus gambar ${m.original_name||m.id}`,onclick:()=>{refs=refs.filter(x=>x.id!==m.id);delete roles[m.id];changed();draw();}},'×'))));}
+  }
   draw();
-  return {element:h('section',{class:'reference-panel'},h('h3',{},'Referensi Image Creator'),h('p',{class:'muted small'},'Unggah hingga 4 gambar untuk mengarahkan vibes, warna, layout dan desain. Gambar benar-benar dikirim ke model; kemiripan tidak dapat dijamin identik.'),grid,add,files,notes),get:()=>({reference_media_ids:refs.map(m=>m.id),reference_notes:notes.value})};
+  return {element:h('section',{class:'reference-panel'},h('h3',{},'Aset Brand & Referensi'),count,...sections,h('label',{},'Arahan penggunaan aset',notes),h('p',{class:'faint small'},'Gambar dikirim ke model. Periksa akurasi logo, tulisan dan produk sebelum menyetujui hasil.')),get:()=>({reference_media_ids:refs.map(m=>m.id),reference_roles:Object.fromEntries(refs.map(m=>[m.id,roles[m.id]||'visual'])),reference_notes:notes.value})};
 }
+
 const wibInput = iso => iso ? new Date(Date.parse(iso) + 7 * 3600000).toISOString().slice(0,16) : '';
 const wibIso = value => value ? new Date(value + ':00+07:00').toISOString() : null;
 async function pageContentDrafts() {
@@ -740,8 +752,8 @@ async function pageContentDrafts() {
   const labels={planned:'Rencana / belum dibuat',queued:'Menunggu agen',running:'Agen bekerja',review:'Perlu persetujuan',failed:'Gagal / bisa direvisi',drafted:'Draf Tulis Post',approved:'Terjadwal',cancelled:'Dibatalkan'};
   const act=(text,fn,primary=false)=>h('button',{class:`btn ${primary?'primary':''}`,onclick:async e=>{e.currentTarget.disabled=true;try{await fn();last='';await refresh();}catch(error){toast(errMsg(error),true);}finally{e.target.disabled=false;}}},text);
   function draw(r) {
-    const edit=edits[r.id] ||= {content:r.caption,brief:r.brief,at:wibInput(r.scheduled_at),references:r.references||[],reference_notes:r.reference_notes||''};
-    const refs=visualReferences(edit.references,edit.reference_notes,(images,notes)=>{edit.references=[...images];edit.reference_notes=notes;});
+    const edit=edits[r.id] ||= {content:r.caption,brief:r.brief,at:wibInput(r.scheduled_at),references:r.references||[],reference_notes:r.reference_notes||'',reference_roles:r.reference_roles||{}};
+    const refs=visualReferences(edit.references,edit.reference_notes,(images,notes,roles)=>{edit.references=[...images];edit.reference_notes=notes;edit.reference_roles=roles;},edit.reference_roles);
     const editable=['planned','review','failed'].includes(r.status);
     const caption=h('textarea',{'aria-label':'Caption draft',maxlength:2200,oninput:e=>{edit.content=e.target.value;}},edit.content);
     const prompt=h('textarea',{'aria-label':'Prompt draft',maxlength:10000,oninput:e=>{edit.brief=e.target.value;}},edit.brief);
@@ -946,7 +958,7 @@ async function pageGenerator() {
       {id:'image',role:'image',title:'Image Creator',x:1210,y:80,width:310,color:'#d0ad77',content:agentCards[2]},
       {id:'final',role:'final',title:'Final Reviewer',x:1600,y:80,width:300,color:'#8ebd9e',content:agentCards[3]},
       {id:'result',title:'Preview & Persetujuan',x:1990,y:80,width:470,color:'#91b0c8',content:detail},
-      {id:'reference',title:'Referensi Visual',subtitle:'Gambar acuan masuk langsung ke model Image Creator.',x:460,y:650,width:350,color:'#d0ad77',content:reference.element}
+      {id:'reference',title:'Aset Brand & Referensi',subtitle:'Logo, referensi visual dan foto produk masuk ke model Image Creator.',x:460,y:650,width:350,color:'#d0ad77',content:reference.element}
     ],
     edges:[{from:'brief',to:'concept'},{from:'concept',to:'revision'},{from:'revision',to:'image'},{from:'image',to:'final'},{from:'final',to:'result'},{from:'reference',to:'image'}]
   });

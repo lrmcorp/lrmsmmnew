@@ -4,9 +4,9 @@ The generator page now uses an original light node workspace inspired by [ComfyU
 
 ## Nodes and execution
 
-Seven nodes expose the existing inputs and outputs: Brief & Prompt, Konsep Creator, Concept Reviewer, Image Creator, Final Reviewer, Preview & Persetujuan, Referensi Visual. Rencana & Jadwal and Perusahaan & Akun are separate setup panels above the canvas.
+Seven nodes expose the existing inputs and outputs: Brief & Prompt, Konsep Creator, Concept Reviewer, Image Creator, Final Reviewer, Preview & Persetujuan, Aset Brand & Referensi. Rencana & Jadwal and Perusahaan & Akun are separate setup panels above the canvas.
 
-Provider/model/instruction controls live inside each agent node. Real uploaded references have their own node connected to Image Creator. The preview node shows actual generated media, caption, review findings, retry/cancel actions and the existing human draft handoff. Model outputs are inspectable inside their corresponding nodes. Node badges and moving connections reflect real persisted stage status; they do not start agents or fabricate activity.
+Provider/model/instruction controls live inside each agent node. Real uploaded assets have their own node connected to Image Creator, with separate Logo Brand, Referensi Visual and Foto Produk upload sections. Up to four JPEG/PNG assets total are supported; category metadata is persisted through plans, edits and revisions, with an ordered image-role legend sent to the providers. Legacy references default to visual. Logo and product accuracy still requires human review. The preview node shows actual generated media, caption, review findings, retry/cancel actions and the existing human draft handoff. Model outputs are inspectable inside their corresponding nodes. Node badges and moving connections reflect real persisted stage status; they do not start agents or fabricate activity.
 
 The execution order remains the existing bounded pipeline: concept → revision → images → final review. Cables describe those actual dependencies. They cannot be rewired, and dragging a node edits its visual position only. This is not a general ComfyUI execution engine, custom-node loader, local GPU runtime or arbitrary graph editor. No ComfyUI source, runtime, Python environment or plugin was installed/copied.
 
