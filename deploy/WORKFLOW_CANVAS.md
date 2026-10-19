@@ -4,7 +4,7 @@ The generator page now uses an original light node workspace inspired by [ComfyU
 
 ## Nodes and execution
 
-Nine nodes expose the existing inputs and outputs: Brief & Prompt, Konsep Creator, Concept Reviewer, Image Creator, Final Reviewer, Preview & Persetujuan, Referensi Visual, Rencana & Jadwal, and Perusahaan & Akun.
+Seven nodes expose the existing inputs and outputs: Brief & Prompt, Konsep Creator, Concept Reviewer, Image Creator, Final Reviewer, Preview & Persetujuan, Referensi Visual. Rencana & Jadwal and Perusahaan & Akun are separate setup panels above the canvas.
 
 Provider/model/instruction controls live inside each agent node. Real uploaded references have their own node connected to Image Creator. The preview node shows actual generated media, caption, review findings, retry/cancel actions and the existing human draft handoff. Model outputs are inspectable inside their corresponding nodes. Node badges and moving connections reflect real persisted stage status; they do not start agents or fabricate activity.
 
@@ -24,6 +24,6 @@ Date-range planning, private API credentials, reference-conditioned generation, 
 
 ## Verification
 
-`test/browser-components.cjs` now also exercises nine nodes/eight links, keyboard and pointer node movement, updating cable geometry, layout persistence across reloads, zoom, pan, reset and list mode. It still covers manual 12-content plans, upload/approval/calendar flow, login, command menu, and 390px/1440px layouts. A separate local browser run exercises real app state with simulated provider responses, image-reference upload, running-node animation/reduced motion, generated previews and private Tulis Post handoff. No paid provider or real Instagram posting is involved.
+`test/browser-components.cjs` now also exercises seven nodes/six links, keyboard and pointer node movement, updating cable geometry, layout persistence across reloads, zoom, pan, reset and list mode. It still covers manual 12-content plans, upload/approval/calendar flow, login, command menu, and 390px/1440px layouts. A separate local browser run exercises real app state with simulated provider responses, image-reference upload, running-node animation/reduced motion, generated previews and private Tulis Post handoff. No paid provider or real Instagram posting is involved.
 
 All canvas source is in `public/workflow-canvas.js` and `public/workflow-canvas.css`; existing inputs are mounted directly into nodes to avoid duplicated form state or duplicate requests.

@@ -933,11 +933,9 @@ async function pageGenerator() {
       {id:'image',role:'image',title:'Image Creator',x:1210,y:80,width:310,color:'#d0ad77',content:agentCards[2]},
       {id:'final',role:'final',title:'Final Reviewer',x:1600,y:80,width:300,color:'#8ebd9e',content:agentCards[3]},
       {id:'result',title:'Preview & Persetujuan',x:1990,y:80,width:470,color:'#91b0c8',content:detail},
-      {id:'reference',title:'Referensi Visual',subtitle:'Gambar acuan masuk langsung ke model Image Creator.',x:460,y:650,width:350,color:'#d0ad77',content:reference.element},
-      {id:'schedule',title:'Rencana & Jadwal',x:940,y:650,width:500,color:'#8ebd9e',content:scheduleNode},
-      {id:'targets',title:'Perusahaan & Akun',x:40,y:650,width:330,color:'#7eaba3',content:targetNode}
+      {id:'reference',title:'Referensi Visual',subtitle:'Gambar acuan masuk langsung ke model Image Creator.',x:460,y:650,width:350,color:'#d0ad77',content:reference.element}
     ],
-    edges:[{from:'brief',to:'concept'},{from:'concept',to:'revision'},{from:'revision',to:'image'},{from:'image',to:'final'},{from:'final',to:'result'},{from:'reference',to:'image'},{from:'schedule',to:'result'},{from:'targets',to:'result'}]
+    edges:[{from:'brief',to:'concept'},{from:'concept',to:'revision'},{from:'revision',to:'image'},{from:'image',to:'final'},{from:'final',to:'result'},{from:'reference',to:'image'}]
   });
   await refresh();
   const timer = setInterval(refresh, 2500);
@@ -945,7 +943,9 @@ async function pageGenerator() {
   return shell('/generator', h('div', {class:'generator-node-page'}, pagehead('Sosmed Generator', 'Susun prompt, provider dan referensi di workflow visual, lalu tinjau hasil sebelum disetujui.'),
     h('details', { class: 'panel gen-settings workflow-credentials' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen'),
       h('p', { class: 'muted small' }, 'API key pribadi disimpan terenkripsi. Pilih model dan instruksi setiap agen di node workflow. Biaya API mengikuti provider Anda.'),keys,
-      h('p',{class:'faint small'},'Pengaturan model dan instruksi berada di setiap node. Gunakan Simpan preset di toolbar untuk menyimpan konfigurasi.')),workflow.element));
+      h('p',{class:'faint small'},'Pengaturan model dan instruksi berada di setiap node. Gunakan Simpan preset di toolbar untuk menyimpan konfigurasi.')),h('div',{class:'workflow-setup'},
+        h('section',{class:'panel workflow-targets'},h('h2',{},'Perusahaan & Akun'),targetNode),
+        h('section',{class:'panel workflow-schedule'},h('h2',{},'Rencana & Jadwal'),scheduleNode)),workflow.element));
 }
 
 // ---------------- calendar ----------------
