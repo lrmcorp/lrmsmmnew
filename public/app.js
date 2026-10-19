@@ -1,4 +1,5 @@
 // LRMsmm dashboard — vanilla JS SPA (no build step). UI mengikuti hrd.playgo.id.
+import { bindInteraction } from './interactions.js';
 import { HERO } from './icons.js';
 const $app = document.getElementById('app');
 
@@ -9,7 +10,7 @@ function h(tag, attrs = {}, ...kids) {
     if (v == null || v === false) continue;
     if (k === 'class') el.className = v;
     else if (k === 'html') el.innerHTML = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k.startsWith('on')) bindInteraction(el, k.slice(2), v, error => toast(errMsg(error), true));
     else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
     else if (v === true) el.setAttribute(k, '');
     else el.setAttribute(k, v);
@@ -73,15 +74,16 @@ async function api(method, path, body, opts = {}) {
   return j;
 }
 function toast(msg, bad = false, action = null) {
-  const el = h('div', { class: bad ? 'bad' : '' }, msg,
-    action ? h('button', { class: 'toast-act', onclick: () => { el.remove(); action.fn(); } }, action.label) : null);
+  const el = h('div', { class: bad ? 'bad' : '' }, h('span',{class:'toast-message'},msg),
+    action ? h('button', { class: 'toast-act', onclick: () => { el.remove(); action.fn(); } }, action.label) : null,h('button',{type:'button',class:'toast-dismiss','aria-label':'Tutup notifikasi',onclick:()=>el.remove()},'×'));
   document.getElementById('toast').append(el);
-  setTimeout(() => el.remove(), action ? 6000 : bad ? 6000 : 3200);
+  setTimeout(() => el.remove(), action ? 6000 : bad ? 10000 : 4500);
 }
 const errMsg = (e) => (e.code && ERR[e.code] ? `${ERR[e.code]}. ` : '') + (e.message || 'Gagal');
 const go = (p) => { location.hash = `#${p}`; };
 function modal(title, body, actions = []) {
-  const d = h('dialog', {}, h('div', { class: 'dh' }, h('h2', {}, title), h('span', { class: 'spacer' }), h('button', { class: 'btn ghost sm', onclick: () => d.close(), 'aria-label': 'Tutup' }, '✕')),
+  const headingId='dialog-'+crypto.randomUUID();
+  const d = h('dialog', { 'aria-labelledby':headingId }, h('div', { class: 'dh' }, h('h2', {id:headingId}, title), h('span', { class: 'spacer' }), h('button', { class: 'btn ghost sm', onclick: () => d.close(), 'aria-label': 'Tutup' }, '✕')),
     h('div', { class: 'db' }, body), actions.length ? h('div', { class: 'df' }, actions) : null);
   d.addEventListener('close', () => d.remove());
   document.body.append(d); d.showModal();
@@ -131,6 +133,51 @@ function navGroups() {
 }
 const PAGE_LABEL = () => Object.fromEntries(navGroups().flatMap(([g, items]) => items.map(([p, , l]) => [p, { label: l, group: g }])));
 
+function openMenuSearch() {
+  if (document.querySelector('.menu-command')) return;
+  const items=navGroups().flatMap(([group,entries])=>entries.map(([path,ic,label])=>({group,path,ic,label})));
+  const results=h('div',{class:'command-results'});
+  const input=h('input',{type:'search',placeholder:'Cari halaman atau fitur…','aria-label':'Cari halaman atau fitur',autocomplete:'off',oninput:draw});
+  let filtered=items;
+  let dialog;
+  function draw(){
+    const query=input.value.toLocaleLowerCase().trim();filtered=items.filter(x=>(x.label+' '+x.group).toLocaleLowerCase().includes(query));
+    results.replaceChildren(...(filtered.length?filtered.map(item=>h('button',{type:'button',class:'command-item',onclick:()=>{dialog.close();go(item.path);}},icon(item.ic),h('span',{},h('b',{},item.label),h('small',{},item.group)),h('span',{class:'command-enter'},'↵'))):[h('p',{class:'empty'},'Tidak ada menu yang cocok.')]));
+  }
+  dialog=modal('Pindah ke halaman',h('div',{},h('div',{class:'command-search'},icon('grid'),input),results,h('p',{class:'command-help'},'↑ ↓ Pilih menu · Enter Buka · Esc Tutup')));
+  dialog.classList.add('menu-command');draw();input.focus();
+  dialog.addEventListener('keydown',event=>{
+    if(!['ArrowDown','ArrowUp'].includes(event.key))return;
+    const buttons=[...results.querySelectorAll('button')];if(!buttons.length)return;
+    event.preventDefault();let index=buttons.indexOf(document.activeElement);
+    index=event.key==='ArrowDown'?(index+1)%buttons.length:(index-1+buttons.length)%buttons.length;buttons[index].focus();
+  });
+  input.addEventListener('keydown',event=>{if(event.key==='Enter'&&filtered.length){event.preventDefault();dialog.close();go(filtered[0].path);}});
+}
+function setNavigation(open) {
+  const mobile=matchMedia('(max-width:1023px)').matches;
+  document.body.classList.toggle('side-open',mobile&&open);
+  const aside=document.querySelector('#main-navigation'),col=document.querySelector('.col');
+  if(aside)aside.inert=mobile&&!open;
+  if(col)col.inert=mobile&&open;
+  document.querySelector('.menu-btn')?.setAttribute('aria-expanded',String(mobile&&open));
+}
+window.addEventListener('resize',()=>setNavigation(false));
+document.addEventListener('keydown',event=>{
+  if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'&&state.user){
+    const existing=document.querySelector('.menu-command');
+    if(existing){event.preventDefault();existing.close();}
+    else if(!document.querySelector('dialog[open]')){event.preventDefault();openMenuSearch();}
+  }
+  if(document.body.classList.contains('side-open')){
+    if(event.key==='Escape'){setNavigation(false);document.querySelector('.menu-btn')?.focus();}
+    if(event.key==='Tab'){
+      const controls=[...document.querySelectorAll('.side a,.side button')].filter(el=>!el.disabled&&el.getClientRects().length);
+      if(controls.length){const first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
+    }
+  }
+});
+
 let clockTimer;
 function shell(active, content) {
   const info = PAGE_LABEL()[active] || { label: 'LRMsmm', group: '' };
@@ -138,15 +185,15 @@ function shell(active, content) {
   const clock = h('div', { class: 'clock', title: 'Waktu server (WIB)' });
   const tick = () => { clock.textContent = `${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} WIB · Jakarta`; };
   tick(); clearInterval(clockTimer); clockTimer = setInterval(tick, 30000);
-  const close = () => document.body.classList.remove('side-open');
+  const close = () => setNavigation(false);
   return h('div', { class: 'app' },
-    h('aside', { class: 'side' },
+    h('aside', { class: 'side',id:'main-navigation',inert:matchMedia('(max-width:1023px)').matches?true:null },
       h('div', {},
         h('div', { class: 'side-top' }, logo(), h('button', { class: 'side-close', 'aria-label': 'Tutup menu', onclick: close }, icon('x'))),
         h('nav', { class: 'nav', 'aria-label': 'Menu utama' }, navGroups().map(([g, items]) =>
           h('div', { class: 'nav-group' }, h('div', { class: 'nav-h' }, g),
             h('div', { class: 'nav-items' }, items.map(([p, ic, label, badge]) =>
-              h('a', { href: `#${p}`, class: `${active === p ? 'on' : ''} ${p === '/generator/drafts' ? 'nav-sub' : ''}`, onclick: close }, icon(ic), h('span', { class: 'lbl' }, label), badge ? badgeEl(badge) : null))))))),
+              h('a', { href: `#${p}`, class: `${active === p ? 'on' : ''} ${p === '/generator/drafts' ? 'nav-sub' : ''}`, 'aria-current':active===p?'page':null, onclick: close }, icon(ic), h('span', { class: 'lbl' }, label), badge ? badgeEl(badge) : null))))))),
       h('div', { class: 'side-foot' },
         h('a', { class: 'ucard', href: isOwner() ? '#/team' : '#/compose' },
           h('div', { class: 'who' }, h('div', { class: 'ini' }, initials(state.user?.name || state.user?.email)),
@@ -157,9 +204,10 @@ function shell(active, content) {
     h('div', { class: 'col' },
       h('header', { class: 'hdr' }, h('div', { class: 'hdr-in' },
         h('div', { class: 'hdr-l' },
-          h('button', { class: 'menu-btn', 'aria-label': 'Buka menu', onclick: () => document.body.classList.add('side-open') }, icon('menu')),
+          h('button', { class: 'menu-btn', 'aria-label': 'Buka menu','aria-controls':'main-navigation','aria-expanded':'false', onclick: () => {setNavigation(true);document.querySelector('.side-close')?.focus();} }, icon('menu')),
           h('div', { class: 'crumb' }, info.group ? h('span', {}, info.group) : null, info.group ? h('span', { class: 'sep' }, '/') : null, h('b', {}, info.label))),
         h('div', { class: 'hdr-r' },
+          h('button',{type:'button',class:'menu-search-btn','aria-label':'Cari menu',onclick:openMenuSearch},icon('grid'),h('span',{},'Cari menu'),h('kbd',{},navigator.platform.includes('Mac')?'⌘ K':'Ctrl K')),
           h('a', { class: 'chip', href: '#/compose' }, icon('pen'), h('span', { class: 'chip-t' }, 'Tulis Post')),
           h('a', { class: 'chip', href: '#/messages', title: 'Pesan belum dibalas' }, icon('bell'), h('span', { class: 'chip-t' }, 'Pesan'), badgeEl('messages')),
           clock,
@@ -1530,6 +1578,7 @@ async function pageAdmin() {
 // ---------------- router ----------------
 let pageCleanup = null;
 async function route() {
+  setNavigation(false);
   const path = (location.hash.slice(1) || '/').split('?')[0];
   if (pageCleanup) { pageCleanup(); pageCleanup = null; }
   try {
