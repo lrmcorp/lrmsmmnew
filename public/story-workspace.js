@@ -1,8 +1,8 @@
 // Persistent account story setup; provider execution stays in the server worker.
-export async function storyWorkspace({h,api,uploadFile,accounts,agents,dates,toast,fmtDT,fixedAccount=false}) {
+export async function storyWorkspace({h,api,uploadFile,accounts,agents,dates,toast,fmtDT,fixedAccount=false,mode="setup"}) {
  let stopped=false,profile=null,currentJob='',lastSignature='',dirty=false,requestId='',requestSignature='',approving=false,loadedAccount='',saveTimer=0,saveInFlight=null,uploads=0;
  const account=h('select',{'aria-label':'Akun Brand & Story',onchange:async()=>{clearTimeout(saveTimer);try{if(dirty&&loadedAccount)await save(loadedAccount);await loadProfile();}catch(e){account.value=loadedAccount;throw e;}}},accounts.map(a=>h('option',{value:a.id},`@${a.username}`)));
- const requested=new URLSearchParams(location.hash.split('?')[1]||'').get('account');if(accounts.some(a=>a.id===requested))account.value=requested;
+ const requested=new URLSearchParams(location.hash.split('?')[1]||'').get('story_account');if(accounts.some(a=>a.id===requested))account.value=requested;
  const seed=h('textarea',{'aria-label':'Prompt cerita awal',maxlength:10000,rows:5,placeholder:'Ceritakan identitas brand, audiens, tujuan, gaya cerita, dan arah perkembangan akun dari awal.',oninput:markDirty,onchange:()=>save()});
  const rules=h('textarea',{'aria-label':'Aturan brand akun',maxlength:6000,rows:3,placeholder:'Warna, tone, tipografi, klaim yang diizinkan/dilarang, cara menggunakan logo dan foto produk.',oninput:markDirty,onchange:()=>save()});
  const direction=h('textarea',{'aria-label':'Arahan sesi cerita',maxlength:3000,rows:2,placeholder:'Opsional: fokus sesi ini. Kosongkan untuk melanjutkan prompt awal dan memori cerita.'});
@@ -25,7 +25,7 @@ export async function storyWorkspace({h,api,uploadFile,accounts,agents,dates,toa
   const aid=account.value,data=await api('GET',`/v1/generator/accounts/${aid}/brand`);if(stopped||aid!==account.value)return;
   loadedAccount=aid;profile=data;seed.value=data.seed;rules.value=data.brand_notes;dirty=false;currentJob='';lastSignature='';proposals.replaceChildren();
   status.textContent=data.seed?'✓ Prompt awal tersimpan · Lanjutkan dari episode '+data.next_episode:'Belum ada prompt cerita tersimpan.';
-  renderAssets();renderHistory();await refresh();
+  if(mode==='setup'){renderAssets();renderHistory();}else{setupLink.href='#/accounts/'+encodeURIComponent(aid)+'?tab=brand';await refresh();}
  }
  function renderHistory(){history.replaceChildren(h('p',{class:'muted small'},`Episode berikutnya: ${profile.next_episode}. Cerita tersimpan per akun, terpisah dari draft yang dapat kedaluwarsa.`),profile.bible?h('details',{},h('summary',{},'Fondasi cerita & memori'),h('p',{},profile.bible),h('p',{class:'muted small'},profile.memory)):null,
   h('details',{},h('summary',{},`${profile.episodes.length} episode terakhir`),profile.episodes.map(e=>h('p',{class:'small'},`#${e.episode_number} · ${e.title} · ${e.status}`))));}
@@ -71,16 +71,15 @@ export async function storyWorkspace({h,api,uploadFile,accounts,agents,dates,toa
  }
  const generate=button('Generate / Lanjutkan storyline',async()=>{
   if(uploads>0)throw new Error('Tunggu semua aset selesai diunggah dahulu.');
-  if(!paid.checked)throw new Error('Setujui biaya agen sesi ini.');if(dirty||!profile?.seed)await save();
+  if(!paid.checked)throw new Error('Setujui biaya agen sesi ini.');if(!profile?.seed)throw new Error('Simpan prompt cerita awal di Brand Kit & Cerita akun terlebih dahulu.');
   const body={account_id:account.value,direction:direction.value,content_count:Number(dates.count.value),slide_count:Number(dates.slides.value),start_date:dates.from.value,end_date:dates.until.value,times:dates.times.value.split(',').map(t=>t.trim()).filter(Boolean),produce_media:produce.checked,agents:agents(),confirm_cost:true};
   const sig=JSON.stringify(body);if(sig!==requestSignature){requestId=crypto.randomUUID();requestSignature=sig;}
   const j=await api('POST','/v1/generator/story-jobs',{...body,request_id:requestId});currentJob=j.id;lastSignature='';requestSignature='';await refresh();
  },true);
- const element=h('section',{class:'panel story-workspace'},h('div',{class:'row'},h('h2',{},'Cerita Berkelanjutan & Brand Kit'),fixedAccount?null:account),h('p',{class:'muted small'},'Prompt awal dan aturan brand disimpan otomatis saat diedit. Logo, referensi dan katalog disimpan per akun. Storyteller melanjutkan cerita; Manager memeriksa konsistensi; Scheduler mengusulkan waktu dan alasan. Semua proposal sesi dibuat untuk akun yang dipilih di panel ini. Anda tetap menyetujui publikasi.'),
- h('details',{open:true},h('summary',{},'Fondasi cerita akun'),h('label',{},'Prompt cerita awal',seed),h('label',{},'Aturan brand',rules),button('Simpan fondasi cerita',async()=>{await save();toast('Fondasi cerita tersimpan');}),status,history),
- h('details',{},h('summary',{},'Logo, referensi visual, foto produk & video tersimpan'),assets),h('label',{},'Arahan sesi berikutnya (opsional)',direction),
- h('p',{class:'muted small'},'Jumlah konten, jumlah slide, rentang tanggal dan kandidat jam mengikuti panel Rencana sesi berikutnya di atas. Jadwal disarankan berdasarkan alur cerita; belum analisis performa akun.'),
- h('label',{class:'check'},produce,'Buat media proposal sesudah QC Manager, tanpa persetujuan konsep terpisah. Gambar memakai biaya API; Reel memakai video unggahan.'),h('label',{class:'check'},paid,'Saya setuju biaya tiga agen cerita dan produksi konten yang dipilih. Publikasi tetap menunggu persetujuan.'),generate,progress,proposals);
- await loadProfile();const timer=setInterval(refresh,3000);
+ const setupLink=h('a',{class:'btn'},'Buka Brand Kit & Cerita akun');
+ const foundation=h('details',{open:true},h('summary',{},'Fondasi cerita akun'),h('label',{},'Prompt cerita awal',seed),h('label',{},'Aturan brand',rules),button('Simpan fondasi cerita',async()=>{await save();toast('Fondasi cerita tersimpan');}),status,history);
+ const element=mode==='setup'?h('section',{class:'panel story-workspace'},h('h2',{},'Cerita Berkelanjutan & Brand Kit'),h('p',{class:'muted small'},'Prompt awal dan aturan brand disimpan otomatis. Aset dan memori cerita tersimpan per akun. Rencanakan dan buat sesi konten di Sosmed Generator.'),foundation,h('details',{},h('summary',{},'Logo, referensi visual, foto produk & video tersimpan'),assets),h('a',{class:'btn primary',href:'#/generator?story_account='+encodeURIComponent(account.value)},'Rencanakan sesi di Sosmed Generator')):
+ h('section',{class:'panel story-workspace'},h('div',{class:'row'},h('h2',{},'Produksi Storyline'),account),status,setupLink,h('p',{class:'muted small'},'Melanjutkan prompt, aset dan memori akun yang dipilih. Jumlah konten, slide, tanggal dan jam mengikuti Rencana & Jadwal. Model agen mengikuti node workflow. Jadwal disarankan dari alur cerita, belum analisis performa akun.'),h('label',{},'Arahan sesi berikutnya (opsional)',direction),h('label',{class:'check'},produce,'Buat media proposal sesudah QC Manager, tanpa persetujuan konsep terpisah. Gambar memakai biaya API; Reel memakai video unggahan.'),h('label',{class:'check'},paid,'Saya setuju biaya tiga agen cerita dan produksi konten yang dipilih. Publikasi tetap menunggu persetujuan.'),generate,progress,proposals);
+ await loadProfile();const timer=mode==='production'?setInterval(refresh,3000):0;
  return {element,dispose(){stopped=true;clearInterval(timer);clearTimeout(saveTimer);}};
 }

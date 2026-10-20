@@ -996,14 +996,15 @@ async function pageGenerator() {
     edges:[{from:'brief',to:'concept'},{from:'concept',to:'revision'},{from:'revision',to:'image'},{from:'image',to:'final'},{from:'final',to:'result'},{from:'reference',to:'image'},{from:'brief',to:'storyteller'},{from:'storyteller',to:'manager'},{from:'manager',to:'scheduler'},{from:'scheduler',to:'concept'}]
   });
   await refresh();
+  const story=await storyWorkspace({h,api,uploadFile,accounts:state.accounts.filter(a=>a.platform==='instagram'&&a.status==='active'),mode:'production',agents:collectAgents,dates:{count:totalContents,slides:count,from:fromDate,until:endDate,times:postTimes},toast,fmtDT});
   const timer = setInterval(refresh, 2500);
-  pageCleanup = () => { stopped = true; clearInterval(timer);workflow.dispose(); };
+  pageCleanup = () => { stopped = true; clearInterval(timer);workflow.dispose();story.dispose(); };
   return shell('/generator', h('div', {class:'generator-node-page'}, pagehead('Sosmed Generator', 'Susun prompt, provider dan referensi di workflow visual, lalu tinjau hasil sebelum disetujui.'),
     h('details', { class: 'panel gen-settings workflow-credentials' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen', keySummary),
       h('p', { class: 'muted small' }, 'API key pribadi disimpan terenkripsi. Pilih model dan instruksi setiap agen di node workflow. Biaya API mengikuti provider Anda.'),keys,
       h('p',{class:'faint small'},'Pengaturan model dan instruksi berada di setiap node. Gunakan Simpan preset di toolbar untuk menyimpan konfigurasi.')),h('div',{class:'workflow-setup'},
         h('section',{class:'panel workflow-targets'},h('h2',{},'Perusahaan & Akun'),targetNode),
-        h('section',{class:'panel workflow-schedule'},h('h2',{},'Rencana & Jadwal'),scheduleNode)),workflow.element));
+        h('section',{class:'panel workflow-schedule'},h('h2',{},'Rencana & Jadwal'),scheduleNode)),story.element,workflow.element));
 }
 
 // ---------------- calendar ----------------
@@ -1382,23 +1383,9 @@ async function pageAccountDetail(accountId) {
       h('div',{class:'row'},a.platform==='instagram'?h('a',{class:'btn primary',href:'#/accounts/'+encodeURIComponent(a.id)+'?tab=brand'},'Buka Brand Kit & Cerita'):null,isOwner()?h('a',{class:'btn',href:'/connect/'+a.platform},'Sambungkan ulang'):null)));
     return shell(isOwner()?'/accounts':'/generator',top);
   }
-  let config=await api('GET','/v1/generator/settings');
-  const count=h('input',{type:'number',min:1,max:30,value:12,'aria-label':'Jumlah konten rencana'}),slides=h('input',{type:'number',min:1,max:10,value:1,'aria-label':'Jumlah slide sesi'});
-  const from=h('input',{type:'date',value:new Date(Date.now()+864e5+7*3600000).toISOString().slice(0,10),'aria-label':'Tanggal mulai rencana'}),until=h('input',{type:'date',value:new Date(Date.now()+14*864e5+7*3600000).toISOString().slice(0,10),'aria-label':'Tanggal akhir rencana'}),times=h('input',{value:'12:15, 19:15','aria-label':'Jam rencana WIB'});
-  const planning=h('details',{class:'panel account-story-planning',open:true},h('summary',{},'Rencana sesi berikutnya'),h('div',{class:'account-story-fields'},h('label',{},'Jumlah konten',count),h('label',{},'Slide per carousel',slides),h('label',{},'Dari tanggal (WIB)',from),h('label',{},'Sampai tanggal (WIB)',until),h('label',{},'Kandidat jam (WIB)',times)));
-  const controls={};
-  const modelCards=Object.entries({storyteller:'Storyteller',manager:'Social Media Manager',scheduler:'Scheduler'}).map(([role,name])=>{
-    const model=h('select',{'aria-label':'Model '+name}),instructions=h('textarea',{'aria-label':'Instruksi '+name,maxlength:4000},config.agents[role].instructions);
-    function drawModels(p,current){const available=[...config.providers[p].textModels];if(current&&!available.some(m=>m.id===current))available.push({id:current,name:current+' · Preset tersimpan'});model.replaceChildren(...available.map(m=>h('option',{value:m.id,selected:m.id===(current||config.providers[p].textModel)},m.name)));}
-    const provider=h('select',{'aria-label':'Provider '+name,onchange:()=>drawModels(provider.value)},Object.entries(config.providers).map(([id,p])=>h('option',{value:id,selected:config.agents[role].provider===id},p.name)));
-    drawModels(provider.value,config.agents[role].model);controls[role]={provider,model,instructions};
-    return h('section',{},h('h3',{},name),h('label',{},'Provider',provider),h('label',{},'Model',model),h('details',{},h('summary',{},'Instruksi agen'),instructions));
-  });
-  const collect=()=>({...config.agents,...Object.fromEntries(Object.entries(controls).map(([role,v])=>[role,{provider:v.provider.value,model:v.model.value,instructions:v.instructions.value}]))});
-  const models=h('details',{class:'panel'},h('summary',{},'Model agen & koneksi AI'),h('div',{class:'account-story-models'},modelCards),h('div',{class:'row'},h('button',{class:'btn',onclick:async()=>{config=await api('PUT','/v1/generator/settings',{agents:collect()});toast('Preset agen disimpan');}},'Simpan model agen'),h('a',{class:'btn',href:'#/generator'},'API key & model produksi')));
-  const story=await storyWorkspace({h,api,uploadFile,accounts:[a],fixedAccount:true,agents:collect,dates:{count,slides,from,until,times},toast,fmtDT});
+  const story=await storyWorkspace({h,api,uploadFile,accounts:[a],fixedAccount:true,mode:'setup',toast,fmtDT});
   pageCleanup=()=>story.dispose();
-  top.append(planning,models,story.element);
+  top.append(story.element);
   return shell(isOwner()?'/accounts':'/generator',top);
 }
 
