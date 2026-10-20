@@ -14,6 +14,7 @@ The component refresh uses original LRMsmm HTML/CSS/JavaScript. The user supplie
 
 - `#/settings` holds each signed-in user's encrypted provider keys, saved status, replacement, connection test and deletion. It is linked from the sidebar footer, menu search and Generator header; Representatives retain their two operational sidebar groups.
 - Generator opens with compact account and schedule summaries. Account checkboxes use a single horizontal row; **Selesai** collapses the picker without clearing selection. Company filtering preserves selections. Schedule fields expand when editing; model controls stay in workflow nodes.
+- Brand assets and usage rules are edited only in Account Details → Brand Kit & Cerita. The canvas has no duplicate asset upload node. Regular campaigns inherit a saved logo, visual reference and up to two product photos per account; Storyteller selects products from the saved catalog. Each selected campaign account receives separate runs/plans and its own asset snapshot. Session plans are grouped in Draft Konten; content count is per account. Existing drafts retain their original snapshots.
 - The saved storyline editor and generation actions share a compact responsive panel. Story results and approval behavior are unchanged.
 
 ## Verification
