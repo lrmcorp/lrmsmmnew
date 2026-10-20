@@ -1,5 +1,6 @@
 // LRMsmm dashboard — vanilla JS SPA (no build step). UI mengikuti hrd.playgo.id.
 import { storyWorkspace } from './story-workspace.js';
+import { generatorStudio } from './generator-studio.js';
 import { workflowCanvas } from './workflow-canvas.js';
 import { bindInteraction } from './interactions.js';
 import { HERO } from './icons.js';
@@ -841,6 +842,7 @@ async function pageSettings() {
 async function pageGenerator() {
   await loadAccounts();
   let config = await api('GET', '/v1/generator/settings');
+  let studio,storyContext=null,lastStoryJob=null,campaignRun=null,campaignRuns=[];
   const labels = { concept: 'Konsep Creator', revision: 'Concept Reviewer', image: 'Image Creator', final: 'Final Reviewer', storyteller:'Storyteller',manager:'Social Media Manager',scheduler:'Scheduler' };
   const phaseNames = { concept_review:'Tinjau konsep', planned: 'Rencana / belum dibuat', approved: 'Masuk Kalender', queued: 'Menunggu', running: 'Agen bekerja', review: 'Siap ditinjau', failed: 'Perlu tindakan', cancelled: 'Dibatalkan', drafted: 'Dikirim ke Tulis Post' };
   const inputs = {}, selected = new Set();
@@ -853,7 +855,7 @@ async function pageGenerator() {
   function summarizeAccounts(){
     const chosen=state.accounts.filter(a=>selected.has(a.id));
     accountSummary.textContent=chosen.length?chosen.slice(0,3).map(a=>'@'+a.username).join(', ')+(chosen.length>3?` +${chosen.length-3}`:''):'Pilih akun';
-    accountSummary.title=chosen.map(a=>'@'+a.username).join(', ');
+    accountSummary.title=chosen.map(a=>'@'+a.username).join(', ');studio?.update();
   }
   function drawAccounts(){
     const visible=state.accounts.filter(a=>a.status==='active'&&(!company.value||(a.company_id||'none')===company.value));
@@ -888,7 +890,8 @@ async function pageGenerator() {
   const collectAgents = () => Object.fromEntries(Object.entries(inputs).map(([r,v]) => [r, { provider: v.provider.value, model: v.model.value.trim(), instructions: v.prompt.value }]));
   const batches={runs:{},plans:{}};
   async function submitForAccounts(kind,body){
-    const targets=[...selected].sort();if(!targets.length)throw new Error('Pilih akun tujuan terlebih dahulu.');
+    if(!body.brief?.trim()){brief.setAttribute('aria-invalid','true');brief.focus();throw new Error('Tulis brief campaign sebelum membuat konten.');}
+    const targets=[...selected].sort();if(!targets.length){accountPicker.open=true;accountPicker.querySelector('input')?.focus();throw new Error('Pilih akun tujuan terlebih dahulu.');}
     const bodies=[];
     for(const aid of targets){
       const a=state.accounts.find(a=>a.id===aid);
@@ -903,7 +906,7 @@ async function pageGenerator() {
     catch(e){throw new Error((results.length?`${results.length} akun sudah dibuat; coba ulang untuk melanjutkan tanpa duplikasi. `:'')+e.message);}
     batch.signature='';return results;
   }
-  const brief = h('textarea', { 'aria-label': 'Brief campaign', placeholder: 'Contoh: Buat carousel 3 slide untuk Hannabeauty. Tujuan, audiens, penawaran yang sudah benar, gaya warna, bahasa, CTA, larangan klaim…', maxlength: 10000, rows: 5 });
+  const brief = h('textarea', { oninput:()=>{briefPreview.textContent=brief.value||'Brief campaign belum ditulis.';brief.removeAttribute('aria-invalid');campaignError.hidden=true;}, 'aria-label': 'Brief campaign', placeholder: 'Contoh: Buat carousel 3 slide untuk Hannabeauty. Tujuan, audiens, penawaran yang sudah benar, gaya warna, bahasa, CTA, larangan klaim…', maxlength: 10000, rows: 5 });
   const count = h('input', { type: 'number', min: 1, max: 10, value: 1, 'aria-label': 'Jumlah slide' });
   const at = h('input', { type: 'datetime-local', 'aria-label': 'Usulan jadwal' });
   const tomorrow = new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0,10);
@@ -913,19 +916,23 @@ async function pageGenerator() {
   const totalContents = h('input',{type:'number',min:1,max:30,value:12,'aria-label':'Jumlah konten rencana'});
   const postTimes = h('input',{value:'12:15, 19:15','aria-label':'Jam rencana WIB'});
   const planningMode = h('select',{'aria-label':'Mode perencanaan'},h('option',{value:'ai'},'AI menyusun ide/topik'),h('option',{value:'manual'},'Manual: tanggal + upload foto sendiri'));
+  const briefPreview=h('p',{class:'muted small'},'Brief campaign belum ditulis.');
+  const campaignError=h('p',{class:'err-box',role:'alert',hidden:true});
   const planButton=h('button',{class:'btn primary',onclick:async e=>{
     e.currentTarget.disabled=true;
     try {
+      campaignError.hidden=true;
       const body={brief:brief.value,content_count:Number(totalContents.value),slide_count:Number(count.value),start_date:fromDate.value,end_date:endDate.value,times:postTimes.value.split(',').map(t=>t.trim()).filter(Boolean),manual:planningMode.value==='manual',confirm_cost:true,agents:collectAgents()};
       const results=await submitForAccounts('plans',body);go('/generator/drafts?'+(results.length===1?'plan='+results[0].id:'plans='+results.map(r=>r.id).join(',')));
-    }catch(error){toast(errMsg(error),true);}finally{e.target.disabled=false;}
+    }catch(error){campaignError.textContent=errMsg(error);campaignError.hidden=false;}finally{e.target.disabled=false;}
   }},'Susun rencana → Draft Konten');
   const planner=h('div',{class:'gen-planner'},
     h('p',{class:'muted small'},'Setiap akun mendapatkan rencana dan aset brand sendiri. Isi brief dan pilih akun; gambar dibuat sesudah konsep ditinjau.'),
-    h('div',{class:'gen-form-row'},h('label',{},'Jumlah konten per akun',totalContents),h('label',{},'Dari tanggal (WIB)',fromDate),h('label',{},'Sampai tanggal (WIB)',endDate)),
-    h('div',{class:'gen-form-row'},h('label',{},'Jam kandidat WIB, pisahkan koma',postTimes),h('label',{},'Susun topik',planningMode)),
-    h('p',{class:'faint small'},'Usulan awal 12.15 dan 19.15 WIB. Waktu dibagi merata sepanjang rentang tanggal. Ini rekomendasi umum, belum analisis performa akun dan tidak menjamin hasil terbaik.'),planButton);
+    h('div',{class:'gen-form-row'},h('label',{},'Jumlah konten per akun',totalContents),h('label',{},'Slide per konten',count),h('label',{},'Dari tanggal (WIB)',fromDate),h('label',{},'Sampai tanggal (WIB)',endDate)),
+    h('div',{class:'gen-form-row'},h('label',{},'Jam kandidat WIB, pisahkan koma',postTimes)),
+    h('p',{class:'faint small'},'Usulan awal 12.15 dan 19.15 WIB. Waktu dibagi merata sepanjang rentang tanggal. Ini rekomendasi umum, belum analisis performa akun dan tidak menjamin hasil terbaik.'));
   const history = h('div', { class: 'gen-history' }), detail = h('div', { class: 'gen-detail' });
+  const campaignActivity=h('div',{class:'studio-campaign-activity'}),campaignOutput=h('section',{class:'studio-campaign-output',hidden:true},campaignActivity,detail);
   let workflow;
   let selectedId = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
   let lastSignature = '', stopped = false, fetching = false;
@@ -933,13 +940,14 @@ async function pageGenerator() {
   const startButton = h('button', { class: 'btn primary', onclick: async () => {
     startButton.disabled = true;
     try {
+      campaignError.hidden=true;
       const results=await submitForAccounts('runs',{brief:brief.value,slide_count:Number(count.value),agents:collectAgents(),scheduled_at:at.value?new Date(at.value).toISOString():null,confirm_cost:true});
       selectedId=results[0].id;lastSignature='';toast(`${results.length} proses akun dibuat memakai Brand Kit masing-masing. Hasil belum diposting.`);await refresh();
-    } catch(error) { toast(errMsg(error), true); } finally { startButton.disabled = false; }
+    } catch(error) { campaignError.textContent=errMsg(error);campaignError.hidden=false; } finally { startButton.disabled = false; }
   } }, 'Jalankan tim agen');
   const action = (text, fn, danger = false) => h('button', { class: `btn ${danger ? 'danger' : ''}`, onclick: async e => { e.currentTarget.disabled = true; try { await fn(); lastSignature = ''; await refresh(); } catch(error) { toast(errMsg(error), true); } finally { e.target.disabled = false; } } }, text);
   function drawRun(r) {
-    workflow?.setRun(r);
+    campaignRun=r;if(studio?.mode()==='campaign')workflow?.setRun(r);campaignActivity.replaceChildren(agentActivity(r));
     const index = Math.min(slides[r.id] || 0, Math.max(0, r.media.length - 1));
     const image = r.media[index];
     const acc = state.accounts.find(a => a.id === r.targets[0]?.account_id);
@@ -975,26 +983,30 @@ async function pageGenerator() {
       const { data } = await api('GET', '/v1/generator/runs');
       if (stopped) return;
       history.replaceChildren(h('h3', {}, 'Riwayat campaign'), ...data.map(r => h('button', { class: `gen-history-item ${selectedId === r.id ? 'on' : ''}`, onclick: () => { selectedId = r.id; lastSignature = ''; refresh(); } }, h('b', {}, r.brief.slice(0, 75)), h('small', {}, `${phaseNames[r.status]} · ${fmtDT(r.created_at)}`))));
+      campaignRuns=data;studio?.setCampaignRun(campaignRun,data);
+      if(studio?.mode()==='storyline'&&lastStoryJob){const child=data.find(r=>r.story_job_id===lastStoryJob.id);if(child)workflow.setRun(child);}
       const r = data.find(r => r.id === selectedId) || (!selectedId ? data[0] : null);
+      campaignOutput.hidden=!r;
       if (r) { selectedId = r.id; const signature = JSON.stringify(r); if (lastSignature !== signature) { lastSignature = signature; drawRun(r); } }
       else detail.replaceChildren(h('div', { class: 'panel empty' }, 'Isi brief dan jalankan tim agen untuk melihat hasil setiap tahap.'));
     } catch(error) { if (!stopped) toast(errMsg(error), true); } finally { fetching = false; }
   }
-  const briefNode=h('section',{class:'gen-start'},h('label',{},'Brief campaign',brief),h('label',{},'Jumlah slide per konten',count),h('p',{class:'faint small'},'Generate menggunakan API key pribadi dan tarif provider.'));
+  const briefNode=h('section',{class:'gen-start'},briefPreview,h('button',{class:'btn',onclick:()=>studio.editBrief()},'Edit brief campaign'));
+  const campaign=h('div',{class:'studio-campaign'},h('section',{class:'panel studio-campaign-form'},h('h2',{},'Mulai dari brief baru'),h('p',{class:'studio-editor-description'},'Buat rangkaian konten untuk satu atau beberapa akun. Setiap akun memakai Brand Kit sendiri.'),h('label',{},'Apa yang ingin Anda buat?',brief),campaignError,h('div',{class:'studio-campaign-options'},h('label',{},'Cara menyusun konten',planningMode),h('div',{class:'studio-primary-action'},planButton,h('p',{class:'faint small'},'Rencana masuk Draft Konten untuk ditinjau.'))),h('details',{class:'studio-single-content'},h('summary',{},'Hanya butuh satu konten?'),h('p',{class:'muted small'},'Buat konsep satu konten per akun. Gambar dimulai setelah konsep Anda setujui.'),startButton)),campaignOutput);
   const scheduleSummary=h('span',{class:'generator-schedule-summary'});
   const scheduleNode=h('details',{class:'panel generator-schedule-picker'},h('summary',{},h('b',{},'Jadwal'),scheduleSummary),planner,h('details',{class:'generator-single-schedule'},h('summary',{},'Jadwal satu konten'),h('label',{},'Jadwal satu konten (opsional)',at)),h('button',{class:'btn sm',onclick:()=>{scheduleNode.open=false;scheduleNode.querySelector('summary').focus();}},'Selesai atur jadwal'));
-  function summarizeSchedule(){scheduleSummary.textContent=`${totalContents.value} konten/akun · ${fromDate.value} – ${endDate.value} · WIB`;}
-  for(const field of [totalContents,fromDate,endDate])field.addEventListener('input',summarizeSchedule);
+  function summarizeSchedule(){const date=value=>value?new Date(value+'T00:00:00+07:00').toLocaleDateString('id-ID',{day:'numeric',month:'short',timeZone:'Asia/Jakarta'}):'Pilih tanggal';scheduleSummary.textContent=`${totalContents.value} konten/akun · ${date(fromDate.value)} – ${date(endDate.value)} · WIB`;}
+  for(const field of [totalContents,count,fromDate,endDate,postTimes])field.addEventListener('input',()=>{summarizeSchedule();studio?.update();});
   summarizeSchedule();
   workflow=workflowCanvas({h,userId:state.user.id,history,
-    actions:[action('Simpan preset',async()=>{config=await api('PUT','/v1/generator/settings',{agents:collectAgents()});toast('Preset agen disimpan');}),h('button',{class:'btn sm',onclick:()=>workflow.focusNode('result')},'Hasil'),h('a',{class:'btn sm',href:'#/generator/drafts'},'Draft Konten'),startButton],
+    actions:[action('Simpan preset',async()=>{config=await api('PUT','/v1/generator/settings',{agents:collectAgents()});toast('Preset agen disimpan');}),h('button',{class:'btn sm',onclick:()=>workflow.focusNode('result')},'Hasil'),h('a',{class:'btn sm',href:'#/generator/drafts'},'Draft Konten')],
     nodes:[
       {id:'brief',title:'Brief & Prompt',subtitle:'Tulis tujuan, audiens, tone dan arahan campaign.',x:40,y:80,width:330,color:'#b899cb',content:briefNode},
       {id:'concept',role:'concept',title:'Konsep Creator',x:460,y:80,width:295,color:'#88b7d1',content:agentCards[0]},
       {id:'revision',role:'revision',title:'Concept Reviewer',x:835,y:80,width:295,color:'#b7a1d1',content:agentCards[1]},
       {id:'image',role:'image',title:'Image Creator',x:1210,y:80,width:310,color:'#d0ad77',content:agentCards[2]},
       {id:'final',role:'final',title:'Final Reviewer',x:1600,y:80,width:300,color:'#8ebd9e',content:agentCards[3]},
-      {id:'result',title:'Preview & Persetujuan',x:1990,y:80,width:470,color:'#91b0c8',content:detail},
+      {id:'result',title:'Preview & Persetujuan',x:1990,y:80,width:470,color:'#91b0c8',content:h('div',{},h('p',{class:'muted small'},'Tinjau hasil dan beri persetujuan di area campaign atau Draft Konten.'),h('button',{class:'btn',onclick:()=>{studio.chooseMode('campaign');campaignOutput.scrollIntoView({block:'start'});}},'Buka hasil campaign'))},
       {id:'storyteller',role:'storyteller',title:'Storyteller',subtitle:'Mode cerita berkelanjutan',x:40,y:650,width:330,color:'#aabbd9',content:agentCards[4]},
       {id:'manager',role:'manager',title:'Social Media Manager',subtitle:'QC cerita dan pemilihan produk',x:460,y:650,width:310,color:'#91bdad',content:agentCards[5]},
       {id:'scheduler',role:'scheduler',title:'Scheduler',subtitle:'Diskusi QC dan alasan waktu posting',x:835,y:650,width:310,color:'#b9afd6',content:agentCards[6]}
@@ -1002,10 +1014,14 @@ async function pageGenerator() {
     edges:[{from:'brief',to:'concept'},{from:'concept',to:'revision'},{from:'revision',to:'image'},{from:'image',to:'final'},{from:'final',to:'result'},{from:'brief',to:'storyteller'},{from:'storyteller',to:'manager'},{from:'manager',to:'scheduler'},{from:'scheduler',to:'concept'}]
   });
   await refresh();
-  const story=await storyWorkspace({h,api,uploadFile,accounts:state.accounts.filter(a=>a.platform==='instagram'&&a.status==='active'),mode:'production',agents:collectAgents,dates:{count:totalContents,slides:count,from:fromDate,until:endDate,times:postTimes},toast,fmtDT});
+  const showStoryWorkflow=j=>{lastStoryJob=j;if(!studio||studio.mode()==='storyline')workflow.setRun(j?{...j,story_job_id:j.id,agents:collectAgents(),media:[]}:null);};
+  const story=await storyWorkspace({h,api,uploadFile,accounts:state.accounts.filter(a=>a.platform==='instagram'&&a.status==='active'),mode:'production',agents:collectAgents,dates:{count:totalContents,slides:count,from:fromDate,until:endDate,times:postTimes},toast,fmtDT,onContext:value=>{storyContext=value;studio?.setStoryContext(value);},onJob:showStoryWorkflow});
+  studio=generatorStudio({h,icon,story,campaign,accountPicker,schedule:scheduleNode,workflow,keyCount:config.keys.length,getSelected:()=>state.accounts.filter(a=>selected.has(a.id)),getSchedule:()=>({count:totalContents.value,slides:count.value,from:fromDate.value,until:endDate.value,times:postTimes.value}),onEditBrief:()=>brief.focus(),onMode:mode=>{if(mode==='campaign')workflow.setRun(campaignRun);else showStoryWorkflow(lastStoryJob);}});
+  if(storyContext)studio.setStoryContext(storyContext);studio.setCampaignRun(campaignRun,campaignRuns);
+  if(new URLSearchParams(location.hash.split('?')[1]||'').has('id'))studio.chooseMode('campaign');
   const timer = setInterval(refresh, 2500);
-  pageCleanup = () => { stopped = true; clearInterval(timer);workflow.dispose();story.dispose(); };
-  return shell('/generator',h('div',{class:'generator-node-page'},pagehead('Sosmed Generator','Rencanakan konten, jalankan agen, lalu tinjau hasil.',h('a',{class:'btn sm',href:'#/settings'},icon('key'),'Pengaturan AI')),h('div',{class:'workflow-setup'},accountPicker,scheduleNode),story.element,workflow.element));
+  pageCleanup = () => { stopped = true; clearInterval(timer);workflow.dispose();story.dispose();studio.dispose(); };
+  return shell('/generator',h('div',{class:'generator-node-page'},pagehead('Sosmed Generator','Cerita brand Anda, menjadi konten yang siap ditinjau.',h('button',{class:'btn',onclick:()=>studio.showAgents()},icon('team'),'Tim agen'),h('a',{class:'btn',href:'#/settings'},icon('cog'),'Pengaturan AI'),h('a',{class:'btn',href:'#/generator/drafts'},icon('doc'),'Draft Konten')),studio.element));
 }
 
 // ---------------- calendar ----------------

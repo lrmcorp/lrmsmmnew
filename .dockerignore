@@ -7,3 +7,6 @@ data
 out
 deploy
 test
+
+.agents
+skills-lock.json

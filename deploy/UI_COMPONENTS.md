@@ -17,6 +17,16 @@ The component refresh uses original LRMsmm HTML/CSS/JavaScript. The user supplie
 - Brand assets and usage rules are edited only in Account Details → Brand Kit & Cerita. The canvas has no duplicate asset upload node. Regular campaigns inherit a saved logo, visual reference and up to two product photos per account; Storyteller selects products from the saved catalog. Each selected campaign account receives separate runs/plans and its own asset snapshot. Session plans are grouped in Draft Konten; content count is per account. Existing drafts retain their original snapshots.
 - The saved storyline editor and generation actions share a compact responsive panel. Story results and approval behavior are unchanged.
 
+## Penpot skill based Generator redesign
+
+The requested `penpot-uiux-design` skill is installed in `.agents/skills/penpot-uiux-design`, with provenance in `skills-lock.json`. Its clarity, progressive disclosure, accessible controls and responsive layout guidance is applied to the existing white/emerald LRMsmm design system. No Penpot MCP connection was available; implementation and visual checks ran directly in the application, and no Penpot design file is claimed.
+
+- `public/generator-studio.js` / `.css` present **Storyline berkelanjutan** and **Campaign baru** as keyboard-accessible tabs. Editing values survive mode changes. Each mode shows its own account controls; planning is shared.
+- The editor owns the main action. A session summary shows actual account, dates/times in WIB, content/slide counts, saved Brand Kit counts and review-ready draft counts. It collapses by default on narrow screens.
+- The white canvas and all seven model/instruction controls remain in **Tim agen & model**. Live states come from existing jobs; routine creation does not require panning the canvas. Campaign previews and approvals are also available outside the canvas. Deep links to a campaign run select the campaign mode.
+- API keys remain in personal settings, Brand Kit uploads remain in account details, and existing authorization/publication gates are unchanged. Missing seed, loading account data and campaign validation have explicit UI states. The generator is disabled while switching account data; errors preserve entered text.
+- Summary updates avoid rebuilding unchanged controls during polling; media-query listeners and workflow observers are disposed on route changes. Skill sources are excluded from the production image.
+
 ## Verification
 
 An optional browser regression is saved at `test/browser-components.cjs`. It runs the real app against temporary SQLite/media, uses fixture credentials and simulated Meta, and never publishes to a real social account. It covers keyboard search, scoped commands, mobile drawer/focus state, pending button deduplication, a 12-content manual plan, photo upload, review-to-calendar approval, login form pending state, failed-login notification dismissal, and 390px/1440px layouts.
