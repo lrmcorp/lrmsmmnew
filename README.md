@@ -226,6 +226,13 @@ Default is a draft. Add `--mode schedule` to activate the schedule or `--mode no
 
 ## Sosmed Generator
 
-**Operasional → Sosmed Generator** provides a four-agent workflow: concept → revision → image generation → visual final review. Each user configures their own encrypted API keys, models and role instructions for OpenAI, Claude and Gemini. Generated images and the final caption go to a private **Tulis Post** draft for human approval; no automatic publishing from generator runs. Claude is supported for text/vision, while image generation uses OpenAI or Gemini.
+**Operasional → Sosmed Generator** provides a production workflow: concept → revision → Final Visual Conceptor → image generation → final review. The primary Generate action produces the complete proposal; publishing still requires human approval. Each user configures their own encrypted API keys, models and role instructions for OpenAI, Claude and Gemini. Generated images and the final caption go to a private **Tulis Post** draft for human approval; no automatic publishing from generator runs. Claude is supported for text/vision, while image generation uses OpenAI or Gemini.
 
 See [workflow, provider setup, boundaries and GitHub references](deploy/SOSMED_GENERATOR.md). Sosmed Generator is integrated into the main application on the same domain and uses the existing users, companies, accounts, media and Tulis Post approval flow.
+
+
+### Draft gallery and complete production
+
+Draft Konten opens as a thumbnail gallery. Open a thumbnail to preview/edit; use the checkboxes or Select all to delete multiple eligible drafts with one confirmation. `POST /v1/generator/drafts/delete` is session-only and accepts `{ "ids": ["..."] }` (1–200 unique IDs). Ownership, current account grants and draft states are checked for every item before deletion. Running/queued, handed-off and approved content cannot be bulk deleted. Shared Brand Kit assets and media referenced elsewhere remain protected.
+
+The dashboard sends `produce_media: true` for complete production from a campaign plan or Storyline session. The optional API concept-only behavior remains available when omitted. The new `visual` agent has its own model/instruction controls and saved presets; older presets inherit the concept agent's provider/model for compatibility. It receives uploaded brand references plus up to three recent thumbnails from each connected Instagram account (up to three accounts for older multi-account runs), using Meta's official API. Failed or unavailable profile imagery is reported explicitly; uploaded references still work. Feed previews are cached in memory for five minutes, never stored as uploaded files; only Meta CDN HTTPS URLs without redirects are fetched. Final image prompts preserve the caption/story and require original logos/product details to stay unchanged.

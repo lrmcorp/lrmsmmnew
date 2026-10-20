@@ -44,3 +44,12 @@ If Playwright is resolvable normally, omit PLAYWRIGHT_MODULE. The browser test i
 The Generator fetches Gemini's model catalogue using the signed-in user's encrypted personal key, with a five-minute metadata cache. Refresh it from **Tim agen → Perbarui model Gemini**. Catalogue availability does not guarantee generation quota. Keys and raw provider errors are never returned to the browser.
 
 If the Storyline Scheduler alone receives HTTP 404, it preserves completed Storyteller/QC output and creates a validated rules-based schedule across the selected future WIB slots. The proposal explicitly labels this fallback and its reasons; it does not claim account analytics or make an additional paid model call. Authentication, quota, malformed output, and invalid schedules still fail visibly. Existing failed sessions require **Coba ulang sesi**; completed stages are reused. Publishing still requires human approval.
+
+
+### Simplified production and thumbnail drafts
+
+The routine Generator screen contains account, schedule, direction and one Generate action. Both Storyline and campaign generation produce complete proposals without a separate concept approval. The optional Tim agen & model disclosure retains the editable white workflow and model controls, including Final Visual Conceptor before Image Creator. Brand assets stay in account details; API keys stay in personal settings. Publication remains a separate human decision.
+
+Draft Konten is an image-first gallery with keyboard-accessible checkboxes, Select all and a count of selected deletable items. Bulk delete requires confirmation and is validated server-side before any deletion. Filter changes clear selections that are no longer visible. Preview/edit uses an accessible native dialog opened by a thumbnail; no draft editor opens automatically on gallery navigation. Direct draft links open that specific preview. Filters and production tools are collapsed by default.
+
+`test/visual-production.js` verifies complete generation, real profile thumbnails reaching the visual agent, rejected non-Meta/private media URLs, exact caption retention, refined prompts reaching Image Creator, no automatic publishing, model compatibility and scoped bulk deletion. With PLAYWRIGHT_MODULE set it also tests desktop/mobile gallery selection, delete, preview, and one-click campaign production.

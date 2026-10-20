@@ -178,3 +178,9 @@ export async function sendMessage(igUserId, recipientId, text, token) {
 export async function postPermalink(postId, token) {
   return (await gget(G(`/${postId}`), { fields: 'permalink', access_token: token })).permalink || null;
 }
+
+// Only the connected professional account, never arbitrary public profile scraping.
+export async function recentVisuals(igUserId,token) {
+ const r=await gget(G(`/${igUserId}/media`),{fields:'id,caption,media_type,media_url,thumbnail_url,permalink',limit:3,access_token:token});
+ return (r.data||[]).slice(0,3);
+}

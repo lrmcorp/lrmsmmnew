@@ -94,11 +94,12 @@ api.delete('/generator/keys/:provider', sessionOnly, (req, res) => {
 });
 api.post('/generator/keys/:provider/test', sessionOnly, async (req, res) => res.json(await generator.testKey(U(req), req.params.provider, req.body?.model)));
 api.post('/generator/timing', sessionOnly, (req,res) => res.json(generator.timingRecommendation(U(req),req.body?.account_ids)));
+api.post('/generator/drafts/delete',sessionOnly,(req,res)=>{const result=generator.deleteContents(U(req),req.body?.ids);audit(req.auth,'generator.bulk_delete','generator_run',null,{count:result.deleted});res.json(result);});
 api.get('/generator/plans', sessionOnly, (req,res) => res.json({data:generator.listPlans(U(req))}));
 api.post('/generator/plans', sessionOnly, async (req,res) => {
   const plan = await generator.createPlan(U(req),req.body || {});
   audit(req.auth,'generator.plan','generator_plan',plan.id,{count:plan.content_count});
-  res.status(plan.replayed ? 200 : 201).json(plan);
+  setImmediate(()=>generator.runGeneratorTick());res.status(plan.replayed ? 200 : 201).json(plan);
 });
 api.post('/generator/plans/:id/start', sessionOnly, (req,res) => {
   if (req.body?.confirm_cost !== true) throw err(400,'cost_confirmation_required','Konfirmasi biaya pembuatan seluruh konten.');

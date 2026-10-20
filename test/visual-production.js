@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+const tmp=fs.mkdtempSync(os.tmpdir()+'/visual-production-');
+Object.assign(process.env,{META_MOCK:'1',DATA_DIR:tmp,DISABLE_WORKER:'1'});
+const {app}=await import('../src/server.js'),{createUser,createApiKey}=await import('../src/auth.js'),{run,one}=await import('../src/db.js'),{encrypt}=await import('../src/util.js'),{setAssignments}=await import('../src/services/scope.js'),gen=await import('../src/services/generator.js'),media=await import('../src/services/media.js');
+const sharp=(await import('sharp')).default,image=await sharp({create:{width:1024,height:1024,channels:3,background:'#def'}}).png().toBuffer();
+const user=createUser({email:'visual@fixture.id',password:'fixture-password',name:'Visual Rep',role:'rep'}),other=createUser({email:'outsider@fixture.id',password:'fixture-password',name:'Other',role:'rep'});
+run("INSERT INTO accounts(id,platform,platform_user_id,username,token_enc) VALUES('visual-brand','instagram','connected-brand','brand',?)",encrypt('private-meta-token'));setAssignments(user.id,['visual-brand']);for(const p of ['openai','anthropic','gemini'])gen.saveKey(user,p,'fixture-private-key');
+const real=global.fetch,calls=[];let graphCalls=0;
+global.fetch=async(url,opts)=>{
+ const text=String(url);
+ if(text.includes('/__mock/ig/graph/')&&text.includes('/media?')){graphCalls++;return Response.json({data:[{caption:'Brand palette and lighting',media_type:'IMAGE',media_url:'https://fixture.cdninstagram.com/feed.jpg'},{media_type:'IMAGE',media_url:'https://127.0.0.1/private'}]});}
+ if(text==='https://fixture.cdninstagram.com/feed.jpg')return new Response(image);
+ if(!/^https:\/\/(api\.openai\.com|api\.anthropic\.com|generativelanguage\.googleapis\.com)/.test(text))return real(url,opts);
+ const b=opts.body instanceof FormData?Object.fromEntries(opts.body):JSON.parse(opts.body);const system=b.system||b.messages?.[0]?.content||b.systemInstruction?.parts?.[0]?.text||'';calls.push({url:text,system,body:b});
+ if(text.includes('/images/'))return Response.json({data:[{b64_json:image.toString('base64')}]});
+ let out='Final review: check original logos before approving.';
+ if(system.includes('distinct content ideas'))out=JSON.stringify({contents:[{title:'Campaign',brief:'One complete image proposal'}]});
+ else if(system.includes('Return ONLY JSON'))out=JSON.stringify({title:'Concept',caption:system.includes('Final visual concept only')?'Forbidden caption change':'Caption kept intact',slides:[{prompt:system.includes('Final visual concept only')?'REFINED white green layout':'Original concept'}]});
+ return Response.json(text.includes('anthropic')?{content:[{type:'text',text:out}]}:text.includes('googleapis')?{candidates:[{content:{parts:[{text:out}]}}]}:{choices:[{message:{content:out}}]});
+};
+const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base='http://127.0.0.1:'+server.address().port;const {config}=await import('../src/config.js');config.publicUrl=base;
+const login=await real(base+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:user.email,password:'fixture-password'})}),cookie=login.headers.get('set-cookie').split(';')[0];
+const request=async(body,cred=cookie,machine=false)=>real(base+'/v1/generator/drafts/delete',{method:'POST',headers:{'content-type':'application/json',[machine?'authorization':'cookie']:machine?'Bearer '+cred:cred},body:JSON.stringify(body)});
+try{
+ await test('one click produces a full reviewed proposal using reference and connected Instagram visuals',async()=>{
+  const asset=await media.saveBuffer(user.id,image,{inLibrary:false});
+  const r=gen.createRun(user,{request_id:'one-click',brief:'Brand launch',account_ids:['visual-brand'],produce_media:true,reference_media_ids:[asset.id],slide_count:1,confirm_cost:true});
+  gen.runGeneratorTick();await gen.waitGenerator();const result=gen.getRun(user,r.id);
+  assert.equal(result.status,'review',JSON.stringify({error:result.error,steps:result.steps}));assert.equal(result.caption,'Caption kept intact');assert.equal(result.steps.visual.status,'done');assert.equal(result.steps.visual.profile_context.accounts[0].status,'available');assert.equal(result.steps.visual.profile_context.accounts[0].posts.length,1,'private/non-Meta URLs are never downloaded');
+  const visual=calls.find(c=>c.system.includes('Final visual concept only'));assert.equal(visual.body.messages[1].content.filter(p=>p.type==='image_url').length,2,'uploaded reference and real feed thumbnail reach visual agent');
+  const generation=calls.find(c=>c.url.includes('/images/'));assert.match(generation.body.prompt,/REFINED white green layout/);assert.match(generation.body.prompt,/MANDATORY ASSET PRESERVATION/);assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);assert.equal(graphCalls,1);
+ });
+ await test('one click campaign queues every proposal without an intermediate concept approval',async()=>{
+  const d=new Date(Date.now()+864e5+7*3600000).toISOString().slice(0,10);
+  const plan=await gen.createPlan(user,{request_id:'campaign-click',brief:'One photo',account_ids:['visual-brand'],content_count:1,slide_count:1,start_date:d,end_date:d,times:['19:15'],produce_media:true,confirm_cost:true});
+  gen.runGeneratorTick();await gen.waitGenerator();const result=gen.listRuns(user).find(r=>r.plan_id===plan.id);assert.equal(result.status,'review',JSON.stringify({error:result.error,steps:result.steps}));assert.equal(result.steps.visual.status,'done');assert.equal(graphCalls,1,'feed context is reused within the same production session');assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);
+ });
+ await test('bulk delete validates ownership, account scope and state before deleting any draft',async()=>{
+  const make=(owner,id)=>gen.createRun(owner,{request_id:id,brief:'Draft',account_ids:['visual-brand'],confirm_cost:true});
+  const a=make(user,'delete-a'),b=make(user,'delete-b');run("UPDATE generator_runs SET status='planned' WHERE id IN (?,?)",a.id,b.id);
+  let response=await request({ids:[a.id,'missing']});assert.equal(response.status,404);assert.equal(gen.getRun(user,a.id).status,'planned');
+  response=await request({ids:[a.id,a.id]});assert.equal(response.status,400);
+  run("UPDATE generator_runs SET status='running' WHERE id=?",b.id);response=await request({ids:[a.id,b.id]});assert.equal(response.status,409);assert.equal(gen.getRun(user,a.id).status,'planned');
+  run("UPDATE generator_runs SET status='planned' WHERE id=?",b.id);setAssignments(user.id,[]);response=await request({ids:[a.id,b.id]});assert.equal(response.status,404);setAssignments(user.id,['visual-brand']);
+  const api=createApiKey(user.id,'fixture','write');response=await request({ids:[a.id]},api.key||api.token,true);assert.equal(response.status,403);
+  response=await request({ids:[a.id,b.id]});assert.equal(response.status,200);assert.deepEqual(await response.json(),{deleted:2});assert.throws(()=>gen.getRun(user,a.id));
+ });
+ if(process.env.PLAYWRIGHT_MODULE)await test('thumbnail gallery bulk selection, focused preview, and one-action campaign on desktop/mobile',async()=>{
+  const {createRequire}=await import('node:module'),{chromium}=createRequire(import.meta.url)(process.env.PLAYWRIGHT_MODULE);const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
+  try{
+   const context=await browser.newContext({viewport:{width:1440,height:1000},timezoneId:'Asia/Jakarta'});await context.addCookies([{name:'lrmsmm_sid',value:cookie.split('=')[1],url:base}]);const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+   const drafts=[];for(let i=0;i<3;i++){const r=gen.createRun(user,{request_id:'gallery-'+i,brief:'Gallery selection '+i,account_ids:['visual-brand'],confirm_cost:true});run("UPDATE generator_runs SET status='planned' WHERE id=?",r.id);drafts.push(r.id);}
+   await page.goto(base+'/#/generator/drafts');await page.locator('.draft-tile').first().waitFor();assert.equal(await page.locator('dialog[open]').count(),0);assert.equal(await page.locator('.draft-tile').count(),5);
+   const boxes=page.getByRole('checkbox',{name:/^Pilih draft Gallery selection/});await boxes.nth(0).check();await boxes.nth(1).check();assert.equal(await page.getByRole('button',{name:'Hapus terpilih',exact:true}).isEnabled(),true);
+   page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Hapus terpilih',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.draft-tile').length===3);assert.equal(one("SELECT COUNT(*) n FROM generator_runs WHERE status='deleted'").n,4);
+   await page.locator('.draft-thumbnail').first().click();await page.getByRole('dialog',{name:'Preview dan edit draft'}).waitFor();await page.getByRole('button',{name:'Tutup preview draft',exact:true}).click();assert.equal(await page.locator('dialog[open]').count(),0);
+   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(100);await page.evaluate(()=>document.body.classList.remove('side-open'));assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));if(process.env.DRAFT_SCREENSHOT)await page.screenshot({path:process.env.DRAFT_SCREENSHOT,fullPage:true});
+   await page.goto(base+'/#/generator');await page.getByRole('tab',{name:/^Campaign baru/}).click();assert.equal(await page.locator('.studio-agents').evaluate(el=>el.open),false);assert.equal(await page.getByLabel('Produksi media proposal').count(),0);assert.equal(await page.getByRole('button',{name:'Generate konten',exact:true}).count(),1);
+   await page.locator('.generator-account-picker>summary').click();await page.getByLabel('Pilih @brand',{exact:true}).check();await page.getByRole('button',{name:'Selesai',exact:true}).click();await page.getByLabel('Brief campaign',{exact:true}).fill('One complete campaign');await page.locator('.generator-schedule-picker>summary').click();await page.getByLabel('Jumlah konten rencana',{exact:true}).fill('1');await page.getByRole('button',{name:'Selesai atur jadwal',exact:true}).click();await page.evaluate(()=>window.scrollTo(0,0));if(process.env.GENERATOR_SCREENSHOT)await page.screenshot({path:process.env.GENERATOR_SCREENSHOT,fullPage:true});
+   await page.getByRole('button',{name:'Generate konten',exact:true}).click();await page.waitForURL(/#\/generator\/drafts\?plan=/);await gen.waitGenerator();const planId=page.url().split('plan=')[1];const result=gen.listRuns(user).find(r=>r.plan_id===planId);assert.equal(result.status,'review',result.error);assert.equal(result.steps.visual.status,'done');assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+ });
+}finally{global.fetch=real;await gen.waitGenerator();await new Promise(r=>server.close(r));fs.rmSync(tmp,{recursive:true,force:true});}
