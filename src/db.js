@@ -270,3 +270,11 @@ db.exec(`CREATE TABLE IF NOT EXISTS generator_plans (
 for (const [column, definition] of [['reference_media_ids', "TEXT NOT NULL DEFAULT '[]'"], ['reference_notes', "TEXT NOT NULL DEFAULT ''"], ['reference_roles', "TEXT NOT NULL DEFAULT '{}'"]]) {
  if (!db.prepare('PRAGMA table_info(generator_runs)').all().some(c => c.name === column)) db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
 }
+
+// Human review gates, slide history and draft retention. Existing drafts get seven days from upgrade.
+for (const [column, definition] of [['concept_approved_at','TEXT'],['draft_touched_at','TEXT'],['media_versions',"TEXT NOT NULL DEFAULT '[]'"]]) {
+  if (!db.prepare('PRAGMA table_info(generator_runs)').all().some(c => c.name === column)) {
+    db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
+    if (column === 'draft_touched_at') db.prepare('UPDATE generator_runs SET draft_touched_at=?').run(new Date().toISOString());
+  }
+}

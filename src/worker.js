@@ -5,10 +5,11 @@ import { runPublisherTick, refreshMissingPermalinks } from './services/publisher
 import { syncAllComments, syncInsights } from './services/engagement.js';
 import { refreshExpiringTokens, refreshAllProfiles } from './services/accounts.js';
 import { gcMedia, purgePublishedMedia } from './services/media.js';
-import { runGeneratorTick } from './services/generator.js';
+import { runGeneratorTick, expireDrafts } from './services/generator.js';
 import { syncAllMessages } from './services/messages.js';
 
 const JOBS = [
+  { name: 'generator_draft_expiry', everyMs: 15 * 60_000, fn: expireDrafts },
   { name: 'permalinks', everyMs: 5 * 60_000, fn: refreshMissingPermalinks },
   { name: 'profiles', everyMs: 6 * 3600_000, fn: refreshAllProfiles },
   { name: 'comments', everyMs: 10 * 60_000, fn: syncAllComments },

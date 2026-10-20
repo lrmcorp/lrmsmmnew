@@ -59,7 +59,7 @@ async function http(method, route, body, cred = cookie, machine = false) {
 }
 let seq = 0;
 const make = (overrides = {}) => gen.createRun(user, { request_id: 'run-' + ++seq, brief: 'Make a wellness carousel in Indonesian', account_ids: ['ig-generator'], slide_count: 2, confirm_cost: true, ...overrides });
-async function execute(r) { gen.runGeneratorTick(); await gen.waitGenerator(); return gen.getRun(user, r.id); }
+async function execute(r) { gen.runGeneratorTick(); await gen.waitGenerator();let current=gen.getRun(user,r.id);if(current.status==='concept_review'){gen.approveConcept(user,r.id,{confirm_cost:true});gen.runGeneratorTick();await gen.waitGenerator();} return gen.getRun(user, r.id); }
 
 test('personal credentials, provider contracts, durable pipeline and final handoff', async t => {
   try {
@@ -75,6 +75,53 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.throws(() => make({ confirm_cost: false }), /Konfirmasi/);
       assert.throws(() => make({ account_ids: ['unassigned'] }), /tidak ditemukan/);
       assert.throws(() => make({ agents: { ...gen.DEFAULT_AGENTS, image: { ...gen.DEFAULT_AGENTS.image, provider: 'anthropic' } } }), /Provider/);
+    });
+    await t.test('human concept gate prevents image spend and selective revision preserves other slides',async()=>{
+      const r=make();const before=providerCalls.length;
+      gen.runGeneratorTick();await gen.waitGenerator();
+      const concept=gen.getRun(user,r.id);assert.equal(concept.status,'concept_review');assert.equal(concept.media.length,0);
+      const calls=providerCalls.slice(before);assert.equal(calls.length,2);assert.ok(calls[0].body.response_format?.json_schema?.strict);assert.equal(calls[1].body.tool_choice?.name,'submit_content_plan');
+      assert.throws(()=>gen.approveConcept(user,r.id,{confirm_cost:false}),/Konfirmasi/);
+      assert.throws(()=>gen.approveConcept(other,r.id,{confirm_cost:true}),/tidak ditemukan/);
+      const edited={...concept.steps.revision.output,caption:'Human approved concept caption'};
+      gen.approveConcept(user,r.id,{confirm_cost:true,concept:edited});const ready=await execute(r);
+      assert.equal(ready.status,'review');assert.equal(ready.caption,edited.caption);
+      const original=[...ready.media_ids], callsBefore=providerCalls.length;
+      gen.regenerateSlide(user,r.id,{request_id:'single-slide-white',slide_index:1,instruction:'Keep product; white background',confirm_cost:true});
+      assert.throws(()=>gen.regenerateSlide(user,r.id,{request_id:'different-request',slide_index:1,instruction:'duplicate',confirm_cost:true}),/Revisi/);
+      const revised=await execute(r);assert.equal(revised.status,'review');assert.equal(revised.media_ids[0],original[0]);assert.notEqual(revised.media_ids[1],original[1]);
+      assert.equal(revised.media_versions[0].media_id,original[1]);assert.equal(providerCalls.length-callsBefore,2);assert.equal(gen.regenerateSlide(user,r.id,{request_id:'single-slide-white',slide_index:1,instruction:'Keep product; white background',confirm_cost:true}).status,'review');assert.equal(providerCalls.length-callsBefore,2);
+      assert.ok(providerCalls.slice(callsBefore).some(c=>String(c.body.prompt).includes('white background')));
+      assert.throws(()=>deleteMedia(original[1]),/dipakai/);
+      const imagesBefore=providerCalls.length;gen.updateContent(user,r.id,{content:'Caption only edit'});assert.equal(providerCalls.length,imagesBefore);
+      gen.deleteContent(user,r.id);assert.throws(()=>gen.getRun(user,r.id),/tidak ditemukan/);
+      for(const mid of [...original,...revised.media_ids])assert.equal(one('SELECT id FROM media WHERE id=?',mid),undefined);
+    });
+    await t.test('seven-day unchanged drafts expire safely; changed drafts and scheduled content survive',async()=>{
+      const {saveBuffer}=await import('../src/services/media.js');
+      const privateAsset=await saveBuffer(user.id,image,{inLibrary:false});
+      const sharedAsset=await saveBuffer(user.id,image,{inLibrary:false});
+      const libraryAsset=await saveBuffer(user.id,image,{inLibrary:true});
+      const expired=make({reference_media_ids:[privateAsset.id,sharedAsset.id,libraryAsset.id]});
+      const survivor=make({reference_media_ids:[sharedAsset.id]});gen.cancelRun(user,survivor.id);
+      gen.cancelRun(user,expired.id);
+      // Shared reference remains protected by another waiting concept.
+      run("UPDATE generator_runs SET status='concept_review' WHERE id=?",survivor.id);
+      const old=new Date(Date.now()-8*864e5).toISOString();
+      run('UPDATE generator_runs SET draft_touched_at=?,updated_at=? WHERE id=?',old,old,expired.id);
+      assert.equal((await http('DELETE','/runs/'+expired.id+'/content',undefined,otherCookie)).status,404);
+      gen.expireDrafts();assert.equal(one('SELECT status FROM generator_runs WHERE id=?',expired.id).status,'deleted');
+      assert.equal(one('SELECT id FROM media WHERE id=?',privateAsset.id),undefined);assert.ok(one('SELECT id FROM media WHERE id=?',sharedAsset.id));assert.ok(one('SELECT id FROM media WHERE id=?',libraryAsset.id));
+      assert.ok(!gen.listRuns(user).some(r=>r.id===expired.id));
+      const active=make();run('UPDATE generator_runs SET draft_touched_at=? WHERE id=?',old,active.id);gen.expireDrafts();assert.equal(one('SELECT status FROM generator_runs WHERE id=?',active.id).status,'queued');gen.cancelRun(user,active.id);gen.deleteContent(user,active.id);
+      const edit=make();run("UPDATE generator_runs SET status='planned',draft_touched_at=? WHERE id=?",old,edit.id);
+      gen.updateContent(user,edit.id,{content:''});assert.equal(one('SELECT draft_touched_at FROM generator_runs WHERE id=?',edit.id).draft_touched_at,old,'saving unchanged content does not reset expiry');
+      gen.updateContent(user,edit.id,{content:'Changed content'});assert.notEqual(one('SELECT draft_touched_at FROM generator_runs WHERE id=?',edit.id).draft_touched_at,old);gen.expireDrafts();assert.notEqual(gen.getRun(user,edit.id).status,'deleted');
+      const manual=make();run("UPDATE generator_runs SET status='planned' WHERE id=?",manual.id);gen.updateContent(user,manual.id,{media_ids:[sharedAsset.id]});
+      const scheduled=gen.approveContent(user,manual.id,{scheduled_at:new Date(Date.now()+864e5).toISOString()});
+      run('UPDATE generator_runs SET draft_touched_at=? WHERE id=?',old,manual.id);gen.expireDrafts();assert.equal(gen.getRun(user,manual.id).status,'approved');assert.ok(one('SELECT id FROM posts WHERE id=?',scheduled.id));assert.throws(()=>gen.deleteContent(user,manual.id),/disetujui/);
+      gen.deleteContent(user,survivor.id);gen.deleteContent(user,edit.id);
+      assert.ok(one('SELECT id FROM media WHERE id=?',sharedAsset.id),'scheduled post still holds its asset');
     });
     await t.test('12-content date range planning, manual upload/edit and approval enter calendar only after approval', async () => {
       const date = days => new Date(Date.now()+days*864e5+7*3600000).toISOString().slice(0,10);
@@ -205,11 +252,11 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       const a = gen.createRun(user, body); assert.equal(gen.createRun(user, body).id, a.id);
       assert.throws(() => gen.createRun(user, { ...body, brief: 'Changed' }), /request_id/);
       gen.cancelRun(user, a.id);
-      malformed = true; let r = await execute(make()); assert.equal(r.status, 'failed'); assert.ok(r.error.includes('JSON')); malformed = false; gen.cancelRun(user, r.id);
+      malformed = true; let r = await execute(make()); assert.equal(r.status, 'failed'); assert.ok(r.error.includes('format')); malformed = false; gen.cancelRun(user, r.id);
       r = make(); setAssignments(user.id, []); gen.runGeneratorTick(); await gen.waitGenerator(); assert.equal(one('SELECT status FROM generator_runs WHERE id=?', r.id).status, 'failed');
       setAssignments(user.id, ['ig-generator']); gen.cancelRun(user, r.id);
       let release; gate = new Promise(r => { release = r; }); const started = new Promise(r => { blocked = r; });
-      r = make(); gen.runGeneratorTick(); await started; gen.cancelRun(user, r.id); release(); await gen.waitGenerator(); gate = null; blocked = null;
+      r = make();gen.runGeneratorTick();await gen.waitGenerator();assert.equal(gen.getRun(user,r.id).status,'concept_review');gen.approveConcept(user,r.id,{confirm_cost:true}); gen.runGeneratorTick(); await started; gen.cancelRun(user, r.id); release(); await gen.waitGenerator(); gate = null; blocked = null;
       assert.equal(gen.getRun(user, r.id).status, 'cancelled'); assert.equal(gen.getRun(user, r.id).media.length, 0);
       await assert.rejects(() => gen.handoff(user, r.id, {}), /Tunggu/);
       const stale = make(); const callsBefore = providerCalls.length;

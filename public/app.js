@@ -737,6 +737,17 @@ function visualReferences(initial = [], initialNotes = '', onChange = () => {}, 
 
 const wibInput = iso => iso ? new Date(Date.parse(iso) + 7 * 3600000).toISOString().slice(0,16) : '';
 const wibIso = value => value ? new Date(value + ':00+07:00').toISOString() : null;
+function conceptReviewPanel(r,approve) {
+  if(r.status!=='concept_review')return null;
+  const plan=r.steps.revision?.output;if(!plan)return null;
+  const title=h('input',{'aria-label':'Judul konsep',value:plan.title});
+  const caption=h('textarea',{'aria-label':'Caption konsep',maxlength:2200},plan.caption);
+  const prompts=plan.slides.map((slide,i)=>h('textarea',{'aria-label':`Arahan visual slide ${i+1}`,maxlength:6000},slide.prompt));
+  return h('section',{class:'panel concept-review-panel'},h('h2',{},'Tinjau konsep sebelum membuat gambar'),
+    h('p',{class:'muted small'},'Agen konsep dan reviewer sudah selesai. Belum ada biaya pembuatan gambar. Edit konsep di bawah, lalu setujui untuk melanjutkan.'),
+    h('label',{},'Judul',title),h('label',{},'Caption',caption),...prompts.map((input,i)=>h('label',{},`Slide ${i+1} · Arahan visual`,input)),
+    h('button',{class:'btn primary',onclick:async()=>{if(confirm(`Setujui konsep ini dan buat ${plan.slides.length} gambar memakai API berbayar?`))await approve({title:title.value,caption:caption.value,slides:prompts.map(input=>({prompt:input.value}))});}},'Setujui konsep & Buat gambar'));
+}
 async function pageContentDrafts() {
   await loadAccounts();
   const query = new URLSearchParams(location.hash.split('?')[1] || '');
@@ -749,12 +760,12 @@ async function pageContentDrafts() {
   const company = h('select',{'aria-label':'Perusahaan draft',onchange:()=>{selectedId='';last='';refresh();}},h('option',{value:''},'Semua perusahaan'),companyGroups().map(c=>h('option',{value:c.id||'none'},c.name)));
   const statusFilter = h('select',{'aria-label':'Status draft',onchange:()=>{selectedId='';last='';refresh();}},h('option',{value:'pending'},'Belum disetujui'),h('option',{value:'all'},'Semua'),h('option',{value:'approved'},'Sudah masuk kalender'));
   const list=h('div',{class:'draft-list'}), detail=h('div',{class:'draft-editor'}), summary=h('p',{class:'muted small'});
-  const labels={planned:'Rencana / belum dibuat',queued:'Menunggu agen',running:'Agen bekerja',review:'Perlu persetujuan',failed:'Gagal / bisa direvisi',drafted:'Draf Tulis Post',approved:'Terjadwal',cancelled:'Dibatalkan'};
+  const labels={concept_review:'Tinjau konsep',planned:'Rencana / belum dibuat',queued:'Menunggu agen',running:'Agen bekerja',review:'Perlu persetujuan',failed:'Gagal / bisa direvisi',drafted:'Draf Tulis Post',approved:'Terjadwal',cancelled:'Dibatalkan'};
   const act=(text,fn,primary=false)=>h('button',{class:`btn ${primary?'primary':''}`,onclick:async e=>{e.currentTarget.disabled=true;try{await fn();last='';await refresh();}catch(error){toast(errMsg(error),true);}finally{e.target.disabled=false;}}},text);
   function draw(r) {
     const edit=edits[r.id] ||= {content:r.caption,brief:r.brief,at:wibInput(r.scheduled_at),references:r.references||[],reference_notes:r.reference_notes||'',reference_roles:r.reference_roles||{}};
     const refs=visualReferences(edit.references,edit.reference_notes,(images,notes,roles)=>{edit.references=[...images];edit.reference_notes=notes;edit.reference_roles=roles;},edit.reference_roles);
-    const editable=['planned','review','failed'].includes(r.status);
+    const editable=['planned','concept_review','review','failed'].includes(r.status);
     const caption=h('textarea',{'aria-label':'Caption draft',maxlength:2200,oninput:e=>{edit.content=e.target.value;}},edit.content);
     const prompt=h('textarea',{'aria-label':'Prompt draft',maxlength:10000,oninput:e=>{edit.brief=e.target.value;}},edit.brief);
     const at=h('input',{type:'datetime-local',value:edit.at,'aria-label':'Jadwal draft WIB',oninput:e=>{edit.at=e.target.value;}});
@@ -771,6 +782,8 @@ async function pageContentDrafts() {
     detail.replaceChildren(h('div',{class:'panel'},h('div',{class:'row'},h('h2',{},r.title||'Draft Konten'),h('span',{class:'spacer'}),h('span',{class:'pill'},labels[r.status]||r.status)),
       ['queued','running','failed'].includes(r.status)?agentActivity(r):null,
       h('p',{class:'muted small'},r.targets.map(t=>state.accounts.find(a=>a.id===t.account_id)?.username||'').map(u=>'@'+u).join(', ')),
+      r.expires_at?h('p',{class:'draft-expiry'},`Otomatis dihapus ${fmtDT(r.expires_at)} jika tidak ada perubahan tersimpan selama 7 hari.`):null,
+      conceptReviewPanel(r,async concept=>{await api('POST',`/v1/generator/runs/${r.id}/approve-concept`,{concept,confirm_cost:true});delete edits[r.id];last='';await refresh();toast('Konsep disetujui. Gambar mulai dibuat.');}),
       h('div',{class:'draft-review'},
         h('div',{class:'pv instagram'},h('div',{class:'hd'},acc?avatar(acc):null,acc?.username||'Pratinjau Instagram'),h('div',{class:'img'},image?.url ? image.type==='video'?h('video',{src:image.url,controls:true,muted:true}):h('img',{src:image.url,alt:`Slide ${index+1}`}):image?.status==='purged'?'File telah dibersihkan setelah terbit.':'Belum ada foto. Buat dengan agen atau unggah sendiri.'),
           images.length>1?h('div',{class:'row gen-slide-controls'},act('‹',()=>{previewSlides[r.id]=(index+images.length-1)%images.length;draw(r);}),h('span',{},`${index+1}/${images.length}`),act('›',()=>{previewSlides[r.id]=(index+1)%images.length;draw(r);})):null,
@@ -779,17 +792,21 @@ async function pageContentDrafts() {
           h('p',{class:'faint small'},'Rekomendasi awal: 12.15 atau 19.15 WIB. Belum berdasarkan analisis akun; Anda menentukan jadwal akhirnya.'),
           r.error?h('div',{class:'err-box'},r.error):null,
           editable?h('div',{class:'row'},act('Upload / ganti foto',mediaPicker),act('Simpan draft',async()=>{await save();toast('Draf disimpan. Belum masuk jadwal aktif.');})) : null,
-          editable?act('Setujui & Masukkan Kalender',async()=>{
+          editable&&(r.status==='review'||chosenMedia[r.id]?.length)?act('Setujui & Masukkan Kalender',async()=>{
             if(!edit.at) throw new Error('Pilih tanggal dan jam posting terlebih dahulu.');
             if(!confirm('Setujui konten ini untuk otomatis terbit pada jadwal yang dipilih?'))return;
-            await save();const p=await api('POST',`/v1/generator/runs/${r.id}/approve`,{content:edit.content,scheduled_at:wibIso(edit.at)});toast('Disetujui dan masuk Kalender Konten');go('/posts/'+p.id);
+            await save();const p=await api('POST',`/v1/generator/runs/${r.id}/approve`,{content:edit.content,scheduled_at:wibIso(edit.at)});toast('Disetujui dan masuk Kalender Konten');delete edits[r.id];
           },true):null,
           r.post_id?h('a',{class:'btn primary',href:'#/posts/'+r.post_id},'Lihat jadwal / posting'):null,
           r.status==='drafted'&&r.draft_id?h('a',{class:'btn',href:'#/compose?ai_draft='+r.draft_id},'Lanjut di Tulis Post'):null)),
       editable?h('details',{},h('summary',{},'Edit prompt / buat ulang sampai sesuai'),prompt,refs.element,
         h('p',{class:'muted small'},'Upload foto sendiri tidak memakai biaya AI. Buat ulang menjalankan agen lagi dengan biaya API; versi sebelumnya ditandai batal.'),
-        h('div',{class:'row'},r.status==='planned'?act('Buat gambar dengan agen',async()=>{await save();if(confirm(`Jalankan agen untuk ${r.slide_count} slide dengan API berbayar?`))await api('POST',`/v1/generator/runs/${r.id}/start`,{confirm_cost:true});}):null,
+        h('div',{class:'row'},r.status==='planned'?act('Buat konsep dengan agen',async()=>{await save();if(confirm(`Buat konsep ${r.slide_count} slide dengan API berbayar? Pembuatan gambar menunggu persetujuan konsep.`))await api('POST',`/v1/generator/runs/${r.id}/start`,{confirm_cost:true});}):null,
           act('Revisi prompt & Generate ulang',async()=>{if(!confirm('Jalankan ulang agen memakai prompt ini? Biaya API berlaku.'))return;await save();const next=await api('POST',`/v1/generator/runs/${r.id}/revise`,{request_id:crypto.randomUUID(),brief:edit.brief,confirm_cost:true});selectedId=next.id;}))) : null,
+      r.status==='review'&&r.steps.revision?.output?.slides?.[index]?h('section',{class:'panel'},h('h3',{},`Revisi hanya slide ${index+1}`),h('p',{class:'muted small'},'Slide lain dan konsep dipertahankan. Hanya satu gambar serta final review dijalankan kembali.'),
+        h('button',{class:'btn',onclick:async()=>{const instruction=window.prompt('Arahan revisi slide ini (contoh: pertahankan produk, ubah latar menjadi putih):');if(!instruction?.trim()||!confirm('Revisi satu gambar dan jalankan final review dengan biaya API?'))return;await api('POST',`/v1/generator/runs/${r.id}/slides/revise`,{request_id:crypto.randomUUID(),slide_index:index,instruction,confirm_cost:true});delete edits[r.id];last='';await refresh();}},'Buat ulang slide ini')):null,
+      r.media_versions?.some(v=>v.slide_index===index)?h('details',{class:'slide-version-history'},h('summary',{},`Versi sebelumnya · Slide ${index+1}`),h('div',{class:'slide-version-grid'},r.media_versions.filter(v=>v.slide_index===index).map(v=>h('figure',{},v.media?.url?h('img',{src:v.media.url,alt:'Versi slide sebelumnya'}):null,h('figcaption',{},v.instruction))))):null,
+      ['planned','concept_review','review','failed','cancelled'].includes(r.status)&&!r.post_id&&!r.draft_id?act('Hapus draft',async()=>{if(!confirm('Hapus draft ini beserta file yang tidak dipakai konten lain? Tindakan ini tidak dapat dibatalkan.'))return;await api('DELETE',`/v1/generator/runs/${r.id}/content`);delete edits[r.id];selectedId='';toast('Draft dihapus');}):null,
       r.steps.final?.output?h('details',{},h('summary',{},'Catatan reviewer'),h('p',{class:'gen-findings'},r.steps.final.output)):null,
       ['queued','running'].includes(r.status)?h('a',{class:'btn',href:'#/generator?id='+r.id},'Lihat proses agen'):null));
   }
@@ -799,8 +816,8 @@ async function pageContentDrafts() {
       let {data}=await api('GET','/v1/generator/runs');if(stopped)return;
       data=data.filter(r=>(!planSelect.value||r.plan_id===planSelect.value)&&(!company.value||r.targets.some(t=>{const a=state.accounts.find(a=>a.id===t.account_id);return a&&(a.company_id||'none')===company.value;}))&&(statusFilter.value==='all'||statusFilter.value==='approved'?statusFilter.value==='all'||r.status==='approved':!['approved','cancelled'].includes(r.status)));
       if(planSelect.value)data.sort((a,b)=>String(a.scheduled_at||'').localeCompare(String(b.scheduled_at||'')));
-      summary.textContent=`${data.length} konten · draf belum disetujui tidak mengaktifkan posting.`;
-      list.replaceChildren(...data.map(r=>h('button',{class:`gen-history-item ${selectedId===r.id?'on':''}`,onclick:()=>{selectedId=r.id;last='';refresh();}},h('b',{},r.title||r.brief.slice(0,70)),h('small',{},labels[r.status]||r.status),h('small',{},r.scheduled_at?wibInput(r.scheduled_at).replace('T',' ')+' WIB':'Belum ada jadwal'))));
+      summary.textContent=`${data.length} konten · Draft yang belum dikirim/disetujui dan tidak berubah selama 7 hari dihapus otomatis. Membuka halaman tidak memperpanjang masa simpan. Klik Simpan draft setelah mengedit.`;
+      list.replaceChildren(...data.map(r=>h('button',{class:`gen-history-item ${selectedId===r.id?'on':''}`,onclick:()=>{selectedId=r.id;last='';refresh();}},r.media?.[0]?.url?h('img',{class:'draft-card-image',src:r.media[0].url,alt:'Preview konten'}):h('div',{class:'draft-card-placeholder'},r.status==='concept_review'?'Konsep siap ditinjau':'Belum ada gambar'),h('b',{},r.title||r.brief.slice(0,70)),h('small',{},labels[r.status]||r.status),h('small',{},r.scheduled_at?wibInput(r.scheduled_at).replace('T',' ')+' WIB':'Belum ada jadwal'))));
       const r=data.find(r=>r.id===selectedId)||data[0];
       if(r){selectedId=r.id;const signature=JSON.stringify(r);if(last!==signature){last=signature;draw(r);}}else detail.replaceChildren(h('div',{class:'panel empty'},'Belum ada draf di filter ini. Buat rencana konten dari Sosmed Generator.'));
     }catch(error){if(!stopped)toast(errMsg(error),true);}finally{fetching=false;}
@@ -808,7 +825,7 @@ async function pageContentDrafts() {
   await refresh();const timer=setInterval(refresh,5000);pageCleanup=()=>{stopped=true;clearInterval(timer);};
   return shell('/generator/drafts',h('div',{},pagehead('Draft Konten','Hasil generator dan rencana posting. Review dahulu, lalu aktifkan jadwal di kalender.',h('a',{class:'btn primary',href:'#/generator'},'Buat rencana konten')),
     h('div',{class:'calendar-filters'},h('label',{},'Rencana',planSelect),h('label',{},'Perusahaan',company),h('label',{},'Status',statusFilter)),
-    h('div',{class:'row'},act('Generate semua rencana terpilih',async()=>{if(!planSelect.value)throw new Error('Pilih satu rencana terlebih dahulu.');const p=plans.find(p=>p.id===planSelect.value);if(confirm(`Buat seluruh konten yang belum dibuat dalam rencana ${p?.content_count||''} konten ini? Setiap konten menjalankan agen dan gambar dengan biaya API.`)){const result=await api('POST',`/v1/generator/plans/${planSelect.value}/start`,{confirm_cost:true});toast(`${result.queued} konten masuk antrean agen`);}}),h('a',{class:'btn',href:'#/calendar'},'Kalender Konten')),summary,
+    h('div',{class:'row'},act('Buat konsep semua rencana terpilih',async()=>{if(!planSelect.value)throw new Error('Pilih satu rencana terlebih dahulu.');const p=plans.find(p=>p.id===planSelect.value);if(confirm(`Buat seluruh konten yang belum dibuat dalam rencana ${p?.content_count||''} konten ini? Tahap ini hanya membuat konsep dengan biaya API. Gambar menunggu persetujuan Anda.`)){const result=await api('POST',`/v1/generator/plans/${planSelect.value}/start`,{confirm_cost:true});toast(`${result.queued} konten masuk antrean agen`);}}),h('a',{class:'btn',href:'#/calendar'},'Kalender Konten')),summary,
     h('div',{class:'draft-workspace'},list,detail)));
 }
 
@@ -817,7 +834,7 @@ async function pageGenerator() {
   await loadAccounts();
   let config = await api('GET', '/v1/generator/settings');
   const labels = { concept: 'Konsep Creator', revision: 'Concept Reviewer', image: 'Image Creator', final: 'Final Reviewer' };
-  const phaseNames = { planned: 'Rencana / belum dibuat', approved: 'Masuk Kalender', queued: 'Menunggu', running: 'Agen bekerja', review: 'Siap ditinjau', failed: 'Perlu tindakan', cancelled: 'Dibatalkan', drafted: 'Dikirim ke Tulis Post' };
+  const phaseNames = { concept_review:'Tinjau konsep', planned: 'Rencana / belum dibuat', approved: 'Masuk Kalender', queued: 'Menunggu', running: 'Agen bekerja', review: 'Siap ditinjau', failed: 'Perlu tindakan', cancelled: 'Dibatalkan', drafted: 'Dikirim ke Tulis Post' };
   const inputs = {}, selected = new Set();
   const accountBox = h('div', { class: 'acc-picker' });
   const company = h('select', { 'aria-label': 'Perusahaan generator', onchange: () => { selected.clear(); drawAccounts(); } }, h('option', { value: '' }, 'Semua perusahaan'), companyGroups().filter(c => c.accounts.length).map(c => h('option', { value: c.id || 'none' }, c.name)));
@@ -931,10 +948,11 @@ async function pageGenerator() {
           role === 'image' && step ? h('small', {}, `${step.completed_slides || 0}/${r.slide_count} slide`) : null,
           output ? h('details', {}, h('summary', {}, 'Lihat hasil'), h('pre', {}, typeof output === 'string' ? output : JSON.stringify(output, null, 2)), step.usage ? h('pre', { class: 'faint small' }, JSON.stringify(step.usage, null, 2)) : null) : null);
       })),
+      conceptReviewPanel(r,async concept=>{await api('POST',`/v1/generator/runs/${r.id}/approve-concept`,{concept,confirm_cost:true});lastSignature='';await refresh();}),
       r.error ? h('div', { class: 'err-box' }, r.error) : null,
       h('div', { class: 'row' },
         r.status === 'failed' ? action('Coba ulang tahap gagal', async () => { if (confirm('Tahap selesai dipertahankan. Panggilan ulang dapat dikenakan biaya API lagi. Lanjutkan?')) await api('POST', `/v1/generator/runs/${r.id}/retry`); }) : null,
-        ['queued','running','review','failed'].includes(r.status) ? action('Batalkan', async () => { if (confirm('Hentikan tahap berikutnya? Panggilan provider yang sudah berjalan mungkin tetap ditagihkan.')) await api('DELETE', `/v1/generator/runs/${r.id}`); }, true) : null)),
+        ['queued','running','concept_review','review','failed'].includes(r.status) ? action('Batalkan', async () => { if (confirm('Hentikan tahap berikutnya? Panggilan provider yang sudah berjalan mungkin tetap ditagihkan.')) await api('DELETE', `/v1/generator/runs/${r.id}`); }, true) : null)),
       image ? h('div', { class: 'gen-review-grid' },
         h('div', { class: 'pv instagram gen-feed' }, h('div', { class: 'hd' }, acc ? avatar(acc) : null, acc?.username || 'Pratinjau feed'),
           h('div', { class: 'img' }, image.url ? h('img', { src: image.url, alt: `Slide ${index + 1}` }) : 'File telah dibersihkan setelah terbit.'),

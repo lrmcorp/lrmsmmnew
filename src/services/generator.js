@@ -52,7 +52,7 @@ export async function testKey(user, provider, model) {
 }
 function rawRun(user, runId) {
   const row = one('SELECT * FROM generator_runs WHERE id=? AND user_id=?', runId, user.id);
-  if (!row) throw err(404, 'not_found', 'Proses generator tidak ditemukan.');
+  if (!row || row.status==='deleted') throw err(404, 'not_found', 'Proses generator tidak ditemukan.');
   const currentUser = one('SELECT * FROM users WHERE id=?', user.id);
   for (const t of parseJSON(row.targets, [])) assertAccount(currentUser, t.account_id);
   return row;
@@ -60,12 +60,12 @@ function rawRun(user, runId) {
 export function getRun(user, runId) {
   const r = rawRun(user, runId);
   const approved = r.draft_id ? one('SELECT post_id FROM ai_drafts WHERE id=? AND user_id=?',r.draft_id,user.id)?.post_id : null;
-  return { ...r, post_status:(r.post_id || approved) ? one('SELECT status FROM posts WHERE id=?',r.post_id || approved)?.status : null, ...(approved ? {status:'approved',post_id:approved} : {}), agents: parseJSON(r.agents, {}), targets: parseJSON(r.targets, []), steps: parseJSON(r.steps, {}), media_ids: parseJSON(r.media_ids, []),
+  return { ...r, expires_at: (!r.post_id&&!r.draft_id&&['planned','concept_review','review','failed','cancelled'].includes(r.status)) ? new Date(Date.parse(r.draft_touched_at||r.updated_at)+7*864e5).toISOString() : null, media_versions:parseJSON(r.media_versions,[]).map(v=>({...v,media:media.publicMedia(one('SELECT * FROM media WHERE id=?',v.media_id))})), post_status:(r.post_id || approved) ? one('SELECT status FROM posts WHERE id=?',r.post_id || approved)?.status : null, ...(approved ? {status:'approved',post_id:approved} : {}), agents: parseJSON(r.agents, {}), targets: parseJSON(r.targets, []), steps: parseJSON(r.steps, {}), media_ids: parseJSON(r.media_ids, []),
     reference_roles:parseJSON(r.reference_roles,{}), reference_media_ids:parseJSON(r.reference_media_ids,[]), references:parseJSON(r.reference_media_ids,[]).map(mid=>media.publicMedia(one('SELECT * FROM media WHERE id=?',mid))).filter(Boolean),
     media: parseJSON(r.media_ids, []).map(mid => media.publicMedia(one('SELECT * FROM media WHERE id=?', mid))).filter(Boolean), request_hash: undefined, user_id: undefined };
 }
 export function listRuns(user) {
-  return all('SELECT id FROM generator_runs WHERE user_id=? ORDER BY created_at DESC LIMIT 200', user.id).flatMap(r => { try { return [getRun(user, r.id)]; } catch { return []; } });
+  return all("SELECT id FROM generator_runs WHERE user_id=? AND status!='deleted' ORDER BY created_at DESC LIMIT 200", user.id).flatMap(r => { try { return [getRun(user, r.id)]; } catch { return []; } });
 }
 function validateReferences(user, ids = [], notes = '', roles = {}) {
   if (!Array.isArray(ids) || ids.length > 4 || new Set(ids).size !== ids.length || typeof notes !== 'string' || notes.length > 3000) throw err(400,'validation_failed','Maksimal 4 referensi unik dan 3.000 karakter arahan visual.');
@@ -102,14 +102,15 @@ export function createRun(user, body) {
   const hash = sha256(JSON.stringify(payload));
   const existing = one('SELECT id,request_hash FROM generator_runs WHERE user_id=? AND request_id=?', user.id, body.request_id);
   if (existing) {
+    if (one("SELECT 1 FROM generator_runs WHERE id=? AND status='deleted'",existing.id)) throw err(410,'draft_deleted','Draft ini sudah dihapus. Buat permintaan baru.');
     if (existing.request_hash !== hash) throw err(409, 'idempotency_conflict', 'request_id dipakai untuk brief berbeda.');
     return { ...getRun(user, existing.id), replayed: true };
   }
-  for (const a of Object.values(agents)) keyOf(user.id, a.provider);
-  if (one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','review')", user.id).n >= 40) throw err(409, 'generator_limit', 'Selesaikan/batalkan proses aktif terlebih dahulu (maksimal 40).');
+  for (const role of ['concept','revision']) keyOf(user.id,agents[role].provider);
+  if (one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','concept_review','review')", user.id).n >= 40) throw err(409, 'generator_limit', 'Selesaikan/batalkan proses aktif terlebih dahulu (maksimal 40).');
   const rid = id('gen');
   run('INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,scheduled_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)', rid, user.id, body.request_id, hash, body.brief, JSON.stringify(payload.targets), count, JSON.stringify(agents), payload.at, now(), now());
-  run('UPDATE generator_runs SET reference_media_ids=?,reference_notes=?,reference_roles=? WHERE id=?',JSON.stringify(refs.ids),refs.notes,JSON.stringify(refs.roles),rid);
+  run('UPDATE generator_runs SET reference_media_ids=?,reference_notes=?,reference_roles=?,draft_touched_at=? WHERE id=?',JSON.stringify(refs.ids),refs.notes,JSON.stringify(refs.roles),now(),rid);
   return getRun(user, rid);
 }
 function checkpoint(user, rid) {
@@ -117,9 +118,11 @@ function checkpoint(user, rid) {
   if (r.status !== 'running') throw err(409, 'generator_cancelled', 'Proses sudah dihentikan.');
   return r;
 }
+const conceptSchema={type:'object',additionalProperties:false,required:['title','caption','slides'],properties:{title:{type:'string'},caption:{type:'string'},slides:{type:'array',items:{type:'object',additionalProperties:false,required:['prompt'],properties:{prompt:{type:'string'}}}}}};
+const campaignSchema={type:'object',additionalProperties:false,required:['contents'],properties:{contents:{type:'array',items:{type:'object',additionalProperties:false,required:['title','brief'],properties:{title:{type:'string'},brief:{type:'string'}}}}}};
 function planOf(text, count) {
   let result;
-  try { result = JSON.parse(text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')); } catch { throw err(422, 'generator_format', 'Agen tidak menghasilkan JSON konsep yang valid. Ubah instruksi/model lalu buat proses baru atau coba ulang.'); }
+  try { result = JSON.parse(text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')); } catch { throw err(422, 'generator_format', 'Jawaban konsep terpotong atau formatnya belum dapat dibaca. Tahap selesai tetap tersimpan. Coba ulang tahap gagal dengan konfirmasi biaya; gambar belum dibuat.'); }
   if (!Array.isArray(result.slides) || result.slides.length !== count || result.slides.some(s => typeof s.prompt !== 'string' || !s.prompt.trim() || s.prompt.length > 6000) || typeof result.caption !== 'string' || result.caption.length > 2200) throw err(422, 'generator_format', 'Konsep wajib memiliki caption dan jumlah prompt slide yang sesuai brief.');
   return { title: String(result.title || '').slice(0, 300), caption: result.caption, slides: result.slides.map(s => ({ prompt: s.prompt })) };
 }
@@ -135,23 +138,40 @@ async function processRun(user, rid) {
       if (steps[role]?.status === 'done') continue;
       const a = agents[role];
       steps[role] = { status: 'running', started_at: now() }; run('UPDATE generator_runs SET steps=?,updated_at=? WHERE id=?', JSON.stringify(steps), now(), rid);
-      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), images:refs.map(x=>({mime:x.mime,data:x.buffer.toString('base64')})), system: `${a.instructions}\n${structure}\n${visualDirection}`, prompt: `BRIEF:\n${row.brief}\n${role === 'revision' ? 'Review and improve this concept:\n' + JSON.stringify(steps.concept.output) : ''}` });
+      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), jsonSchema:conceptSchema, maxTokens:Math.min(16000,2000+row.slide_count*1000), images:refs.map(x=>({mime:x.mime,data:x.buffer.toString('base64')})), system: `${a.instructions}\n${structure}\n${visualDirection}`, prompt: `BRIEF:\n${row.brief}\n${role === 'revision' ? 'Review and improve this concept:\n' + JSON.stringify(steps.concept.output) : ''}` });
       checkpoint(user, rid);
       steps[role] = { ...steps[role], status: 'done', output: planOf(result.text, row.slide_count), usage: result.usage, completed_at: now() };
       run('UPDATE generator_runs SET steps=?,caption=?,updated_at=? WHERE id=?', JSON.stringify(steps), steps[role].output.caption, now(), rid);
     }
+    if (!row.concept_approved_at && !steps.image) {
+      run("UPDATE generator_runs SET status='concept_review',draft_touched_at=?,updated_at=? WHERE id=? AND status='running'",now(),now(),rid);
+      return;
+    }
     const mids = parseJSON(row.media_ids, []);
     if (steps.image?.status !== 'done') {
-      steps.image = { status: 'running', started_at: steps.image?.started_at || now(), completed_slides: mids.length };
+      const redoIndex=steps.image?.redo_index, redoPrompt=steps.image?.redo_prompt, redoRequestId=steps.image?.redo_request_id;
+      steps.image = { ...steps.image, status: 'running', started_at: steps.image?.started_at || now(), completed_slides: mids.length };
       run('UPDATE generator_runs SET steps=?,updated_at=? WHERE id=?', JSON.stringify(steps), now(), rid);
       const a = agents.image, plan = steps.revision.output;
-      for (let i = mids.length; i < row.slide_count; i++) {
+      const indexes=Number.isInteger(redoIndex)?[redoIndex]:Array.from({length:Math.max(0,row.slide_count-mids.length)},(_,i)=>mids.length+i);
+      for (const i of indexes) {
         checkpoint(user, rid);
-        const result = await generateImage({ ...a, key: keyOf(user.id, a.provider), references:refs, prompt: `${a.instructions}\n${visualDirection}\nCampaign: ${plan.title}\nBrief: ${row.brief}\nSlide ${i + 1}/${row.slide_count}: ${plan.slides[i].prompt}` });
+        const slideRefs=[...refs];
+        if(Number.isInteger(redoIndex)){
+          const original=media.getMedia(mids[i]);
+          slideRefs.push({mime:'image/jpeg',buffer:await sharp(original.path).resize({width:1536,height:1536,fit:'inside',withoutEnlargement:true}).flatten({background:'#ffffff'}).jpeg({quality:90}).toBuffer()});
+        }
+        const result = await generateImage({ ...a, key: keyOf(user.id, a.provider), references:slideRefs, prompt: `${a.instructions}\n${visualDirection}\nCampaign: ${plan.title}\nBrief: ${row.brief}\nSlide ${i + 1}/${row.slide_count}: ${plan.slides[i].prompt}${redoPrompt?'\nThe last attached image is the current slide. Preserve its composition and identity except for the requested changes. Human revision for this slide: '+redoPrompt:''}` });
         checkpoint(user, rid);
         const image = await media.saveBuffer(user.id, result.buffer, { inLibrary: false, originalName: `${rid}-slide-${i + 1}` });
         try { checkpoint(user, rid); } catch (e) { media.deleteMedia(image.id); throw e; }
-        mids.push(image.id); steps.image.completed_slides = mids.length;
+        if(Number.isInteger(redoIndex)){
+          const versions=parseJSON(checkpoint(user,rid).media_versions,[]);
+          versions.push({slide_index:i,media_id:mids[i],replaced_at:now(),instruction:redoPrompt,request_id:redoRequestId});
+          run('UPDATE generator_runs SET media_versions=? WHERE id=?',JSON.stringify(versions),rid);
+          mids[i]=image.id;delete steps.image.redo_index;delete steps.image.redo_prompt;delete steps.image.redo_request_id;
+        }else mids.push(image.id);
+        steps.image.completed_slides = mids.length;
         run('UPDATE generator_runs SET media_ids=?,steps=?,updated_at=? WHERE id=?', JSON.stringify(mids), JSON.stringify(steps), now(), rid);
       }
       steps.image.status = 'done'; steps.image.completed_at = now();
@@ -162,12 +182,12 @@ async function processRun(user, rid) {
       for (const mid of mids) { const m = media.getMedia(mid); const buf = await sharp(fs.readFileSync(m.path)).resize({ width: 768, height: 768, fit: 'inside' }).jpeg({ quality: 75 }).toBuffer(); images.push({ mime: 'image/jpeg', data: buf.toString('base64') }); }
       const a = agents.final;
       steps.final = { status: 'running', started_at: now() }; run('UPDATE generator_runs SET steps=?,updated_at=? WHERE id=?', JSON.stringify(steps), now(), rid);
-      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), images, system: a.instructions + '\nReview the actual supplied images. Return plain text with findings and suggested fixes. Do not claim approval or publish anything.', prompt: `Brief: ${row.brief}\nCaption: ${steps.revision.output.caption}\nSlides in order: ${JSON.stringify(steps.revision.output.slides)}` });
+      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), images, system: a.instructions + '\nReview the actual supplied images in order. Return a checklist per numbered slide: logo/brand identity, product/packaging accuracy, spelling, readability, composition, consistency across slides, and unsupported claims. State uncertainties and concrete suggested fixes. Do not claim approval or publish anything.', prompt: `Brief: ${row.brief}\nCaption: ${steps.revision.output.caption}\nSlides in order: ${JSON.stringify(steps.revision.output.slides)}` });
       checkpoint(user, rid);
       steps.final = { ...steps.final, status: 'done', output: result.text, usage: result.usage, completed_at: now() };
     }
     checkpoint(user, rid);
-    run("UPDATE generator_runs SET status='review',steps=?,error=NULL,updated_at=? WHERE id=?", JSON.stringify(steps), now(), rid);
+    run("UPDATE generator_runs SET status='review',steps=?,error=NULL,draft_touched_at=?,updated_at=? WHERE id=?", JSON.stringify(steps), now(),now(), rid);
   } catch (e) {
     const text = e.status ? String(e.message).slice(0, 500) : 'Proses gagal. Periksa koneksi provider atau format hasil lalu coba ulang.';
     run("UPDATE generator_runs SET status='failed',error=?,updated_at=? WHERE id=? AND status='running'", text, now(), rid);
@@ -195,7 +215,7 @@ export function retryRun(user, rid) {
 export function cancelRun(user, rid) {
   // Even after an account grant is removed, the creator may cancel their own run.
   if (!one('SELECT 1 FROM generator_runs WHERE id=? AND user_id=?', rid, user.id)) throw err(404, 'not_found', 'Proses tidak ditemukan.');
-  if (!run("UPDATE generator_runs SET status='cancelled',updated_at=? WHERE id=? AND status IN ('planned','queued','running','review','failed')", now(), rid).changes) throw err(409, 'generator_state', 'Proses sudah dikirim ke Tulis Post.');
+  if (!run("UPDATE generator_runs SET status='cancelled',updated_at=? WHERE id=? AND status IN ('planned','queued','running','concept_review','review','failed')", now(), rid).changes) throw err(409, 'generator_state', 'Proses sudah dikirim ke Tulis Post.');
 }
 export async function handoff(user, rid, body) {
   const r = rawRun(user, rid);
@@ -230,7 +250,7 @@ function slotsFor(body, user) {
   if (end > Date.now()+365*864e5) throw err(400,'validation_failed','Rencana maksimal satu tahun ke depan.');
   const targetSet=new Set(body.account_ids);
   const occupied=all("SELECT t.account_id,p.scheduled_at FROM post_targets t JOIN posts p ON p.id=t.post_id WHERE t.status IN ('pending','publishing') AND p.removed_at IS NULL AND p.scheduled_at IS NOT NULL").filter(r=>targetSet.has(r.account_id)).map(r=>Date.parse(r.scheduled_at));
-  for(const r of all("SELECT targets,scheduled_at FROM generator_runs WHERE user_id=? AND status IN ('planned','queued','running','review','failed','drafted') AND scheduled_at IS NOT NULL",user.id)) if(parseJSON(r.targets,[]).some(t=>targetSet.has(t.account_id)))occupied.push(Date.parse(r.scheduled_at));
+  for(const r of all("SELECT targets,scheduled_at FROM generator_runs WHERE user_id=? AND status IN ('planned','queued','running','concept_review','review','failed','drafted') AND scheduled_at IS NOT NULL",user.id)) if(parseJSON(r.targets,[]).some(t=>targetSet.has(t.account_id)))occupied.push(Date.parse(r.scheduled_at));
   const candidates = [];
   for (let day = start; day <= end; day += 864e5) {
     const date = new Date(day + 7 * 3600000).toISOString().slice(0,10);
@@ -265,7 +285,7 @@ export async function createPlan(user, body) {
     if (body.manual !== true) {
       if (body.confirm_cost !== true) throw err(400, 'cost_confirmation_required', 'Konfirmasi biaya satu panggilan AI untuk menyusun rencana. Gambar dibuat terpisah.');
       const a = agents.concept;
-      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), maxTokens: 8000, system: a.instructions + `\nReturn ONLY JSON {"contents":[{"title":"topic title","brief":"specific content brief"}]}. Exactly ${body.content_count} distinct content ideas, each brief <=200 characters, using the user's language. No images, no publishing.`, prompt: body.brief });
+      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), jsonSchema:campaignSchema, maxTokens:Math.min(16000,2000+body.content_count*400), system: a.instructions + `\nReturn ONLY JSON {"contents":[{"title":"topic title","brief":"specific content brief"}]}. Exactly ${body.content_count} distinct content ideas, each brief <=200 characters, using the user's language. No images, no publishing.`, prompt: body.brief });
       let parsed; try { parsed = JSON.parse(result.text.replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'')); } catch { throw err(422, 'generator_format', 'Agen planner tidak mengembalikan JSON yang valid.'); }
       if (!Array.isArray(parsed.contents) || parsed.contents.length !== body.content_count || parsed.contents.some(c => typeof c.title !== 'string' || !c.title.trim() || c.title.length > 200 || typeof c.brief !== 'string' || !c.brief.trim() || c.brief.length > 2000)) throw err(422, 'generator_format', 'Jumlah/judul/brief ide planner tidak sesuai permintaan.');
       ideas = parsed.contents;
@@ -277,7 +297,7 @@ export async function createPlan(user, body) {
       run('INSERT INTO generator_plans(id,user_id,request_id,request_hash,brief,start_date,end_date,content_count,recommendation,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)', pid, user.id, body.request_id, hash, body.brief, body.start_date, body.end_date, body.content_count, JSON.stringify(recommendation), now());
       ideas.forEach((idea,i) => run(`INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,scheduled_at,status,caption,created_at,updated_at,plan_id,title) VALUES(?,?,?,?,?,?,?,?,?,'planned','',?,?,?,?)`, id('gen'), user.id, `plan-${pid}-${i}`, hash, `${body.brief}\n\n${idea.title}: ${idea.brief}`, JSON.stringify(body.account_ids.map(account_id => ({ account_id }))), body.slide_count || 1, JSON.stringify(agents), slots[i], now(), now(), pid, idea.title));
     });
-    run('UPDATE generator_runs SET reference_media_ids=?,reference_notes=?,reference_roles=? WHERE plan_id=?',JSON.stringify(refs.ids),refs.notes,JSON.stringify(refs.roles),pid);
+    run('UPDATE generator_runs SET reference_media_ids=?,reference_notes=?,reference_roles=?,draft_touched_at=? WHERE plan_id=?',JSON.stringify(refs.ids),refs.notes,JSON.stringify(refs.roles),now(),pid);
     return { id: pid, content_count: body.content_count, recommendation, slots };
   } finally { planning.delete(lock); }
 }
@@ -295,16 +315,16 @@ export function startPlan(user, pid) {
   const rows = all("SELECT id FROM generator_runs WHERE plan_id=? AND user_id=? AND status='planned'", pid,user.id);
   for (const r of rows) {
     const record = rawRun(user,r.id);
-    for (const a of Object.values(parseJSON(record.agents,{}))) keyOf(user.id,a.provider);
+    const agents=parseJSON(record.agents,{});for(const role of ['concept','revision'])keyOf(user.id,agents[role].provider);
   }
-  const busy=one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','review')",user.id).n;
+  const busy=one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','concept_review','review')",user.id).n;
   if (busy+rows.length>40) throw err(409,'generator_limit','Selesaikan konten aktif sebelum memulai batch ini (maksimal 40 aktif).');
   tx(() => { for (const r of rows) run("UPDATE generator_runs SET status='queued',updated_at=? WHERE id=? AND status='planned'",now(),r.id); });
   return { queued: rows.length };
 }
 export function updateContent(user, rid, body) {
   const r = rawRun(user,rid);
-  if (!['planned','review','failed'].includes(r.status)) throw err(409,'generator_state','Konten sedang diproses atau sudah disetujui.');
+  if (!['planned','concept_review','review','failed'].includes(r.status)) throw err(409,'generator_state','Konten sedang diproses atau sudah disetujui.');
   const caption = body.content ?? r.caption;
   if (typeof caption !== 'string' || caption.length > 2200) throw err(400,'validation_failed','Caption maksimal 2.200 karakter.');
   const scheduled = body.scheduled_at ?? r.scheduled_at;
@@ -319,15 +339,22 @@ export function updateContent(user, rid, body) {
     if (m.user_id !== user.id) throw err(404,'not_found','Gunakan foto/video yang Anda unggah sendiri.');
   }
   const refs=validateReferences(user,body.reference_media_ids ?? parseJSON(r.reference_media_ids,[]),body.reference_notes ?? r.reference_notes,body.reference_roles ?? inheritedReferenceRoles(r,body.reference_media_ids));
+  const changed=caption!==r.caption||brief!==r.brief||scheduled!==r.scheduled_at||JSON.stringify(mids)!==r.media_ids||JSON.stringify(refs.ids)!==r.reference_media_ids||refs.notes!==r.reference_notes||JSON.stringify(refs.roles)!==JSON.stringify(parseJSON(r.reference_roles,{}));
   let steps = parseJSON(r.steps,{});
+  if(changed) run('UPDATE generator_runs SET draft_touched_at=? WHERE id=?',now(),rid);
   if (body.media_ids !== undefined) steps = { ...steps, image: {status:'done',completed_slides:mids.length,source:'manual'}, final: {status:'done',output:'Media diganti/diunggah manual. Periksa kembali foto, caption dan klaim sebelum persetujuan.'} };
+  const conceptChanged=brief!==r.brief||JSON.stringify(refs.ids)!==r.reference_media_ids||refs.notes!==r.reference_notes||JSON.stringify(refs.roles)!==JSON.stringify(parseJSON(r.reference_roles,{}));
+  if(conceptChanged && r.status==='concept_review' && body.media_ids===undefined){
+    steps={};run("UPDATE generator_runs SET status='planned',concept_approved_at=NULL WHERE id=?",rid);
+    r.status='planned';
+  }
   run('UPDATE generator_runs SET brief=?,caption=?,scheduled_at=?,media_ids=?,steps=?,status=?,updated_at=? WHERE id=?',brief,caption,scheduled,JSON.stringify(mids),JSON.stringify(steps),body.media_ids !== undefined && mids.length ? 'review' : r.status,now(),rid);
   run('UPDATE generator_runs SET reference_media_ids=?,reference_notes=?,reference_roles=? WHERE id=?',JSON.stringify(refs.ids),refs.notes,JSON.stringify(refs.roles),rid);
   return getRun(user,rid);
 }
 export function reviseContent(user,rid,body) {
   const r = rawRun(user,rid);
-  if (!['review','planned','failed'].includes(r.status)) throw err(409,'generator_state','Konten ini tidak dapat direvisi lagi.');
+  if (!['review','concept_review','planned','failed'].includes(r.status)) throw err(409,'generator_state','Konten ini tidak dapat direvisi lagi.');
   const next = createRun(user,{request_id:body.request_id,brief:body.brief,account_ids:parseJSON(r.targets,[]).map(t=>t.account_id),slide_count:r.slide_count,agents:body.agents || parseJSON(r.agents,{}),reference_media_ids:body.reference_media_ids ?? parseJSON(r.reference_media_ids,[]),reference_notes:body.reference_notes ?? r.reference_notes,reference_roles:body.reference_roles ?? inheritedReferenceRoles(r,body.reference_media_ids),scheduled_at:r.scheduled_at,confirm_cost:body.confirm_cost});
   if (!next.replayed) {
     run('UPDATE generator_runs SET plan_id=?,title=?,parent_id=? WHERE id=?',r.plan_id,r.title,r.id,next.id);
@@ -346,4 +373,56 @@ export function approveContent(user,rid,body) {
   const {post} = createPost(user,{content:caption,media_ids:parseJSON(r.media_ids,[]),targets:parseJSON(r.targets,[]),scheduled_at:at},{source:'dashboard',idempotencyKey:'generator-approve-'+rid});
   run("UPDATE generator_runs SET status='approved',post_id=?,caption=?,scheduled_at=?,updated_at=? WHERE id=?",post.id,caption,at,now(),rid);
   return post;
+}
+
+export function approveConcept(user,rid,body) {
+  const r=rawRun(user,rid);
+  if(body.confirm_cost!==true)throw err(400,'cost_confirmation_required','Konfirmasi biaya pembuatan gambar.');
+  if(r.concept_approved_at&&['queued','running','review'].includes(r.status))return getRun(user,rid);
+  if(r.status!=='concept_review')throw err(409,'generator_state','Tunggu konsep selesai untuk ditinjau.');
+  const steps=parseJSON(r.steps,{});
+  if(!steps.revision?.output)throw err(409,'generator_state','Konsep belum lengkap.');
+  const plan=planOf(JSON.stringify(body.concept ?? steps.revision.output),r.slide_count);
+  const agents=parseJSON(r.agents,{});for(const role of ['image','final'])keyOf(user.id,agents[role].provider);
+  steps.revision.output=plan;
+  run("UPDATE generator_runs SET steps=?,caption=?,concept_approved_at=?,draft_touched_at=?,status='queued',updated_at=? WHERE id=? AND status='concept_review'",JSON.stringify(steps),plan.caption,now(),now(),now(),rid);
+  return getRun(user,rid);
+}
+export function regenerateSlide(user,rid,body) {
+  const r=rawRun(user,rid), mids=parseJSON(r.media_ids,[]),steps=parseJSON(r.steps,{});
+  if(typeof body.request_id!=='string'||!body.request_id||body.request_id.length>100)throw err(400,'validation_failed','request_id revisi wajib diisi.');
+  const previous=parseJSON(r.media_versions,[]).find(v=>v.request_id===body.request_id);
+  if(previous||steps.image?.redo_request_id===body.request_id){
+    const priorIndex=previous?.slide_index??steps.image.redo_index,priorInstruction=previous?.instruction??steps.image.redo_prompt;
+    if(priorIndex!==body.slide_index||priorInstruction!==body.instruction)throw err(409,'idempotency_conflict','request_id dipakai untuk revisi berbeda.');
+    return getRun(user,rid);
+  }
+  if(r.status!=='review'||r.post_id||r.draft_id)throw err(409,'generator_state','Revisi slide hanya untuk draft yang belum disetujui.');
+  if(body.confirm_cost!==true)throw err(400,'cost_confirmation_required','Konfirmasi biaya revisi gambar.');
+  if(!Number.isInteger(body.slide_index)||body.slide_index<0||body.slide_index>=mids.length||!steps.revision?.output?.slides?.[body.slide_index])throw err(400,'validation_failed','Slide konsep tidak ditemukan.');
+  if(typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>3000)throw err(400,'validation_failed','Arahan revisi wajib diisi, maksimal 3.000 karakter.');
+  if(parseJSON(r.media_versions,[]).length>=30)throw err(409,'revision_limit','Maksimal 30 versi slide per draft.');
+  const agents=parseJSON(r.agents,{});for(const role of ['image','final'])keyOf(user.id,agents[role].provider);
+  steps.image={status:'waiting',redo_index:body.slide_index,redo_prompt:body.instruction,redo_request_id:body.request_id};delete steps.final;
+  run("UPDATE generator_runs SET steps=?,concept_approved_at=COALESCE(concept_approved_at,?),draft_touched_at=?,updated_at=?,status='queued' WHERE id=? AND status='review'",JSON.stringify(steps),now(),now(),now(),rid);
+  return getRun(user,rid);
+}
+function eraseDraft(row) {
+  const ids=[...parseJSON(row.media_ids,[]),...parseJSON(row.reference_media_ids,[]),...parseJSON(row.media_versions,[]).map(v=>v.media_id)];
+  // Keep only an idempotency tombstone so replaying an old request cannot start another paid job.
+  const result=run("UPDATE generator_runs SET status='deleted',brief='',caption='',title='',steps='{}',media_ids='[]',reference_media_ids='[]',reference_roles='{}',reference_notes='',media_versions='[]',error=NULL,updated_at=? WHERE id=? AND status IN ('planned','concept_review','review','failed','cancelled') AND post_id IS NULL AND draft_id IS NULL",now(),row.id);
+  if(result.changes)media.discardUnusedGeneratorMedia(ids);
+  return !!result.changes;
+}
+export function deleteContent(user,rid) {
+  const row=one('SELECT * FROM generator_runs WHERE id=? AND user_id=?',rid,user.id);
+  if(!row)throw err(404,'not_found','Draft tidak ditemukan.');
+  if(row.status==='deleted')return;
+  if(!eraseDraft(row))throw err(409,'generator_state','Hentikan proses aktif dahulu. Konten yang sudah dikirim/disetujui tidak dapat dihapus dari Draft Konten.');
+}
+export function expireDrafts() {
+  let deleted=0;
+  const cutoff=new Date(Date.now()-7*864e5).toISOString();
+  for(const row of all("SELECT * FROM generator_runs WHERE status IN ('planned','concept_review','review','failed','cancelled') AND post_id IS NULL AND draft_id IS NULL AND COALESCE(draft_touched_at,updated_at) <= ?",cutoff))if(eraseDraft(row))deleted++;
+  return {deleted};
 }

@@ -104,6 +104,17 @@ api.post('/generator/runs/:id/revise', sessionOnly, (req,res) => {
   const result=generator.reviseContent(U(req),req.params.id,req.body || {});audit(req.auth,'generator.revise','generator_run',result.id);
   setImmediate(()=>generator.runGeneratorTick());res.status(result.replayed ? 200 : 201).json(result);
 });
+api.post('/generator/runs/:id/approve-concept',sessionOnly,(req,res)=>{
+  const result=generator.approveConcept(U(req),req.params.id,req.body||{});audit(req.auth,'generator.concept.approve','generator_run',result.id);
+  setImmediate(()=>generator.runGeneratorTick());res.json(result);
+});
+api.post('/generator/runs/:id/slides/revise',sessionOnly,(req,res)=>{
+  const result=generator.regenerateSlide(U(req),req.params.id,req.body||{});audit(req.auth,'generator.slide.revise','generator_run',result.id);
+  setImmediate(()=>generator.runGeneratorTick());res.json(result);
+});
+api.delete('/generator/runs/:id/content',sessionOnly,(req,res)=>{
+  generator.deleteContent(U(req),req.params.id);audit(req.auth,'generator.draft.delete','generator_run',req.params.id);res.status(204).end();
+});
 api.post('/generator/runs/:id/approve', sessionOnly, (req,res) => {
   const post=generator.approveContent(U(req),req.params.id,req.body || {});audit(req.auth,'generator.approve','post',post.id);res.json(post);
 });

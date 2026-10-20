@@ -209,7 +209,7 @@ export function listMedia({ limit = 50, cursor } = {}) {
 
 function mediaInActiveUse(mediaId) {
   const like = `%"${mediaId}"%`;
-  if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ?)", like, like)) return true;
+  if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ? OR media_versions LIKE ?)", like, like, like)) return true;
   if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) return true;
   return !!one(`SELECT 1 FROM post_targets t JOIN posts p ON p.id=t.post_id
     WHERE t.status IN ('pending','publishing') AND (p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?)`, like, like, like);
@@ -228,7 +228,7 @@ export function purgePublishedMedia() {
   let removed = 0;
   for (const m of all("SELECT * FROM media WHERE status='ready'")) {
     const like = `%"${m.id}"%`;
-    if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ?)", like, like)) continue;
+    if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ? OR media_versions LIKE ?)", like, like, like)) continue;
     if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) continue;
     const uses = all(`SELECT t.status FROM post_targets t JOIN posts p ON p.id=t.post_id
       WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?`, like, like, like);
@@ -248,7 +248,7 @@ export function gcMedia() {
   const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
   for (const m of all('SELECT * FROM media WHERE in_library=0 AND created_at < ?', weekAgo)) {
     const like = `%"${m.id}"%`;
-    if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ?)", like, like)) continue;
+    if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ? OR media_versions LIKE ?)", like, like, like)) continue;
     if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) continue;
     const uses = all('SELECT t.status, t.published_at, p.updated_at FROM post_targets t JOIN posts p ON p.id=t.post_id WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?', like, like, like);
     const busy = uses.some((u) => ['pending', 'publishing'].includes(u.status) || (u.published_at || u.updated_at) > monthAgo);
@@ -279,4 +279,14 @@ export function usage() {
   const r = one("SELECT COUNT(*) files, COALESCE(SUM(size_bytes),0) bytes FROM media WHERE status='ready'");
   const lib = one("SELECT COUNT(*) files, COALESCE(SUM(size_bytes),0) bytes FROM media WHERE status='ready' AND in_library=1");
   return { files: r.files, used_bytes: r.bytes, library_files: lib.files, library_bytes: lib.bytes };
+}
+
+// Called only after the draft releases its references. Never remove library or shared post assets.
+export function discardUnusedGeneratorMedia(ids) {
+  for(const mid of new Set(ids)){
+    const m=one('SELECT * FROM media WHERE id=?',mid);if(!m||m.in_library)continue;
+    const like=`%"${mid}"%`;
+    if(mediaInActiveUse(mid)||one('SELECT 1 FROM posts WHERE media_ids LIKE ?',like)||one('SELECT 1 FROM post_targets WHERE media_ids LIKE ? OR options LIKE ?',like,like)||one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?",like))continue;
+    deleteMedia(mid);
+  }
 }
