@@ -138,7 +138,7 @@ const PAGE_LABEL = () => Object.fromEntries(navGroups().flatMap(([g, items]) => 
 
 function openMenuSearch() {
   if (document.querySelector('.menu-command')) return;
-  const items=navGroups().flatMap(([group,entries])=>entries.map(([path,ic,label])=>({group,path,ic,label})));
+  const items=[...navGroups().flatMap(([group,entries])=>entries.map(([path,ic,label])=>({group,path,ic,label}))),{group:'Akun saya',path:'/settings',ic:'key',label:'Pengaturan pribadi'}];
   const results=h('div',{class:'command-results'});
   const input=h('input',{type:'search',placeholder:'Cari halaman atau fitur…','aria-label':'Cari halaman atau fitur',autocomplete:'off',oninput:draw});
   let filtered=items;
@@ -183,7 +183,7 @@ document.addEventListener('keydown',event=>{
 
 let clockTimer;
 function shell(active, content) {
-  const info = PAGE_LABEL()[active] || { label: 'LRMsmm', group: '' };
+  const info = PAGE_LABEL()[active] || (active==='/settings'?{label:'Pengaturan pribadi',group:'Akun saya'}:{ label: 'LRMsmm', group: '' });
   content.classList.add('wrap');
   const clock = h('div', { class: 'clock', title: 'Waktu server (WIB)' });
   const tick = () => { clock.textContent = `${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} WIB · Jakarta`; };
@@ -198,6 +198,7 @@ function shell(active, content) {
             h('div', { class: 'nav-items' }, items.map(([p, ic, label, badge]) =>
               h('a', { href: `#${p}`, class: `${active === p ? 'on' : ''} ${p === '/generator/drafts' ? 'nav-sub' : ''}`, 'aria-current':active===p?'page':null, onclick: close }, icon(ic), h('span', { class: 'lbl' }, label), badge ? badgeEl(badge) : null))))))),
       h('div', { class: 'side-foot' },
+        h('a',{class:'personal-settings-link',href:'#/settings',onclick:close},icon('key'),'Pengaturan pribadi'),
         h('a', { class: 'ucard', href: isOwner() ? '#/team' : '#/compose' },
           h('div', { class: 'who' }, h('div', { class: 'ini' }, initials(state.user?.name || state.user?.email)),
             h('div', { style: { minWidth: 0 } }, h('div', { class: 'nm' }, state.user?.name || state.user?.email), h('div', { class: 'rl' }, ROLE[state.user?.role] || ''))),
@@ -831,42 +832,9 @@ async function pageContentDrafts() {
     h('div',{class:'draft-workspace'},list,detail)));
 }
 
-// ---------------- Sosmed Generator ----------------
-async function pageGenerator() {
-  await loadAccounts();
-  let config = await api('GET', '/v1/generator/settings');
-  const labels = { concept: 'Konsep Creator', revision: 'Concept Reviewer', image: 'Image Creator', final: 'Final Reviewer', storyteller:'Storyteller',manager:'Social Media Manager',scheduler:'Scheduler' };
-  const phaseNames = { concept_review:'Tinjau konsep', planned: 'Rencana / belum dibuat', approved: 'Masuk Kalender', queued: 'Menunggu', running: 'Agen bekerja', review: 'Siap ditinjau', failed: 'Perlu tindakan', cancelled: 'Dibatalkan', drafted: 'Dikirim ke Tulis Post' };
-  const inputs = {}, selected = new Set();
-  const accountBox = h('div', { class: 'acc-picker' });
-  const company = h('select', { 'aria-label': 'Perusahaan generator', onchange: () => { selected.clear(); drawAccounts(); } }, h('option', { value: '' }, 'Semua perusahaan'), companyGroups().filter(c => c.accounts.length).map(c => h('option', { value: c.id || 'none' }, c.name)));
-  function drawAccounts() {
-    accountBox.replaceChildren(...state.accounts.filter(a => a.status === 'active' && (!company.value || (a.company_id || 'none') === company.value)).map(a => h('label', { class: 'acc-chip' }, h('input', { type: 'checkbox', 'aria-label': `Pilih @${a.username}`, onchange: e => e.target.checked ? selected.add(a.id) : selected.delete(a.id) }), avatar(a), `@${a.username}`,h('a',{class:'btn sm',href:'#/accounts/'+encodeURIComponent(a.id)+'?tab=brand',onclick:e=>e.stopPropagation()},'Detail akun'))));
-  }
-  drawAccounts();
-  const agentCards = Object.entries(labels).map(([role, name], i) => {
-    const savedAgent=config.agents?.[role]||{};
-    const fallbackProvider=role==='image'?Object.keys(config.providers).find(id=>config.providers[id].image):'openai';
-    const providerId=config.providers[savedAgent.provider]&&(role!=='image'||config.providers[savedAgent.provider].image)?savedAgent.provider:fallbackProvider;
-    const agent={provider:providerId,model:savedAgent.model||config.providers[providerId][role==='image'?'imageModel':'textModel'],instructions:savedAgent.instructions||''};
-    const model = h('select', { 'aria-label': `Model ${name}` });
-    const help = h('p',{class:'faint small generator-model-help'});
-    function drawModels(providerId,preferred) {
-      const p=config.providers[providerId];
-      const options=p[role==='image'?'imageModels':'textModels']||[];
-      const fallback=role==='image'?p.imageModel:p.textModel;
-      const available=[...options];
-      if(preferred&&!available.some(m=>m.id===preferred))available.push({id:preferred,name:`${preferred} · Preset tersimpan`});
-      model.replaceChildren(...available.map(m=>h('option',{value:m.id,selected:m.id===(preferred||fallback)},m.name)));
-      help.textContent=role==='image'?'Model pembuat gambar. Akses bergantung API key dan akun provider.':'Model teks + vision untuk konsep/review. Akses bergantung API key dan akun provider.';
-    }
-    drawModels(agent.provider,agent.model);
-    const prompt = h('textarea', { 'aria-label': `Instruksi ${name}`, maxlength: 4000 }, agent.instructions);
-    const provider = h('select', { 'aria-label': `Provider ${name}`, onchange: () => drawModels(provider.value) }, Object.entries(config.providers).filter(([,p]) => role !== 'image' || p.image).map(([id,p]) => h('option', { value: id, selected: agent.provider === id }, p.name)));
-    inputs[role] = { provider, model, prompt };
-    return h('div', { class: 'gen-agent' }, h('span', { class: 'gen-number' }, String(i + 1)), h('h3', {}, name), h('p', { class: 'muted small' }, ['Menyusun ide, caption dan urutan slide.', 'Mengkritik dan memperbaiki konsep.', 'Menghasilkan gambar setiap slide.', 'Melihat hasil gambar dan memberi catatan final.','Melanjutkan kisah merek dari prompt dan memori tersimpan.','Memeriksa konsistensi dan pemilihan produk.','Memilih slot jadwal dan menjelaskan alasannya.'][i]), h('label',{},'Provider',provider), h('label',{},'Model',model), help, h('details', {}, h('summary', {}, 'Instruksi agen'), prompt));
-  });
-  const collectAgents = () => Object.fromEntries(Object.entries(inputs).map(([r,v]) => [r, { provider: v.provider.value, model: v.model.value.trim(), instructions: v.prompt.value }]));
+// Personal provider credentials are available to every signed-in user.
+async function pageSettings() {
+  const config=await api('GET','/v1/generator/settings');
   const keys = h('div', { class: 'gen-keys' });
   const keySummary = h('span', {class:'generator-key-summary'});
   function drawKeys() {
@@ -893,6 +861,58 @@ async function pageGenerator() {
     }));
   }
   drawKeys();
+  return shell('/settings',h('div',{class:'personal-settings'},pagehead('Pengaturan pribadi','Kelola API key AI milik Anda.',h('a',{class:'btn',href:'#/generator'},'Kembali ke Generator')),h('section',{class:'panel'},h('h2',{},'Koneksi AI',keySummary),h('p',{class:'muted small'},'API key disimpan terenkripsi untuk pengguna ini. Biaya mengikuti provider Anda; model setiap agen diatur di Generator.'),keys)));
+}
+
+// ---------------- Sosmed Generator ----------------
+async function pageGenerator() {
+  await loadAccounts();
+  let config = await api('GET', '/v1/generator/settings');
+  const labels = { concept: 'Konsep Creator', revision: 'Concept Reviewer', image: 'Image Creator', final: 'Final Reviewer', storyteller:'Storyteller',manager:'Social Media Manager',scheduler:'Scheduler' };
+  const phaseNames = { concept_review:'Tinjau konsep', planned: 'Rencana / belum dibuat', approved: 'Masuk Kalender', queued: 'Menunggu', running: 'Agen bekerja', review: 'Siap ditinjau', failed: 'Perlu tindakan', cancelled: 'Dibatalkan', drafted: 'Dikirim ke Tulis Post' };
+  const inputs = {}, selected = new Set();
+  const accountBox=h('div',{class:'acc-picker generator-account-row'});
+  const accountSummary=h('span',{class:'generator-account-summary'});
+  const accountPicker=h('details',{class:'panel generator-account-picker'},h('summary',{},h('b',{},'Akun'),accountSummary));
+  const requestedAccount=new URLSearchParams(location.hash.split('?')[1]||'').get('story_account');
+  if(state.accounts.some(a=>a.id===requestedAccount&&a.status==='active'))selected.add(requestedAccount);
+  const company=h('select',{'aria-label':'Perusahaan generator',onchange:drawAccounts},h('option',{value:''},'Semua perusahaan'),companyGroups().filter(c=>c.accounts.length).map(c=>h('option',{value:c.id||'none'},c.name)));
+  function summarizeAccounts(){
+    const chosen=state.accounts.filter(a=>selected.has(a.id));
+    accountSummary.textContent=chosen.length?chosen.slice(0,3).map(a=>'@'+a.username).join(', ')+(chosen.length>3?` +${chosen.length-3}`:''):'Pilih akun';
+    accountSummary.title=chosen.map(a=>'@'+a.username).join(', ');
+  }
+  function drawAccounts(){
+    const visible=state.accounts.filter(a=>a.status==='active'&&(!company.value||(a.company_id||'none')===company.value));
+    accountBox.replaceChildren(...visible.map(a=>h('div',{class:'generator-account-option'},h('label',{class:'acc-chip'},h('input',{type:'checkbox',checked:selected.has(a.id),'aria-label':`Pilih @${a.username}`,onchange:e=>{e.target.checked?selected.add(a.id):selected.delete(a.id);summarizeAccounts();}}),avatar(a),h('span',{},'@'+a.username)),h('a',{class:'generator-account-detail',href:'#/accounts/'+encodeURIComponent(a.id)+'?tab=brand','aria-label':'Detail akun @'+a.username,title:'Brand Kit & Cerita akun'},icon('right')))));
+    if(!visible.length)accountBox.append(h('p',{class:'muted small'},'Tidak ada akun aktif pada perusahaan ini.'));
+    summarizeAccounts();
+  }
+  drawAccounts();
+  accountPicker.append(h('div',{class:'generator-account-controls'},h('label',{},'Perusahaan',company),h('button',{class:'btn sm',onclick:()=>{selected.clear();drawAccounts();}},'Kosongkan'),h('button',{class:'btn primary sm',onclick:()=>{accountPicker.open=false;accountPicker.querySelector('summary').focus();}},'Selesai')),accountBox);
+  const agentCards = Object.entries(labels).map(([role, name], i) => {
+    const savedAgent=config.agents?.[role]||{};
+    const fallbackProvider=role==='image'?Object.keys(config.providers).find(id=>config.providers[id].image):'openai';
+    const providerId=config.providers[savedAgent.provider]&&(role!=='image'||config.providers[savedAgent.provider].image)?savedAgent.provider:fallbackProvider;
+    const agent={provider:providerId,model:savedAgent.model||config.providers[providerId][role==='image'?'imageModel':'textModel'],instructions:savedAgent.instructions||''};
+    const model = h('select', { 'aria-label': `Model ${name}` });
+    const help = h('p',{class:'faint small generator-model-help'});
+    function drawModels(providerId,preferred) {
+      const p=config.providers[providerId];
+      const options=p[role==='image'?'imageModels':'textModels']||[];
+      const fallback=role==='image'?p.imageModel:p.textModel;
+      const available=[...options];
+      if(preferred&&!available.some(m=>m.id===preferred))available.push({id:preferred,name:`${preferred} · Preset tersimpan`});
+      model.replaceChildren(...available.map(m=>h('option',{value:m.id,selected:m.id===(preferred||fallback)},m.name)));
+      help.textContent=role==='image'?'Model pembuat gambar. Akses bergantung API key dan akun provider.':'Model teks + vision untuk konsep/review. Akses bergantung API key dan akun provider.';
+    }
+    drawModels(agent.provider,agent.model);
+    const prompt = h('textarea', { 'aria-label': `Instruksi ${name}`, maxlength: 4000 }, agent.instructions);
+    const provider = h('select', { 'aria-label': `Provider ${name}`, onchange: () => drawModels(provider.value) }, Object.entries(config.providers).filter(([,p]) => role !== 'image' || p.image).map(([id,p]) => h('option', { value: id, selected: agent.provider === id }, p.name)));
+    inputs[role] = { provider, model, prompt };
+    return h('div', { class: 'gen-agent' }, h('span', { class: 'gen-number' }, String(i + 1)), h('h3', {}, name), h('p', { class: 'muted small' }, ['Menyusun ide, caption dan urutan slide.', 'Mengkritik dan memperbaiki konsep.', 'Menghasilkan gambar setiap slide.', 'Melihat hasil gambar dan memberi catatan final.','Melanjutkan kisah merek dari prompt dan memori tersimpan.','Memeriksa konsistensi dan pemilihan produk.','Memilih slot jadwal dan menjelaskan alasannya.'][i]), h('label',{},'Provider',provider), h('label',{},'Model',model), help, h('details', {}, h('summary', {}, 'Instruksi agen'), prompt));
+  });
+  const collectAgents = () => Object.fromEntries(Object.entries(inputs).map(([r,v]) => [r, { provider: v.provider.value, model: v.model.value.trim(), instructions: v.prompt.value }]));
   const brief = h('textarea', { 'aria-label': 'Brief campaign', placeholder: 'Contoh: Buat carousel 3 slide untuk Hannabeauty. Tujuan, audiens, penawaran yang sudah benar, gaya warna, bahasa, CTA, larangan klaim…', maxlength: 10000, rows: 5 });
   const reference=visualReferences();
   const count = h('input', { type: 'number', min: 1, max: 10, value: 1, 'aria-label': 'Jumlah slide' });
@@ -913,7 +933,7 @@ async function pageGenerator() {
       const result=await api('POST','/v1/generator/plans',{...body,request_id:planRequest});go('/generator/drafts?plan='+result.id);
     }catch(error){toast(errMsg(error),true);}finally{e.target.disabled=false;}
   }},'Susun rencana → Draft Konten');
-  const planner=h('details',{class:'panel gen-planner',open:true},h('summary',{},'Rencanakan beberapa konten dalam rentang tanggal'),
+  const planner=h('div',{class:'gen-planner'},
     h('p',{class:'muted small'},'Jumlah konten berbeda dari jumlah slide. Isi brief dan pilih akun di atas. Penyusunan AI memakai satu panggilan teks; gambar dibuat sesudah rencana ditinjau.'),
     h('div',{class:'gen-form-row'},h('label',{},'Jumlah konten',totalContents),h('label',{},'Dari tanggal (WIB)',fromDate),h('label',{},'Sampai tanggal (WIB)',endDate)),
     h('div',{class:'gen-form-row'},h('label',{},'Jam kandidat WIB, pisahkan koma',postTimes),h('label',{},'Susun topik',planningMode)),
@@ -978,8 +998,11 @@ async function pageGenerator() {
     } catch(error) { if (!stopped) toast(errMsg(error), true); } finally { fetching = false; }
   }
   const briefNode=h('section',{class:'gen-start'},h('label',{},'Brief campaign',brief),h('label',{},'Jumlah slide per konten',count),h('p',{class:'faint small'},'Generate menggunakan API key pribadi dan tarif provider.'));
-  const targetNode=h('div',{},h('label',{},'Perusahaan',company),accountBox,h('p',{class:'muted small'},'Akun yang ditugaskan kepada Anda.'));
-  const scheduleNode=h('div',{},h('label',{},'Jadwal satu konten (opsional)',at),planner);
+  const scheduleSummary=h('span',{class:'generator-schedule-summary'});
+  const scheduleNode=h('details',{class:'panel generator-schedule-picker'},h('summary',{},h('b',{},'Jadwal'),scheduleSummary),planner,h('details',{class:'generator-single-schedule'},h('summary',{},'Jadwal satu konten'),h('label',{},'Jadwal satu konten (opsional)',at)),h('button',{class:'btn sm',onclick:()=>{scheduleNode.open=false;scheduleNode.querySelector('summary').focus();}},'Selesai atur jadwal'));
+  function summarizeSchedule(){scheduleSummary.textContent=`${totalContents.value} konten · ${fromDate.value} – ${endDate.value} · WIB`;}
+  for(const field of [totalContents,fromDate,endDate])field.addEventListener('input',summarizeSchedule);
+  summarizeSchedule();
   workflow=workflowCanvas({h,userId:state.user.id,history,
     actions:[action('Simpan preset',async()=>{config=await api('PUT','/v1/generator/settings',{agents:collectAgents()});toast('Preset agen disimpan');}),h('button',{class:'btn sm',onclick:()=>workflow.focusNode('result')},'Hasil'),h('a',{class:'btn sm',href:'#/generator/drafts'},'Draft Konten'),startButton],
     nodes:[
@@ -1000,12 +1023,7 @@ async function pageGenerator() {
   const story=await storyWorkspace({h,api,uploadFile,accounts:state.accounts.filter(a=>a.platform==='instagram'&&a.status==='active'),mode:'production',agents:collectAgents,dates:{count:totalContents,slides:count,from:fromDate,until:endDate,times:postTimes},toast,fmtDT});
   const timer = setInterval(refresh, 2500);
   pageCleanup = () => { stopped = true; clearInterval(timer);workflow.dispose();story.dispose(); };
-  return shell('/generator', h('div', {class:'generator-node-page'}, pagehead('Sosmed Generator', 'Susun prompt, provider dan referensi di workflow visual, lalu tinjau hasil sebelum disetujui.'),
-    h('details', { class: 'panel gen-settings workflow-credentials' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen', keySummary),
-      h('p', { class: 'muted small' }, 'API key pribadi disimpan terenkripsi. Pilih model dan instruksi setiap agen di node workflow. Biaya API mengikuti provider Anda.'),keys,
-      h('p',{class:'faint small'},'Pengaturan model dan instruksi berada di setiap node. Gunakan Simpan preset di toolbar untuk menyimpan konfigurasi.')),h('div',{class:'workflow-setup'},
-        h('section',{class:'panel workflow-targets'},h('h2',{},'Perusahaan & Akun'),targetNode),
-        h('section',{class:'panel workflow-schedule'},h('h2',{},'Rencana & Jadwal'),scheduleNode)),story.element,workflow.element));
+  return shell('/generator',h('div',{class:'generator-node-page'},pagehead('Sosmed Generator','Rencanakan konten, jalankan agen, lalu tinjau hasil.',h('a',{class:'btn sm',href:'#/settings'},icon('key'),'Pengaturan AI')),h('div',{class:'workflow-setup'},accountPicker,scheduleNode),story.element,workflow.element));
 }
 
 // ---------------- calendar ----------------
@@ -1698,6 +1716,7 @@ async function route() {
     if (path === '/') view = await pageHome();
     else if (path === '/compose') view = await pageCompose();
     else if (path === '/generator') {const account=new URLSearchParams(location.hash.split('?')[1]||'').get('account');if(account){go('/accounts/'+encodeURIComponent(account)+'?tab=brand');return;}view=await pageGenerator();}
+    else if (path === '/settings') view=await pageSettings();
     else if (path === '/generator/drafts') view = await pageContentDrafts();
     else if ((m = path.match(/^\/compose\/(.+)$/))) view = await pageCompose(m[1]);
     else if ((m = path.match(/^\/posts\/(.+)$/))) view = await pagePost(m[1]);

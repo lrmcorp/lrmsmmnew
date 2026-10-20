@@ -10,6 +10,12 @@ The component refresh uses original LRMsmm HTML/CSS/JavaScript. The user supplie
 - The mobile drawer manages focus, Escape, `aria-expanded`, background inertness and scroll locking. Desktop resizing resets the drawer cleanly.
 - Dialogs have accessible headings; notifications can be dismissed. `prefers-reduced-motion` disables decorative transitions/animations, including spinners; disabled and busy states remain available independently of motion.
 
+## Generator and personal settings
+
+- `#/settings` holds each signed-in user's encrypted provider keys, saved status, replacement, connection test and deletion. It is linked from the sidebar footer, menu search and Generator header; Representatives retain their two operational sidebar groups.
+- Generator opens with compact account and schedule summaries. Account checkboxes use a single horizontal row; **Selesai** collapses the picker without clearing selection. Company filtering preserves selections. Schedule fields expand when editing; model controls stay in workflow nodes.
+- The saved storyline editor and generation actions share a compact responsive panel. Story results and approval behavior are unchanged.
+
 ## Verification
 
 An optional browser regression is saved at `test/browser-components.cjs`. It runs the real app against temporary SQLite/media, uses fixture credentials and simulated Meta, and never publishes to a real social account. It covers keyboard search, scoped commands, mobile drawer/focus state, pending button deduplication, a 12-content manual plan, photo upload, review-to-calendar approval, login form pending state, failed-login notification dismissal, and 390px/1440px layouts.
