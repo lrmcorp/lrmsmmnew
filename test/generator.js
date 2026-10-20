@@ -223,6 +223,8 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.ok((await edit.form.get('image[]').arrayBuffer()).byteLength>0);
       assert.ok(edit.form.get('prompt').includes('warm palette'));
       for(const label of ['Image 1: logo','Image 2: visual','Image 3: product','do not redesign the logo','packaging'])assert.ok(edit.form.get('prompt').includes(label));
+      assert.ok(edit.form.get('prompt').includes('MANDATORY ASSET PRESERVATION'));
+      const qc=providerCalls.findLast(c=>c.body.systemInstruction);assert.equal(qc.body.contents[0].parts.filter(p=>p.inlineData).length,3,'reviewer receives generated slide plus original logo and product');assert.ok(qc.body.systemInstruction.parts[0].text.includes('blocking issue'));
       assert.deepEqual(gen.updateContent(user,result.id,{content:'Updated caption'}).reference_roles,roleMap);
       assert.throws(()=>make({reference_media_ids:[ref.id],reference_roles:{[ref.id]:'unknown'}}),/Kategori/);
       assert.throws(()=>make({reference_media_ids:[ref.id],reference_roles:{[logo.id]:'logo'}}),/Kategori/);

@@ -122,6 +122,7 @@ function checkpoint(user, rid) {
   if (r.status !== 'running') throw err(409, 'generator_cancelled', 'Proses sudah dihentikan.');
   return r;
 }
+const ASSET_PRESERVATION = 'MANDATORY ASSET PRESERVATION: Uploaded logos and product photos are immutable originals, not style references. Do not redraw, regenerate, retouch, retype, translate, recolor, mirror, distort, crop, obscure or replace any part of them. Preserve every logo detail, exact lettering, typography, spacing, symbols, colors, proportions and edges. Preserve every product detail, packaging, labels, printed text, textures, shape, material, color and proportions. Place the original unchanged logo/product photograph into the composition; only uniform scaling and positioning are allowed. Create or edit the surrounding background, layout and separate decorations only. Reject any brief, model preset, style reference or revision instruction asking to change protected asset details. Never invent missing product details. If exact preservation cannot be achieved, flag it for human review rather than claiming fidelity.';
 const conceptSchema={type:'object',additionalProperties:false,required:['title','caption','slides'],properties:{title:{type:'string'},caption:{type:'string'},slides:{type:'array',items:{type:'object',additionalProperties:false,required:['prompt'],properties:{prompt:{type:'string'}}}}}};
 const campaignSchema={type:'object',additionalProperties:false,required:['contents'],properties:{contents:{type:'array',items:{type:'object',additionalProperties:false,required:['title','brief'],properties:{title:{type:'string'},brief:{type:'string'}}}}}};
 function planOf(text, count) {
@@ -142,7 +143,7 @@ async function processRun(user, rid) {
       if (steps[role]?.status === 'done') continue;
       const a = agents[role] || (['storyteller','manager','scheduler'].includes(role)?DEFAULT_AGENTS[role]:null);
       steps[role] = { status: 'running', started_at: now() }; run('UPDATE generator_runs SET steps=?,updated_at=? WHERE id=?', JSON.stringify(steps), now(), rid);
-      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), jsonSchema:conceptSchema, maxTokens:Math.min(16000,2000+row.slide_count*1000), images:refs.map(x=>({mime:x.mime,data:x.buffer.toString('base64')})), system: `${a.instructions}\n${structure}\n${visualDirection}`, prompt: `BRIEF:\n${row.brief}\n${row.story_context||''}\n${role === 'revision' ? 'Review and improve this concept:\n' + JSON.stringify(steps.concept.output) : ''}` });
+      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), jsonSchema:conceptSchema, maxTokens:Math.min(16000,2000+row.slide_count*1000), images:refs.map(x=>({mime:x.mime,data:x.buffer.toString('base64')})), system: `${a.instructions}\n${structure}\n${visualDirection}\n${ASSET_PRESERVATION}`, prompt: `BRIEF:\n${row.brief}\n${row.story_context||''}\n${role === 'revision' ? 'Review and improve this concept:\n' + JSON.stringify(steps.concept.output) : ''}` });
       checkpoint(user, rid);
       steps[role] = { ...steps[role], status: 'done', output: planOf(result.text, row.slide_count), usage: result.usage, completed_at: now() };
       run('UPDATE generator_runs SET steps=?,caption=?,updated_at=? WHERE id=?', JSON.stringify(steps), steps[role].output.caption, now(), rid);
@@ -165,7 +166,7 @@ async function processRun(user, rid) {
           const original=media.getMedia(mids[i]);
           slideRefs.push({mime:'image/jpeg',buffer:await sharp(original.path).resize({width:1536,height:1536,fit:'inside',withoutEnlargement:true}).flatten({background:'#ffffff'}).jpeg({quality:90}).toBuffer()});
         }
-        const result = await generateImage({ ...a, key: keyOf(user.id, a.provider), references:slideRefs, prompt: `${a.instructions}\n${visualDirection}\nCampaign: ${plan.title}\nBrief: ${row.brief}\n${row.story_context||''}\nSlide ${i + 1}/${row.slide_count}: ${plan.slides[i].prompt}${redoPrompt?'\nThe last attached image is the current slide. Preserve its composition and identity except for the requested changes. Human revision for this slide: '+redoPrompt:''}` });
+        const result = await generateImage({ ...a, key: keyOf(user.id, a.provider), references:slideRefs, prompt: `${a.instructions}\n${visualDirection}\nCampaign: ${plan.title}\nBrief: ${row.brief}\n${row.story_context||''}\nSlide ${i + 1}/${row.slide_count}: ${plan.slides[i].prompt}${redoPrompt?'\nThe last attached image is the current slide. Preserve its composition and identity except for the requested changes. Human revision for this slide: '+redoPrompt:''}\n${ASSET_PRESERVATION}` });
         checkpoint(user, rid);
         const image = await media.saveBuffer(user.id, result.buffer, { inLibrary: false, originalName: `${rid}-slide-${i + 1}` });
         try { checkpoint(user, rid); } catch (e) { media.deleteMedia(image.id); throw e; }
@@ -184,9 +185,11 @@ async function processRun(user, rid) {
     if (steps.final?.status !== 'done') {
       const images = [];
       for (const mid of mids) { const m = media.getMedia(mid); const buf = await sharp(fs.readFileSync(m.path)).resize({ width: 768, height: 768, fit: 'inside' }).jpeg({ quality: 75 }).toBuffer(); images.push({ mime: 'image/jpeg', data: buf.toString('base64') }); }
+      const protectedSources=referenceIds.map((mid,i)=>({role:roles[mid]||'visual',ref:refs[i]})).filter(x=>['logo','product'].includes(x.role));
+      images.push(...protectedSources.map(x=>({mime:x.ref.mime,data:x.ref.buffer.toString('base64')})));
       const a = agents.final;
       steps.final = { status: 'running', started_at: now() }; run('UPDATE generator_runs SET steps=?,updated_at=? WHERE id=?', JSON.stringify(steps), now(), rid);
-      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), images, system: a.instructions + '\nReview the actual supplied images in order. Return a checklist per numbered slide: logo/brand identity, product/packaging accuracy, spelling, readability, composition, consistency across slides, and unsupported claims. State uncertainties and concrete suggested fixes. Do not claim approval or publish anything.', prompt: `Brief: ${row.brief}\n${row.story_context||''}\nCaption: ${steps.revision.output.caption}\nSlides in order: ${JSON.stringify(steps.revision.output.slides)}` });
+      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), images, system: a.instructions + '\nReview the actual supplied images in order. Return a checklist per numbered slide: logo/brand identity, product/packaging accuracy, spelling, readability, composition, consistency across slides, and unsupported claims. State uncertainties and concrete suggested fixes. Do not claim approval or publish anything. Compare protected source assets against the generated slides; any changed lettering, colors, proportions, packaging or product detail is a blocking issue to report explicitly. If comparison is uncertain, say verification is required.\n'+ASSET_PRESERVATION, prompt: `The first ${mids.length} images are generated slides. The remaining ${protectedSources.length} images are immutable source assets in this order: ${protectedSources.map(x=>x.role).join(', ')}. Do not treat source assets as generated slides.\nBrief: ${row.brief}\n${row.story_context||''}\nCaption: ${steps.revision.output.caption}\nSlides in order: ${JSON.stringify(steps.revision.output.slides)}` });
       checkpoint(user, rid);
       steps.final = { ...steps.final, status: 'done', output: result.text, usage: result.usage, completed_at: now() };
     }
