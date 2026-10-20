@@ -278,3 +278,40 @@ for (const [column, definition] of [['concept_approved_at','TEXT'],['draft_touch
     if (column === 'draft_touched_at') db.prepare('UPDATE generator_runs SET draft_touched_at=?').run(new Date().toISOString());
   }
 }
+
+// Persistent account-specific brand assets and story memory outlive disposable content drafts.
+db.exec(`CREATE TABLE IF NOT EXISTS account_story_profiles (
+ account_id TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+ seed TEXT NOT NULL DEFAULT '', brand_notes TEXT NOT NULL DEFAULT '', bible TEXT NOT NULL DEFAULT '',
+ memory TEXT NOT NULL DEFAULT '', next_episode INTEGER NOT NULL DEFAULT 1, revision INTEGER NOT NULL DEFAULT 0,
+ updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS account_brand_assets (
+ id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+ media_id TEXT NOT NULL REFERENCES media(id), category TEXT NOT NULL,
+ name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL,
+ created_at TEXT NOT NULL, UNIQUE(account_id,media_id)
+);
+CREATE TABLE IF NOT EXISTS story_jobs (
+ id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+ request_id TEXT NOT NULL, request_hash TEXT NOT NULL, payload TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'queued', steps TEXT NOT NULL DEFAULT '{}', error TEXT, plan_id TEXT,
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(user_id,request_id)
+);
+CREATE TABLE IF NOT EXISTS story_episodes (
+ id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+ job_id TEXT NOT NULL REFERENCES story_jobs(id), episode_number INTEGER NOT NULL,
+ title TEXT NOT NULL, brief TEXT NOT NULL, product_ids TEXT NOT NULL DEFAULT '[]',
+ run_id TEXT, created_at TEXT NOT NULL, UNIQUE(account_id,episode_number)
+);
+CREATE INDEX IF NOT EXISTS brand_asset_media ON account_brand_assets(media_id);
+CREATE INDEX IF NOT EXISTS story_account_history ON story_episodes(account_id,episode_number);
+`);
+for(const [column,definition] of [['story_job_id','TEXT'],['story_episode','INTEGER'],['story_context',"TEXT NOT NULL DEFAULT ''"]]) {
+ if(!db.prepare('PRAGMA table_info(generator_runs)').all().some(c=>c.name===column))db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
+}
+
+for(const [column,definition] of [['schedule_reason',"TEXT NOT NULL DEFAULT ''"],['content_type',"TEXT NOT NULL DEFAULT 'image'"]]){
+ if(!db.prepare('PRAGMA table_info(generator_runs)').all().some(c=>c.name===column))db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
+}

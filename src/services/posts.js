@@ -3,7 +3,7 @@ import { err, parseJSON, toUtcIso } from '../util.js';
 import { getAccount } from './accounts.js';
 import { getMedia, publicMedia } from './media.js';
 import { validateTarget } from './rules.js';
-import { assertAccount, scopeSql } from './scope.js';
+import { assertAccount, scopeSql, canUseAccountMedia } from './scope.js';
 
 const TERMINAL = ['published', 'failed', 'cancelled'];
 
@@ -60,7 +60,7 @@ function normalizeTargets(body, user) {
     const mediaIds = Array.isArray(t.media_ids) ? t.media_ids : sharedMedia;
     const media = mediaIds.map((m) => {
       const r = getMedia(m);
-      if (!r.in_library && r.user_id !== user?.id) throw err(404, 'not_found', 'Media pribadi tidak ditemukan.');
+      if (!r.in_library && r.user_id !== user?.id && !canUseAccountMedia(user,r.id,acc.id)) throw err(404, 'not_found', 'Media pribadi tidak ditemukan.');
       return { id: r.id, kind: r.kind, width: r.width, height: r.height, duration_ms: r.duration_ms, size: r.size_bytes };
     });
     const options = t.options && typeof t.options === 'object' ? structuredClone(t.options) : {};

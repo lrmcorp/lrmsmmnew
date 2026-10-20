@@ -70,3 +70,12 @@ export function setCompanyAssignments(userId, companyIds) {
     for (const companyId of new Set(companyIds)) run('INSERT INTO user_companies(user_id,company_id) VALUES(?,?)', userId, companyId);
   });
 }
+
+// Shared catalog assets and already-validated generator snapshots stay scoped to their account.
+export function canUseAccountMedia(user, mediaId, accountId) {
+  if(!user||!canAccount(user,accountId))return false;
+  if(one('SELECT 1 FROM account_brand_assets WHERE account_id=? AND media_id=?',accountId,mediaId))return true;
+  return all("SELECT targets FROM generator_runs WHERE user_id=? AND status IN ('review','drafted','approved') AND media_ids LIKE ?",user.id,`%"${mediaId}"%`).some(r=>{
+    try{return JSON.parse(r.targets).some(t=>t.account_id===accountId);}catch{return false;}
+  });
+}

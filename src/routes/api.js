@@ -15,6 +15,7 @@ import { audit, listAudit } from '../services/audit.js';
 import { bus } from '../services/events.js';
 import { stats as webhookStats } from './webhooks.js';
 import { config } from '../config.js';
+import * as storytelling from '../services/storytelling.js';
 import * as generator from '../services/generator.js';
 import * as aiDrafts from '../services/ai-drafts.js';
 
@@ -68,6 +69,16 @@ const source = (req) => (req.auth.via === 'session' ? 'dashboard' : req.auth.via
 const kick = () => setImmediate(() => runPublisherTick().catch(() => {}));
 
 // Generator credentials and paid jobs are controlled by the signed-in user only.
+api.get('/generator/accounts/:id/brand',sessionOnly,(req,res)=>res.json(storytelling.profile(U(req),req.params.id)));
+api.put('/generator/accounts/:id/brand',sessionOnly,(req,res)=>{const p=storytelling.saveProfile(U(req),req.params.id,req.body||{});audit(req.auth,'brand.save','account',req.params.id);res.json(p);});
+api.post('/generator/accounts/:id/assets',sessionOnly,(req,res)=>{const p=storytelling.saveAsset(U(req),req.params.id,req.body||{});audit(req.auth,'brand.asset.save','account',req.params.id);res.json(p);});
+api.patch('/generator/accounts/:id/assets/:asset',sessionOnly,(req,res)=>res.json(storytelling.saveAsset(U(req),req.params.id,req.body||{},req.params.asset)));
+api.delete('/generator/accounts/:id/assets/:asset',sessionOnly,(req,res)=>res.json(storytelling.removeAsset(U(req),req.params.id,req.params.asset)));
+api.get('/generator/accounts/:id/story-jobs',sessionOnly,(req,res)=>res.json({data:storytelling.jobs(U(req),req.params.id)}));
+api.get('/generator/story-jobs/:id',sessionOnly,(req,res)=>res.json(storytelling.job(U(req),req.params.id)));
+api.post('/generator/story-jobs',sessionOnly,(req,res)=>{const result=generator.queueStory(U(req),req.body||{});audit(req.auth,'story.start','story_job',result.id);setImmediate(()=>generator.runGeneratorTick());res.status(result.replayed?200:201).json(result);});
+api.delete('/generator/story-jobs/:id',sessionOnly,(req,res)=>{const result=storytelling.cancel(U(req),req.params.id);audit(req.auth,'story.cancel','story_job',result.id);res.json(result);});
+api.post('/generator/story-jobs/:id/retry',sessionOnly,(req,res)=>{if(req.body?.confirm_cost!==true)throw err(400,'cost_confirmation_required','Konfirmasi biaya percobaan ulang.');const result=storytelling.retry(U(req),req.params.id);audit(req.auth,'story.retry','story_job',result.id);setImmediate(()=>generator.runGeneratorTick());res.json(result);});
 api.get('/generator/settings', sessionOnly, (req, res) => res.json(generator.settings(U(req))));
 api.put('/generator/settings', sessionOnly, (req, res) => res.json(generator.saveSettings(U(req), req.body || {})));
 api.put('/generator/keys/:provider', sessionOnly, (req, res) => {

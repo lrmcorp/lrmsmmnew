@@ -24,7 +24,7 @@ export function listDrafts(user) {
   return all("SELECT id FROM ai_drafts WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 50", user.id)
     .flatMap(d => { try { return [getDraft(user, d.id)]; } catch { return []; } });
 }
-export async function receiveDraft(auth, body, { allowApiKey = false } = {}) {
+export async function receiveDraft(auth, body, { allowApiKey = false, trustedMediaIds = [] } = {}) {
   if (!(allowApiKey && auth?.via === 'api_key' && auth.scope === 'write')) requireOAuth(auth);
   if (!Array.isArray(body.targets) || !body.targets.length || body.targets.length > 20) throw err(400, 'validation_failed', 'Pilih 1–20 akun tujuan.');
   if (body.targets.some(t => !t || typeof t.account_id !== 'string')) throw err(400, 'validation_failed', 'ID akun tujuan tidak valid.');
@@ -37,7 +37,7 @@ export async function receiveDraft(auth, body, { allowApiKey = false } = {}) {
   if (!Array.isArray(images) || !Array.isArray(existing) || images.length + existing.length > 10) throw err(400, 'validation_failed', 'Maksimal 10 gambar/media.');
   for (const mid of existing) {
     if (typeof mid !== 'string') throw err(400, 'validation_failed', 'ID media tidak valid.');
-    if (media.getMedia(mid).user_id !== auth.user.id) throw err(404, 'not_found', 'Gunakan media milik pengguna yang tersambung.');
+    if (media.getMedia(mid).user_id !== auth.user.id&&!trustedMediaIds.includes(mid)) throw err(404, 'not_found', 'Gunakan media milik pengguna yang tersambung.');
   }
   const requestId = body.request_id;
   if (typeof requestId !== 'string' || !requestId.trim() || requestId.length > 100) throw err(400, 'validation_failed', 'request_id wajib diisi (maksimal 100 karakter).');

@@ -164,7 +164,7 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       const manualRow=gen.listRuns(other).find(r=>r.plan_id===manual.id);
       assert.equal(manualRow.status,'planned');
       assert.notEqual(manualRow.scheduled_at,approved.scheduled_at,'new plan avoids an occupied schedule');
-      assert.throws(()=>gen.updateContent(other,manualRow.id,{media_ids:[img.id]}),/unggah sendiri/);
+      assert.throws(()=>gen.updateContent(other,manualRow.id,{media_ids:[img.id]}),/katalog akun/);
       gen.cancelRun(other,manualRow.id);
     });
     await t.test('prompt revisions create a new version with the same proposed slot and retain previous history', async()=>{
@@ -180,7 +180,7 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       const done = await execute(r);
       assert.equal(done.status, 'review'); assert.equal(done.media.length, 2);
       assert.ok(done.media.every(m => m.mime_type === 'image/jpeg' && m.url));
-      for (const role of gen.ROLES) assert.equal(done.steps[role].status, 'done');
+      for (const role of ['concept','revision','image','final']) assert.equal(done.steps[role].status, 'done');
       const final = providerCalls.findLast(c => c.origin.includes('googleapis') && !c.body.generationConfig?.responseModalities);
       assert.equal(final.body.contents[0].parts.filter(p => p.inlineData).length, 2, 'reviewer sees actual image bytes');
       assert.equal(one('SELECT COUNT(*) n FROM posts').n, postCount);

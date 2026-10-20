@@ -2,7 +2,7 @@
 
 ## Approval and selective revision
 
-New runs stop after Concept Creator and Concept Reviewer at `concept_review`. No image or final-review provider call is made before an explicit, paid-cost-confirmed `POST /v1/generator/runs/:id/approve-concept`. The human can edit the title, caption and each slide's visual prompt at that gate. Changing the brief or reference assets while waiting invalidates the old concept and returns it to planning. Existing ready media and manual-upload workflows remain reviewable.
+Regular non-story runs stop after Concept Creator and Concept Reviewer at `concept_review`. No image or final-review provider call is made before an explicit, paid-cost-confirmed `POST /v1/generator/runs/:id/approve-concept`. The human can edit the title, caption and each slide's visual prompt at that gate. Changing the brief or reference assets while waiting invalidates the old concept and returns it to planning. Existing ready media and manual-upload workflows remain reviewable.
 
 Concept and campaign-planning requests use provider structured outputs: OpenAI strict JSON schema, Anthropic forced structured tool output, Gemini JSON schema. Local count/caption/prompt validation remains authoritative. Token budgets scale with requested slides/content. No automatic paid retry is added.
 
@@ -23,3 +23,5 @@ Deletion clears draft content, outputs, references and versions, retaining only 
 ## Verification
 
 Generator integration tests cover the human gate with zero image requests, structured provider payloads, selective revision and replay protection, unchanged-vs-changed retention, active/scheduled protection, ownership, private-file cleanup and shared/library asset survival. Browser tests cover concept editing/approval, slide revision/history, manual deletion, manual image approval/calendar flow, and mobile/desktop layouts. All provider requests in tests are simulated; no real Instagram posts or paid calls are made.
+
+Continuous-story sessions can explicitly authorize image production after Manager QC when starting the session; they still require final human publication approval. Their account Brand Kit and story memory are persistent and excluded from draft expiry. See `STORYTELLING.md`.

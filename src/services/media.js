@@ -208,6 +208,7 @@ export function listMedia({ limit = 50, cursor } = {}) {
 }
 
 function mediaInActiveUse(mediaId) {
+  if(one('SELECT 1 FROM account_brand_assets WHERE media_id=?',mediaId))return true;
   const like = `%"${mediaId}"%`;
   if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ? OR media_versions LIKE ?)", like, like, like)) return true;
   if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) return true;
@@ -227,6 +228,7 @@ export function deleteMedia(mediaId) {
 export function purgePublishedMedia() {
   let removed = 0;
   for (const m of all("SELECT * FROM media WHERE status='ready'")) {
+    if(one('SELECT 1 FROM account_brand_assets WHERE media_id=?',m.id))continue;
     const like = `%"${m.id}"%`;
     if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ? OR media_versions LIKE ?)", like, like, like)) continue;
     if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) continue;
@@ -247,6 +249,7 @@ export function gcMedia() {
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
   const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
   for (const m of all('SELECT * FROM media WHERE in_library=0 AND created_at < ?', weekAgo)) {
+    if(one('SELECT 1 FROM account_brand_assets WHERE media_id=?',m.id))continue;
     const like = `%"${m.id}"%`;
     if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ? OR media_versions LIKE ?)", like, like, like)) continue;
     if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) continue;
