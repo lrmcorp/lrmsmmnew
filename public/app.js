@@ -20,6 +20,7 @@ function h(tag, attrs = {}, ...kids) {
   for (const k of kids.flat(Infinity)) if (k != null && k !== false) el.append(k instanceof Node ? k : document.createTextNode(String(k)));
   return el;
 }
+const replaceContent=(el,...children)=>el.replaceChildren(...children.filter(x=>x!=null&&x!==false));
 const svg = (s) => { const t = document.createElement('template'); t.innerHTML = s.trim(); return t.content.firstChild; };
 const PLAT_SVG = {
   instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M8 6l1.5-2.5h5L16 6"/><circle cx="12" cy="13" r="3.5"/></svg>',
@@ -844,7 +845,10 @@ async function pageGenerator() {
   }
   drawAccounts();
   const agentCards = Object.entries(labels).map(([role, name], i) => {
-    const agent = config.agents[role];
+    const savedAgent=config.agents?.[role]||{};
+    const fallbackProvider=role==='image'?Object.keys(config.providers).find(id=>config.providers[id].image):'openai';
+    const providerId=config.providers[savedAgent.provider]&&(role!=='image'||config.providers[savedAgent.provider].image)?savedAgent.provider:fallbackProvider;
+    const agent={provider:providerId,model:savedAgent.model||config.providers[providerId][role==='image'?'imageModel':'textModel'],instructions:savedAgent.instructions||''};
     const model = h('select', { 'aria-label': `Model ${name}` });
     const help = h('p',{class:'faint small generator-model-help'});
     function drawModels(providerId,preferred) {
@@ -893,7 +897,6 @@ async function pageGenerator() {
   const reference=visualReferences();
   const count = h('input', { type: 'number', min: 1, max: 10, value: 1, 'aria-label': 'Jumlah slide' });
   const at = h('input', { type: 'datetime-local', 'aria-label': 'Usulan jadwal' });
-  const paid = h('input', { type: 'checkbox', 'aria-label': 'Setujui biaya API' });
   const tomorrow = new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0,10);
   const until = new Date(Date.now() + 14 * 864e5 + 7 * 3600000).toISOString().slice(0,10);
   const fromDate = h('input',{type:'date',value:tomorrow,'aria-label':'Tanggal mulai rencana'});
@@ -905,8 +908,7 @@ async function pageGenerator() {
   const planButton=h('button',{class:'btn primary',onclick:async e=>{
     e.currentTarget.disabled=true;
     try {
-      if(planningMode.value==='ai'&&!paid.checked)throw new Error('Setujui biaya API untuk menyusun ide. Mode manual tidak memakai AI.');
-      const body={brief:brief.value,account_ids:[...selected],content_count:Number(totalContents.value),slide_count:Number(count.value),start_date:fromDate.value,end_date:endDate.value,times:postTimes.value.split(',').map(t=>t.trim()).filter(Boolean),manual:planningMode.value==='manual',confirm_cost:paid.checked,agents:collectAgents(),...reference.get()};
+      const body={brief:brief.value,account_ids:[...selected],content_count:Number(totalContents.value),slide_count:Number(count.value),start_date:fromDate.value,end_date:endDate.value,times:postTimes.value.split(',').map(t=>t.trim()).filter(Boolean),manual:planningMode.value==='manual',confirm_cost:true,agents:collectAgents(),...reference.get()};
       const signature=JSON.stringify(body);if(signature!==planSignature){planSignature=signature;planRequest=crypto.randomUUID();}
       const result=await api('POST','/v1/generator/plans',{...body,request_id:planRequest});go('/generator/drafts?plan='+result.id);
     }catch(error){toast(errMsg(error),true);}finally{e.target.disabled=false;}
@@ -925,7 +927,6 @@ async function pageGenerator() {
   const startButton = h('button', { class: 'btn primary', onclick: async () => {
     startButton.disabled = true;
     try {
-      if (!paid.checked) throw new Error('Setujui penggunaan API berbayar terlebih dahulu.');
       const body = { brief: brief.value, account_ids: [...selected], slide_count: Number(count.value), agents: collectAgents(), scheduled_at: at.value ? new Date(at.value).toISOString() : null, confirm_cost: true, ...reference.get() };
       const signature = JSON.stringify(body);
       if (signature !== submissionSignature) { submissionSignature = signature; submissionId = crypto.randomUUID(); }
@@ -940,12 +941,12 @@ async function pageGenerator() {
     const image = r.media[index];
     const acc = state.accounts.find(a => a.id === r.targets[0]?.account_id);
     const caption = h('textarea', { 'aria-label': 'Caption final generator', maxlength: 2200, oninput: e => { captions[r.id] = e.target.value; } }, captions[r.id] ?? r.caption);
-    detail.replaceChildren(h('div', { class: 'panel' }, h('div', { class: 'row' }, h('h2', {}, 'Proses campaign'),h('a',{class:'btn sm',href:'#/generator/drafts?id='+r.id},'Buka Draft Konten'), h('span', { class: 'spacer' }), h('span', { class: 'pill' }, phaseNames[r.status])),
+    replaceContent(detail,h('div', { class: 'panel' }, h('div', { class: 'row' }, h('h2', {}, 'Proses campaign'),h('a',{class:'btn sm',href:'#/generator/drafts?id='+r.id},'Buka Draft Konten'), h('span', { class: 'spacer' }), h('span', { class: 'pill' }, phaseNames[r.status])),
       h('p', { class: 'gen-brief' }, r.brief),agentActivity(r),
       h('div', { class: 'gen-flow' }, Object.entries(labels).map(([role,name]) => {
         const step = r.steps[role];
         const output = step?.output;
-        return h('div', { class: `gen-stage ${step?.status || ''}` }, h('b', {}, name), h('span', { class: 'small muted' }, `${r.agents[role].provider} · ${r.agents[role].model}`), h('span', {}, step?.status === 'done' ? '✓ Selesai' : step?.status === 'running' ? (r.status === 'failed' ? 'Terhenti' : 'Sedang bekerja…') : 'Menunggu'),
+        return h('div', { class: `gen-stage ${step?.status || ''}` }, h('b', {}, name), h('span', { class: 'small muted' }, r.agents?.[role]?`${r.agents[role].provider} · ${r.agents[role].model}`:'Model tidak tercatat pada proses lama'), h('span', {}, step?.status === 'done' ? '✓ Selesai' : step?.status === 'running' ? (r.status === 'failed' ? 'Terhenti' : 'Sedang bekerja…') : 'Menunggu'),
           role === 'image' && step ? h('small', {}, `${step.completed_slides || 0}/${r.slide_count} slide`) : null,
           output ? h('details', {}, h('summary', {}, 'Lihat hasil'), h('pre', {}, typeof output === 'string' ? output : JSON.stringify(output, null, 2)), step.usage ? h('pre', { class: 'faint small' }, JSON.stringify(step.usage, null, 2)) : null) : null);
       })),
@@ -976,7 +977,7 @@ async function pageGenerator() {
       else detail.replaceChildren(h('div', { class: 'panel empty' }, 'Isi brief dan jalankan tim agen untuk melihat hasil setiap tahap.'));
     } catch(error) { if (!stopped) toast(errMsg(error), true); } finally { fetching = false; }
   }
-  const briefNode=h('section',{class:'gen-start'},h('label',{},'Brief campaign',brief),h('label',{},'Jumlah slide per konten',count),h('label',{class:'check'},paid,'Saya setuju biaya API untuk proses yang dijalankan.'));
+  const briefNode=h('section',{class:'gen-start'},h('label',{},'Brief campaign',brief),h('label',{},'Jumlah slide per konten',count),h('p',{class:'faint small'},'Generate menggunakan API key pribadi dan tarif provider.'));
   const targetNode=h('div',{},h('label',{},'Perusahaan',company),accountBox,h('p',{class:'muted small'},'Akun yang ditugaskan kepada Anda.'));
   const scheduleNode=h('div',{},h('label',{},'Jadwal satu konten (opsional)',at),planner);
   workflow=workflowCanvas({h,userId:state.user.id,history,

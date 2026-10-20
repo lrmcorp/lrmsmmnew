@@ -60,7 +60,7 @@ export function queue(user,body,agents) {
  account(user,body.account_id);
  if(body.produce_media!==undefined&&typeof body.produce_media!=='boolean')throw err(400,'validation_failed','Pilihan produksi media tidak valid.');
  if(body.confirm_cost!==true)throw err(400,'cost_confirmation_required','Konfirmasi biaya Storyteller dan Manager.');
- if(typeof body.request_id!=='string'||!body.request_id||body.request_id.length>100||typeof(body.direction??'')!=='string'||(body.direction||'').length>3000)throw err(400,'validation_failed','request_id dan arahan sesi tidak valid.');
+ if(typeof body.request_id!=='string'||!body.request_id||body.request_id.length>100||typeof(body.direction??'')!=='string'||(body.direction||'').length>10000)throw err(400,'validation_failed','request_id dan arahan sesi tidak valid.');
  if(!Number.isInteger(body.content_count)||body.content_count<1||body.content_count>30||!Number.isInteger(body.slide_count)||body.slide_count<1||body.slide_count>10)throw err(400,'validation_failed','Pilih 1–30 konten dan 1–10 slide.');
  if(typeof body.start_date!=='string'||typeof body.end_date!=='string'||!Array.isArray(body.times)||!body.times.length||body.times.length>12||body.times.some(t=>typeof t!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(t)))throw err(400,'validation_failed','Tanggal dan jam sesi wajib valid.');
  const payload={account_id:body.account_id,direction:body.direction||'',content_count:body.content_count,slide_count:body.slide_count,start_date:body.start_date,end_date:body.end_date,times:body.times,produce_media:body.produce_media===true,agents};
@@ -102,12 +102,13 @@ async function catalogImages(assets){
  }
  return images;
 }
-export async function processJob(user,jid,{generateText,keyOf,slotsFor}) {
+export async function processJob(user,jid,{generateText,keyOf,slotsFor,normalizeAgents=agents=>agents}) {
  const initial=one('SELECT * FROM story_jobs WHERE id=?',jid);if(!initial)return;
  const body=parseJSON(initial.payload,{});let steps=parseJSON(initial.steps,{});
  const checkpoint=()=>{const current=one('SELECT * FROM story_jobs WHERE id=?',jid);if(current?.status!=='running')throw err(409,'story_interrupted','Sesi cerita dihentikan.');account(user,body.account_id);return current;};
  const stage=(role,value)=>{steps[role]=value;run('UPDATE story_jobs SET steps=?,updated_at=? WHERE id=?',JSON.stringify(steps),now(),jid);};
  try{
+  body.agents=normalizeAgents(body.agents||{});
   checkpoint();const p=profile(user,body.account_id),assets=p.assets;if(body.base_revision!==p.revision)throw err(409,'story_changed','Fondasi/memori akun berubah. Buat sesi baru agar cerita tetap konsisten.');
   const catalogue=assets.filter(a=>a.category==='product').map((a,i)=>({sheet:Math.floor(i/30)+1,row:Math.floor((i%30)/6)+1,column:(i%6)+1,id:a.id,name:a.name,description:a.description.slice(0,500)}));
   const recent=p.episodes.slice(0,30).reverse().map(e=>({number:e.episode_number,title:e.title,brief:(e.current_brief||e.brief).slice(0,2000),caption:e.current_caption.slice(0,2200),products:e.product_ids,status:e.status}));
@@ -163,8 +164,8 @@ export async function processJob(user,jid,{generateText,keyOf,slotsFor}) {
    run('UPDATE account_story_profiles SET bible=?,memory=?,next_episode=?,revision=revision+1,updated_at=? WHERE account_id=?',review.bible,review.memory,p.next_episode+body.content_count,now(),body.account_id);
    run("UPDATE story_jobs SET status='completed',plan_id=?,error=NULL,updated_at=? WHERE id=?",plan.id,now(),jid);
   });
- }catch(e){run("UPDATE story_jobs SET status='failed',error=?,updated_at=? WHERE id=? AND status='running'",e.status?String(e.message).slice(0,500):'Sesi cerita gagal; hasil tahap selesai disimpan. Coba ulang secara manual dengan konfirmasi biaya.',now(),jid);}
+ }catch(e){const role=['scheduler','manager','storyteller'].find(r=>steps[r]?.status==='running'),a=body.agents?.[role];const context=role&&a?`${({storyteller:'Storyteller',manager:'Social Media Manager',scheduler:'Scheduler'})[role]} · ${a.provider} / ${a.model}: `:'';run("UPDATE story_jobs SET status='failed',error=?,updated_at=? WHERE id=? AND status='running'",e.status?(context+String(e.message)).slice(0,500):'Sesi cerita gagal; hasil tahap selesai disimpan. Periksa model agen lalu coba ulang.',now(),jid);}
 }
-export function retry(user,jid){const j=job(user,jid);if(j.status!=='failed')throw err(409,'story_state','Hanya sesi gagal yang dapat dicoba ulang.');if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND id!=? AND status IN ('queued','running')",j.account_id,jid))throw err(409,'story_busy','Akun ini memiliki sesi lain yang aktif.');run("UPDATE story_jobs SET status='queued',error=NULL,updated_at=? WHERE id=?",now(),jid);return job(user,jid);}
+export function retry(user,jid,agents=null){const j=job(user,jid);if(j.status!=='failed')throw err(409,'story_state','Hanya sesi gagal yang dapat dicoba ulang.');if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND id!=? AND status IN ('queued','running')",j.account_id,jid))throw err(409,'story_busy','Akun ini memiliki sesi lain yang aktif.');const row=one('SELECT payload FROM story_jobs WHERE id=?',jid),payload=parseJSON(row.payload,{});if(agents)payload.agents=agents;run("UPDATE story_jobs SET status='queued',error=NULL,payload=?,updated_at=? WHERE id=?",JSON.stringify(payload),now(),jid);return job(user,jid);}
 
 export function cancel(user,jid){const j=job(user,jid);if(!['queued','running'].includes(j.status))throw err(409,'story_state','Sesi sudah selesai atau berhenti.');run("UPDATE story_jobs SET status='cancelled',updated_at=? WHERE id=?",now(),jid);return job(user,jid);}

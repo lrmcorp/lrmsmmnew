@@ -26,7 +26,8 @@ const keyOf = (userId, provider) => {
   return decrypt(row.secret_enc);
 };
 export function settings(user) {
-  return { providers: PROVIDERS, agents: {...DEFAULT_AGENTS,...parseJSON(one('SELECT agents FROM generator_settings WHERE user_id=?', user.id)?.agents,{})},
+  const stored=parseJSON(one('SELECT agents FROM generator_settings WHERE user_id=?',user.id)?.agents,{});
+  return { providers: PROVIDERS, agents: Object.fromEntries(ROLES.map(role=>[role,{...DEFAULT_AGENTS[role],...(stored?.[role]||{})}])),
     keys: all('SELECT provider,updated_at FROM generator_keys WHERE user_id=?', user.id) };
 }
 function cleanAgents(agents) {
@@ -207,7 +208,7 @@ export function runGeneratorTick() {
     if([...active.values()].some(x=>x.userId===row.user_id||x.accountId===row.account_id))continue;
     const user=one('SELECT * FROM users WHERE id=?',row.user_id);if(!user)continue;
     if(!run("UPDATE story_jobs SET status='running',updated_at=? WHERE id=? AND status='queued'",now(),row.id).changes)continue;
-    const promise=storytelling.processJob(user,row.id,{generateText,keyOf,createPlan,slotsFor}).finally(()=>active.delete(row.id));
+    const promise=storytelling.processJob(user,row.id,{generateText,keyOf,createPlan,slotsFor,normalizeAgents:agents=>cleanAgents({...settings(user).agents,...agents})}).finally(()=>active.delete(row.id));
     active.set(row.id,{promise,userId:user.id,accountId:row.account_id});
   }
   // A crashed API call has an uncertain billing outcome. Require explicit retry.
@@ -455,4 +456,14 @@ export function queueStory(user,body){
  slotsFor({account_ids:[body.account_id],content_count:body.content_count,start_date:body.start_date,end_date:body.end_date,times:body.times},user);
  if(body.produce_media===true&&one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','concept_review','review')",user.id).n+body.content_count>40)throw err(409,'generator_limit','Selesaikan atau hapus draft aktif sebelum membuat media sesi ini (maksimal 40 aktif).');
  return storytelling.queue(user,body,agents);
+}
+
+export function retryStory(user,jid,body={}) {
+ const j=storytelling.job(user,jid);
+ if(j.status!=='failed')throw err(409,'story_state','Hanya sesi gagal yang dapat dicoba ulang.');
+ const row=one('SELECT payload FROM story_jobs WHERE id=?',jid),payload=parseJSON(row.payload,{});
+ const agents=cleanAgents({...settings(user).agents,...(body.agents||payload.agents||{})});
+ for(const role of ['storyteller','manager','scheduler'])if(j.steps[role]?.status!=='done')keyOf(user.id,agents[role].provider);
+ if(payload.produce_media)for(const role of ['concept','revision','image','final'])keyOf(user.id,agents[role].provider);
+ return storytelling.retry(user,jid,agents);
 }

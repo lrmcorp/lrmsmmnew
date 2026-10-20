@@ -76,6 +76,11 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
   assert.equal(story.profile(user,'story-account').next_episode,episode);assert.equal(one('SELECT COUNT(*) n FROM generator_plans').n,plans);
   const callsBefore=calls.length;story.retry(user,bad.id);assert.equal((await execute(bad)).status,'completed');assert.equal(calls.length-callsBefore,1,'retry preserves storyteller and manager output');
  });
+ await t.test('legacy sessions restore missing agent presets without undefined access',async()=>{
+  const j=gen.queueStory(user,body({}));const payload=JSON.parse(one('SELECT payload FROM story_jobs WHERE id=?',j.id).payload);
+  delete payload.agents.scheduler;run('UPDATE story_jobs SET payload=? WHERE id=?',JSON.stringify(payload),j.id);
+  const done=await execute(j);assert.equal(done.status,'completed',done.error);assert.equal(done.steps.scheduler.status,'done');
+ });
  await t.test('saved assets shared within assigned account; media proposals stay unposted until human approval',async()=>{
   const videoPath=path.join(tmp,'reel.mp4');execFileSync('ffmpeg',['-y','-loglevel','error','-f','lavfi','-i','color=c=blue:s=480x640:d=3.2','-c:v','libx264','-pix_fmt','yuv420p',videoPath]);
   const video=await media.saveBuffer(user.id,fs.readFileSync(videoPath),{inLibrary:false});story.saveAsset(user,'story-account',{media_id:video.id,category:'video',name:'Product introduction reel',description:'Real product introduction.'});
