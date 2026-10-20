@@ -38,3 +38,9 @@ PLAYWRIGHT_MODULE=/path/to/playwright CHROMIUM_EXECUTABLE=/path/to/chromium node
 ```
 
 If Playwright is resolvable normally, omit PLAYWRIGHT_MODULE. The browser test is optional and requires explicit browser tooling; the existing CI checks continue to test application and production-image behavior. Separate local generator browser checks also verify reference-image uploads, active-stage animation and reduced-motion behavior under the shared styles.
+
+### Scheduler model availability
+
+The Generator fetches Gemini's model catalogue using the signed-in user's encrypted personal key, with a five-minute metadata cache. Refresh it from **Tim agen → Perbarui model Gemini**. Catalogue availability does not guarantee generation quota. Keys and raw provider errors are never returned to the browser.
+
+If the Storyline Scheduler alone receives HTTP 404, it preserves completed Storyteller/QC output and creates a validated rules-based schedule across the selected future WIB slots. The proposal explicitly labels this fallback and its reasons; it does not claim account analytics or make an additional paid model call. Authentication, quota, malformed output, and invalid schedules still fail visibly. Existing failed sessions require **Coba ulang sesi**; completed stages are reused. Publishing still requires human approval.

@@ -79,6 +79,7 @@ api.get('/generator/story-jobs/:id',sessionOnly,(req,res)=>res.json(storytelling
 api.post('/generator/story-jobs',sessionOnly,(req,res)=>{const result=generator.queueStory(U(req),req.body||{});audit(req.auth,'story.start','story_job',result.id);setImmediate(()=>generator.runGeneratorTick());res.status(result.replayed?200:201).json(result);});
 api.delete('/generator/story-jobs/:id',sessionOnly,(req,res)=>{const result=storytelling.cancel(U(req),req.params.id);audit(req.auth,'story.cancel','story_job',result.id);res.json(result);});
 api.post('/generator/story-jobs/:id/retry',sessionOnly,(req,res)=>{if(req.body?.confirm_cost!==true)throw err(400,'cost_confirmation_required','Konfirmasi biaya percobaan ulang.');const result=generator.retryStory(U(req),req.params.id,req.body||{});audit(req.auth,'story.retry','story_job',result.id);setImmediate(()=>generator.runGeneratorTick());res.json(result);});
+api.get('/generator/providers/gemini/models',sessionOnly,async(req,res)=>res.json(await generator.availableGeminiModels(U(req),req.query.refresh==='true')));
 api.get('/generator/settings', sessionOnly, (req, res) => res.json(generator.settings(U(req))));
 api.put('/generator/settings', sessionOnly, (req, res) => res.json(generator.saveSettings(U(req), req.body || {})));
 api.put('/generator/keys/:provider', sessionOnly, (req, res) => {

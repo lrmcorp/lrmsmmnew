@@ -1,4 +1,5 @@
 // Fixed official API origins. API keys never leave the corresponding provider.
+import { createHash } from 'node:crypto';
 import { err } from '../util.js';
 
 export const PROVIDERS = {
@@ -7,15 +8,15 @@ export const PROVIDERS = {
   gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detail'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Ringan'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
 };
 
-async function jsonRequest(url, headers, body) {
+async function jsonRequest(url, headers, body, method = 'POST') {
   let res;
-  try { res = await fetch(url, { method: 'POST', headers: { ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...headers }, body: body instanceof FormData ? body : JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(180000) }); }
+  try { res = await fetch(url, { method, headers: { ...(method==='GET'||body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...headers }, body: method==='GET'?undefined:body instanceof FormData ? body : JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(method==='GET'?10000:180000) }); }
   catch { throw err(502, 'provider_unavailable', 'Provider tidak merespons. Periksa koneksi lalu coba ulang tahap ini.'); }
   // Do not expose raw provider responses, prompts or secrets in error messages.
   if (!res.ok) {
     await res.body?.cancel();
-    const text = res.status === 401 || res.status === 403 ? 'API key atau akses model ditolak provider.' : res.status === 429 ? 'Kuota atau batas permintaan provider tercapai.' : `Permintaan provider gagal (HTTP ${res.status}). Periksa model dan akun provider.`;
-    throw err(502, 'provider_error', text);
+    const text = res.status === 404 ? 'Model tidak tersedia pada endpoint atau API key ini (HTTP 404). Perbarui daftar model dan pilih model yang tersedia.' : res.status === 401 || res.status === 403 ? 'API key atau akses model ditolak provider.' : res.status === 429 ? 'Kuota atau batas permintaan provider tercapai.' : `Permintaan provider gagal (HTTP ${res.status}). Periksa model dan akun provider.`;
+    throw err(502, res.status===404?'provider_model_unavailable':'provider_error', text);
   }
   const chunks = []; let size = 0;
   for await (const chunk of res.body) {
@@ -25,6 +26,36 @@ async function jsonRequest(url, headers, body) {
   }
   try { return JSON.parse(Buffer.concat(chunks).toString()); }
   catch { throw err(502, 'provider_response_invalid', 'Respons provider bukan JSON yang valid.'); }
+}
+
+// Catalog requests do not generate content. Cache only metadata, indexed by a key digest.
+const modelCatalogs=new Map();
+export async function geminiModels(key,{refresh=false}={}) {
+ const cacheKey=createHash('sha256').update(key).digest('hex'),cached=modelCatalogs.get(cacheKey);
+ if(!refresh&&cached&&cached.expires>Date.now())return cached.value;
+ const models=[];let token='';
+ for(let page=0;page<8;page++){
+  const query=new URLSearchParams({pageSize:'100'});if(token)query.set('pageToken',token);
+  const data=await jsonRequest('https://generativelanguage.googleapis.com/v1beta/models?'+query,{'x-goog-api-key':key},undefined,'GET');
+  if(!Array.isArray(data.models))throw err(502,'provider_catalog_invalid','Daftar model Gemini belum dapat dibaca.');
+  for(const item of data.models){
+   const id=typeof item.name==='string'?item.name.replace(/^models\//,''):'';
+   if(!/^gemini-[A-Za-z0-9._-]{1,90}$/.test(id)||!item.supportedGenerationMethods?.includes('generateContent')||/tts|audio|robotics|deep-research/i.test(id))continue;
+   models.push({id,name:typeof item.displayName==='string'?item.displayName.slice(0,120):id});
+  }
+  token=typeof data.nextPageToken==='string'?data.nextPageToken:'';if(!token)break;
+  if(page===7)throw err(502,'provider_catalog_large','Daftar model Gemini terlalu besar.');
+ }
+ const unique=[...new Map(models.map(m=>[m.id,m])).values()];
+ const textModels=unique.filter(m=>!m.id.includes('image')),imageModels=unique.filter(m=>m.id.includes('image'));
+ if(!textModels.length)throw err(502,'provider_catalog_empty','API key ini tidak mengembalikan model teks Gemini yang tersedia.');
+ // Prefer stable lightweight models over preview or reasoning-heavy presets.
+ const score=m=>(/preview|exp(?:erimental)?/.test(m.id)?0:100)+(/flash/.test(m.id)?20:0)+(/lite/.test(m.id)?5:0);
+ textModels.sort((a,b)=>score(b)-score(a)||b.id.localeCompare(a.id,undefined,{numeric:true}));
+ const value={textModels,imageModels,textModel:textModels[0].id,imageModel:imageModels[0]?.id||'',image:imageModels.length>0,live:true};
+ for(const [id,entry]of modelCatalogs)if(entry.expires<=Date.now())modelCatalogs.delete(id);
+ if(modelCatalogs.size>=500)modelCatalogs.delete(modelCatalogs.keys().next().value);
+ modelCatalogs.set(cacheKey,{value,expires:Date.now()+5*60_000});return value;
 }
 
 export async function generateText({ provider, model, key, system, prompt, images = [], maxTokens = 2400, jsonSchema = null }) {

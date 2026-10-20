@@ -7,7 +7,7 @@ import * as media from './media.js';
 import { createPost, publicPost, getPost } from './posts.js';
 import { receiveDraft } from './ai-drafts.js';
 import * as storytelling from './storytelling.js';
-import { PROVIDERS, generateText, generateImage } from '../llm/providers.js';
+import { PROVIDERS, generateText, generateImage, geminiModels } from '../llm/providers.js';
 
 export const ROLES = ['concept', 'revision', 'image', 'final', 'storyteller', 'manager', 'scheduler'];
 export const DEFAULT_AGENTS = {
@@ -467,3 +467,5 @@ export function retryStory(user,jid,body={}) {
  if(payload.produce_media)for(const role of ['concept','revision','image','final'])keyOf(user.id,agents[role].provider);
  return storytelling.retry(user,jid,agents);
 }
+
+export async function availableGeminiModels(user,refresh=false){return geminiModels(keyOf(user.id,'gemini'),{refresh});}

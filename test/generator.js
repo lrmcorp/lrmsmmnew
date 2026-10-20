@@ -17,11 +17,13 @@ const sharp = (await import('sharp')).default;
 const image = await sharp({ create: { width: 1024, height: 1024, channels: 3, background: '#4c8' } }).png().toBuffer();
 const realFetch = globalThis.fetch;
 let providerCalls = [], failImage = false, malformed = false, gate = null, blocked = null, failAfterSlide = 0, imageCalls = 0;
+let catalogReads=0;
 const secret = 'fixture-secret-DO-NOT-EXPOSE';
 // Intercept only official provider origins; application HTTP still exercises Express/auth/SQLite.
 globalThis.fetch = async (url, opts) => {
   const origin = new URL(url).origin;
   if (!['https://api.openai.com', 'https://api.anthropic.com', 'https://generativelanguage.googleapis.com'].includes(origin)) return realFetch(url, opts);
+  if(opts?.method==='GET'&&String(url).includes('/models?')){catalogReads++;return Response.json({models:[{name:'models/gemini-fixture-flash',displayName:'Gemini Fixture Flash',supportedGenerationMethods:['generateContent']},{name:'models/gemini-fixture-image',displayName:'Gemini Fixture Image',supportedGenerationMethods:['generateContent']},{name:'models/gemini-fixture-live',supportedGenerationMethods:['bidiGenerateContent']},{name:'models/gemini-fixture-tts',supportedGenerationMethods:['generateContent']}]});}
   const body = opts.body instanceof FormData ? Object.fromEntries(opts.body.entries()) : JSON.parse(opts.body);
   providerCalls.push({ origin, url, headers: opts.headers, body, form:opts.body instanceof FormData ? opts.body : null });
   const imageRequest = (String(url).includes('/images/generations') || String(url).includes('/images/edits')) || body.generationConfig?.responseModalities;
@@ -75,6 +77,14 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.throws(() => make({ confirm_cost: false }), /Konfirmasi/);
       assert.throws(() => make({ account_ids: ['unassigned'] }), /tidak ditemukan/);
       assert.throws(() => make({ agents: { ...gen.DEFAULT_AGENTS, image: { ...gen.DEFAULT_AGENTS.image, provider: 'anthropic' } } }), /Provider/);
+    });
+    await t.test('Gemini catalog uses private key metadata, isolates users, and excludes unsupported models',async()=>{
+      const before=providerCalls.length,reads=catalogReads;
+      const catalog=await http('GET','/providers/gemini/models');assert.equal(catalog.status,200);assert.deepEqual(catalog.json.textModels.map(m=>m.id),['gemini-fixture-flash']);assert.deepEqual(catalog.json.imageModels.map(m=>m.id),['gemini-fixture-image']);assert.equal(catalog.json.live,true);assert.ok(!JSON.stringify(catalog.json).includes(secret));
+      await http('GET','/providers/gemini/models');assert.equal(catalogReads,reads+1,'metadata cached without storing raw keys');
+      await http('GET','/providers/gemini/models?refresh=true');assert.equal(catalogReads,reads+2);
+      const machine=createApiKey(user.id,'catalog machine','write').key;assert.equal((await http('GET','/providers/gemini/models',undefined,machine,true)).status,403);assert.equal((await http('GET','/providers/gemini/models',undefined,otherCookie)).status,400);
+      gen.saveKey(other,'gemini','fixture-other-gemini-key');assert.equal((await http('GET','/providers/gemini/models',undefined,otherCookie)).status,200);assert.equal(catalogReads,reads+3,'other user key has a separate cache');gen.deleteKey(other,'gemini');assert.equal(providerCalls.length,before,'catalog does not perform paid generation calls');
     });
     await t.test('human concept gate prevents image spend and selective revision preserves other slides',async()=>{
       const r=make();const before=providerCalls.length;

@@ -842,6 +842,13 @@ async function pageSettings() {
 async function pageGenerator() {
   await loadAccounts();
   let config = await api('GET', '/v1/generator/settings');
+  const catalogNotice=h('p',{class:'studio-model-catalog-note',role:'status'});
+  async function loadGeminiCatalog(refresh=false){
+    if(!config.keys.some(k=>k.provider==='gemini'))return;
+    try{const catalog=await api('GET','/v1/generator/providers/gemini/models'+(refresh?'?refresh=true':''));config.providers.gemini={...config.providers.gemini,...catalog};catalogNotice.textContent='Daftar Gemini disinkronkan dari API key pribadi Anda.';}
+    catch(e){catalogNotice.textContent='Daftar Gemini belum dapat disinkronkan: '+errMsg(e);}
+  }
+  await loadGeminiCatalog();
   let studio,storyContext=null,lastStoryJob=null,campaignRun=null,campaignRuns=[];
   const labels = { concept: 'Konsep Creator', revision: 'Concept Reviewer', image: 'Image Creator', final: 'Final Reviewer', storyteller:'Storyteller',manager:'Social Media Manager',scheduler:'Scheduler' };
   const phaseNames = { concept_review:'Tinjau konsep', planned: 'Rencana / belum dibuat', approved: 'Masuk Kalender', queued: 'Menunggu', running: 'Agen bekerja', review: 'Siap ditinjau', failed: 'Perlu tindakan', cancelled: 'Dibatalkan', drafted: 'Dikirim ke Tulis Post' };
@@ -869,7 +876,7 @@ async function pageGenerator() {
     const savedAgent=config.agents?.[role]||{};
     const fallbackProvider=role==='image'?Object.keys(config.providers).find(id=>config.providers[id].image):'openai';
     const providerId=config.providers[savedAgent.provider]&&(role!=='image'||config.providers[savedAgent.provider].image)?savedAgent.provider:fallbackProvider;
-    const agent={provider:providerId,model:savedAgent.model||config.providers[providerId][role==='image'?'imageModel':'textModel'],instructions:savedAgent.instructions||''};
+    const agent={provider:providerId,model:(savedAgent.provider===providerId?savedAgent.model:'')||config.providers[providerId][role==='image'?'imageModel':'textModel'],instructions:savedAgent.instructions||''};
     const model = h('select', { 'aria-label': `Model ${name}` });
     const help = h('p',{class:'faint small generator-model-help'});
     function drawModels(providerId,preferred) {
@@ -877,14 +884,15 @@ async function pageGenerator() {
       const options=p[role==='image'?'imageModels':'textModels']||[];
       const fallback=role==='image'?p.imageModel:p.textModel;
       const available=[...options];
-      if(preferred&&!available.some(m=>m.id===preferred))available.push({id:preferred,name:`${preferred} · Preset tersimpan`});
+      if(preferred&&!p.live&&!available.some(m=>m.id===preferred))available.push({id:preferred,name:`${preferred} · Preset tersimpan`});
       model.replaceChildren(...available.map(m=>h('option',{value:m.id,selected:m.id===(preferred||fallback)},m.name)));
-      help.textContent=role==='image'?'Model pembuat gambar. Akses bergantung API key dan akun provider.':'Model teks + vision untuk konsep/review. Akses bergantung API key dan akun provider.';
+      const missing=preferred&&p.live&&!available.some(m=>m.id===preferred);
+      help.textContent=(missing?`Model tersimpan ${preferred} tidak tersedia untuk API key ini. Pilih model dari daftar terbaru. `:'')+(role==='image'?'Model pembuat gambar. Akses bergantung API key dan akun provider.':'Model teks + vision untuk konsep/review. Akses bergantung API key dan akun provider.');
     }
     drawModels(agent.provider,agent.model);
     const prompt = h('textarea', { 'aria-label': `Instruksi ${name}`, maxlength: 4000 }, agent.instructions);
     const provider = h('select', { 'aria-label': `Provider ${name}`, onchange: () => drawModels(provider.value) }, Object.entries(config.providers).filter(([,p]) => role !== 'image' || p.image).map(([id,p]) => h('option', { value: id, selected: agent.provider === id }, p.name)));
-    inputs[role] = { provider, model, prompt };
+    inputs[role] = { provider, model, prompt, drawModels };
     return h('div', { class: 'gen-agent' }, h('span', { class: 'gen-number' }, String(i + 1)), h('h3', {}, name), h('p', { class: 'muted small' }, ['Menyusun ide, caption dan urutan slide.', 'Mengkritik dan memperbaiki konsep.', 'Menghasilkan gambar setiap slide.', 'Melihat hasil gambar dan memberi catatan final.','Melanjutkan kisah merek dari prompt dan memori tersimpan.','Memeriksa konsistensi dan pemilihan produk.','Memilih slot jadwal dan menjelaskan alasannya.'][i]), h('label',{},'Provider',provider), h('label',{},'Model',model), help, h('details', {}, h('summary', {}, 'Instruksi agen'), prompt));
   });
   const collectAgents = () => Object.fromEntries(Object.entries(inputs).map(([r,v]) => [r, { provider: v.provider.value, model: v.model.value.trim(), instructions: v.prompt.value }]));
@@ -999,7 +1007,7 @@ async function pageGenerator() {
   for(const field of [totalContents,count,fromDate,endDate,postTimes])field.addEventListener('input',()=>{summarizeSchedule();studio?.update();});
   summarizeSchedule();
   workflow=workflowCanvas({h,userId:state.user.id,history,
-    actions:[action('Simpan preset',async()=>{config=await api('PUT','/v1/generator/settings',{agents:collectAgents()});toast('Preset agen disimpan');}),h('button',{class:'btn sm',onclick:()=>workflow.focusNode('result')},'Hasil'),h('a',{class:'btn sm',href:'#/generator/drafts'},'Draft Konten')],
+    actions:[action('Perbarui model Gemini',async()=>{await loadGeminiCatalog(true);for(const v of Object.values(inputs))if(v.provider.value==='gemini')v.drawModels('gemini',v.model.value);}),action('Simpan preset',async()=>{const saved=await api('PUT','/v1/generator/settings',{agents:collectAgents()});config={...saved,providers:config.providers};toast('Preset agen disimpan');}),h('button',{class:'btn sm',onclick:()=>workflow.focusNode('result')},'Hasil'),h('a',{class:'btn sm',href:'#/generator/drafts'},'Draft Konten')],
     nodes:[
       {id:'brief',title:'Brief & Prompt',subtitle:'Tulis tujuan, audiens, tone dan arahan campaign.',x:40,y:80,width:330,color:'#b899cb',content:briefNode},
       {id:'concept',role:'concept',title:'Konsep Creator',x:460,y:80,width:295,color:'#88b7d1',content:agentCards[0]},
@@ -1017,6 +1025,7 @@ async function pageGenerator() {
   const showStoryWorkflow=j=>{lastStoryJob=j;if(!studio||studio.mode()==='storyline')workflow.setRun(j?{...j,story_job_id:j.id,agents:collectAgents(),media:[]}:null);};
   const story=await storyWorkspace({h,api,uploadFile,accounts:state.accounts.filter(a=>a.platform==='instagram'&&a.status==='active'),mode:'production',agents:collectAgents,dates:{count:totalContents,slides:count,from:fromDate,until:endDate,times:postTimes},toast,fmtDT,onContext:value=>{storyContext=value;studio?.setStoryContext(value);},onJob:showStoryWorkflow});
   studio=generatorStudio({h,icon,story,campaign,accountPicker,schedule:scheduleNode,workflow,keyCount:config.keys.length,getSelected:()=>state.accounts.filter(a=>selected.has(a.id)),getSchedule:()=>({count:totalContents.value,slides:count.value,from:fromDate.value,until:endDate.value,times:postTimes.value}),onEditBrief:()=>brief.focus(),onMode:mode=>{if(mode==='campaign')workflow.setRun(campaignRun);else showStoryWorkflow(lastStoryJob);}});
+  studio.element.querySelector('.studio-agents').insertBefore(catalogNotice,workflow.element);
   if(storyContext)studio.setStoryContext(storyContext);studio.setCampaignRun(campaignRun,campaignRuns);
   if(new URLSearchParams(location.hash.split('?')[1]||'').has('id'))studio.chooseMode('campaign');
   const timer = setInterval(refresh, 2500);

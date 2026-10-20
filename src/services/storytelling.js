@@ -133,8 +133,16 @@ export async function processJob(user,jid,{generateText,keyOf,slotsFor,normalize
   if(!schedule){
    stage('scheduler',{status:'running',started_at:now()});const a=body.agents.scheduler;
    const scheduleSchema={type:'object',additionalProperties:false,required:['discussion','slots'],properties:{discussion:{type:'string'},slots:{type:'array',items:{type:'object',additionalProperties:false,required:['episode_index','slot_index','reason'],properties:{episode_index:{type:'integer'},slot_index:{type:'integer'},reason:{type:'string'}}}}}};
+   let source='ai',warning='';
+   try{
    const response=await generateText({...a,key:keyOf(user.id,a.provider),jsonSchema:scheduleSchema,maxTokens:Math.min(12000,2000+body.content_count*250),system:a.instructions+'\nRespond to the Social Media Manager QC notes. Assign each episode exactly once to a distinct available slot (zero-based indexes). Choose among the available slots; spread the campaign across the requested date range with a sensible cadence instead of simply taking the earliest slots. Preserve continuous chronological story progression: episode 0 must occur before episode 1, etc. Explain date/time choice for each post using storyline, content type and audience context. Slots are generic candidate times in Asia/Jakarta; no account performance analytics are supplied, so do not claim statistically best times. Return discussion and slots.',prompt:JSON.stringify({manager:review.notes,episodes:review.episodes,available_slots:available.map((at,i)=>({slot_index:i,utc:at,wib:new Date(Date.parse(at)+7*3600000).toISOString().slice(0,16)}))})});
-   checkpoint();schedule=parse(response.text);validateSchedule(schedule,body.content_count,available);stage('scheduler',{status:'done',output:schedule,available,usage:response.usage,completed_at:now()});
+   checkpoint();schedule=parse(response.text);validateSchedule(schedule,body.content_count,available);stage('scheduler',{status:'done',source,output:schedule,available,usage:response.usage,completed_at:now()});
+   }catch(error){
+    if(error.code!=='provider_model_unavailable')throw error;
+    checkpoint();source='rules';warning=`Model Scheduler ${a.provider} / ${a.model} tidak tersedia (HTTP 404). Jadwal dibuat dengan aturan dari slot WIB yang Anda pilih, tanpa panggilan AI pengganti.`;
+    schedule={discussion:warning+' Hasil QC Manager dipertahankan. Urutan episode dan rentang tanggal tetap dijaga; ini bukan analisis performa akun.',slots:review.episodes.map((episode,i)=>({episode_index:i,slot_index:body.content_count===1?0:Math.round(i*(available.length-1)/(body.content_count-1)),reason:`Jadwal berbasis aturan: episode ${p.next_episode+i} (${episode.content_type}) mengikuti urutan cerita yang lolos QC Manager, tersebar dalam rentang dan kandidat jam WIB pilihan Anda. Bukan prediksi jam terbaik dari analytics.`}))};
+    validateSchedule(schedule,body.content_count,available);stage('scheduler',{status:'done',source,warning,output:schedule,available,usage:null,completed_at:now()});
+   }
   }
   validateSchedule(schedule,body.content_count,available);
   checkpoint();const current=profile(user,body.account_id);if(current.revision!==p.revision)throw err(409,'story_changed','Memori akun berubah. Tinjau sesi sebelum melanjutkan.');

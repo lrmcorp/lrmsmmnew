@@ -18,7 +18,7 @@ const user=createUser({email:'story@fixture.id',password:'fixture-password',name
 for(const aid of ['story-account','outside-account'])run("INSERT INTO accounts(id,platform,platform_user_id,username,token_enc) VALUES(?,'instagram',?,?,?)",aid,aid,aid,encrypt('fixture-token'));
 setAssignments(user.id,['story-account']);setAssignments(other.id,[]);
 for(const provider of ['openai','anthropic','gemini'])gen.saveKey(user,provider,'fixture-story-private-key');
-const real=global.fetch;let calls=[],rejectManager=false,badProduct=false,badSchedule=false,hold=null,entered=null;
+const real=global.fetch;let calls=[],rejectManager=false,badProduct=false,badSchedule=false,schedulerHttp=0,hold=null,entered=null;
 global.fetch=async(url,opts)=>{
  if(!['https://api.openai.com','https://api.anthropic.com','https://generativelanguage.googleapis.com'].includes(new URL(url).origin))return real(url,opts);
  const body=opts.body instanceof FormData?Object.fromEntries(opts.body.entries()):JSON.parse(opts.body);calls.push({url,body});
@@ -32,7 +32,7 @@ global.fetch=async(url,opts)=>{
   const context=JSON.parse(prompt),n=Number(system.match(/exactly (\d+) episodes/)?.[1]||1),product=context.product_catalog[0]?.id;
   result={bible:context.bible||'Brand foundation: quiet confidence',memory:'Cumulative story through episode '+(context.next_episode+n-1),episodes:Array.from({length:n},(_,i)=>({title:'Episode '+(context.next_episode+i),brief:'Introduce the real product and build on the previous chapter.',caption:'Ready caption '+(context.next_episode+i),content_type:context.uploaded_videos.length&&i===n-1?'reel':'image',video_asset_id:context.uploaded_videos.length&&i===n-1?context.uploaded_videos[0].id:null,product_ids:badProduct?['not-in-catalog']:product?[product]:[]}))};
  }else if(schema?.properties?.approved){result={...JSON.parse(prompt.split('\nPROPOSED SESSION:\n')[1]),approved:!rejectManager,notes:rejectManager?'Story is inconsistent; revise the foundation.':'Continuity and brand facts checked.'};}
- else if(schema?.properties?.slots){const context=JSON.parse(prompt);result={discussion:'Manager continuity notes accepted; keep chronological order. Timing is a contextual suggestion, not measured account analytics.',slots:context.episodes.map((e,i)=>({episode_index:i,slot_index:badSchedule?0:i,reason:'Chapter '+(i+1)+' follows the previous episode at an available audience-friendly WIB slot.'}))};}
+ else if(schema?.properties?.slots){if(schedulerHttp)return Response.json({error:{message:'PRIVATE provider details'}},{status:schedulerHttp});const context=JSON.parse(prompt);result={discussion:'Manager continuity notes accepted; keep chronological order. Timing is a contextual suggestion, not measured account analytics.',slots:context.episodes.map((e,i)=>({episode_index:i,slot_index:badSchedule?0:i,reason:'Chapter '+(i+1)+' follows the previous episode at an available audience-friendly WIB slot.'}))};}
  else if(schema?.properties?.slides){const n=Number(system.match(/Exactly (\d+) slides/)?.[1]||1);result={title:'Production concept',caption:'Production caption',slides:Array.from({length:n},()=>({prompt:'Product on white background'}))};}
  else result='Numbered slide checklist: verify brand and claims.';
  const text=typeof result==='string'?result:JSON.stringify(result);
@@ -75,6 +75,15 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
   badSchedule=true;const bad=await execute(gen.queueStory(user,body({})));assert.equal(bad.status,'failed');badSchedule=false;
   assert.equal(story.profile(user,'story-account').next_episode,episode);assert.equal(one('SELECT COUNT(*) n FROM generator_plans').n,plans);
   const callsBefore=calls.length;story.retry(user,bad.id);assert.equal((await execute(bad)).status,'completed');assert.equal(calls.length-callsBefore,1,'retry preserves storyteller and manager output');
+ });
+ await t.test('Gemini Scheduler 404 uses a transparent valid rules schedule and preserves completed QC on retry',async()=>{
+  const preset=structuredClone(gen.DEFAULT_AGENTS);preset.scheduler={...preset.scheduler,provider:'gemini',model:'gemini-2.5-flash'};
+  const before=calls.length,start=story.profile(user,'story-account').next_episode;
+  schedulerHttp=429;const queued=gen.queueStory(user,body({agents:preset}));const failed=await execute(queued);assert.equal(failed.status,'failed');assert.ok(failed.error.includes('Scheduler'));assert.equal(failed.steps.storyteller.status,'done');assert.equal(failed.steps.manager.status,'done');assert.equal(story.profile(user,'story-account').next_episode,start);
+  const afterQc=calls.length;schedulerHttp=404;gen.retryStory(user,queued.id,{agents:preset});const done=await execute(queued);schedulerHttp=0;
+  assert.equal(done.status,'completed',done.error);assert.equal(calls.length-afterQc,1,'retry calls only Scheduler; completed concept and manager are not billed twice');assert.equal(done.steps.scheduler.source,'rules');assert.ok(done.steps.scheduler.warning.includes('HTTP 404'));assert.ok(!JSON.stringify(done).includes('PRIVATE provider details'));
+  const rows=gen.listRuns(user).filter(r=>r.story_job_id===queued.id).sort((a,b)=>a.story_episode-b.story_episode);assert.equal(rows.length,2);assert.ok(rows.every(r=>r.schedule_reason.includes('berbasis aturan')));assert.ok(Date.parse(rows[0].scheduled_at)<Date.parse(rows[1].scheduled_at));assert.equal(story.profile(user,'story-account').next_episode,start+2);assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);
+  const direct=await execute(gen.queueStory(user,body({agents:preset,content_count:1})));assert.equal(direct.status,'completed',direct.error);
  });
  await t.test('legacy sessions restore missing agent presets without undefined access',async()=>{
   const j=gen.queueStory(user,body({}));const payload=JSON.parse(one('SELECT payload FROM story_jobs WHERE id=?',j.id).payload);
