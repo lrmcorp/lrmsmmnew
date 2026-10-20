@@ -1,5 +1,5 @@
 // Persistent account story setup; provider execution stays in the server worker.
-export async function storyWorkspace({h,api,uploadFile,accounts,agents,dates,toast,fmtDT}) {
+export async function storyWorkspace({h,api,uploadFile,accounts,agents,dates,toast,fmtDT,fixedAccount=false}) {
  let stopped=false,profile=null,currentJob='',lastSignature='',dirty=false,requestId='',requestSignature='',approving=false,loadedAccount='',saveTimer=0,saveInFlight=null,uploads=0;
  const account=h('select',{'aria-label':'Akun Brand & Story',onchange:async()=>{clearTimeout(saveTimer);try{if(dirty&&loadedAccount)await save(loadedAccount);await loadProfile();}catch(e){account.value=loadedAccount;throw e;}}},accounts.map(a=>h('option',{value:a.id},`@${a.username}`)));
  const requested=new URLSearchParams(location.hash.split('?')[1]||'').get('account');if(accounts.some(a=>a.id===requested))account.value=requested;
@@ -76,10 +76,10 @@ export async function storyWorkspace({h,api,uploadFile,accounts,agents,dates,toa
   const sig=JSON.stringify(body);if(sig!==requestSignature){requestId=crypto.randomUUID();requestSignature=sig;}
   const j=await api('POST','/v1/generator/story-jobs',{...body,request_id:requestId});currentJob=j.id;lastSignature='';requestSignature='';await refresh();
  },true);
- const element=h('section',{class:'panel story-workspace'},h('div',{class:'row'},h('h2',{},'Cerita Berkelanjutan & Brand Kit'),account),h('p',{class:'muted small'},'Prompt awal dan aturan brand disimpan otomatis saat diedit. Logo, referensi dan katalog disimpan per akun. Storyteller melanjutkan cerita; Manager memeriksa konsistensi; Scheduler mengusulkan waktu dan alasan. Semua proposal sesi dibuat untuk akun yang dipilih di panel ini. Anda tetap menyetujui publikasi.'),
+ const element=h('section',{class:'panel story-workspace'},h('div',{class:'row'},h('h2',{},'Cerita Berkelanjutan & Brand Kit'),fixedAccount?null:account),h('p',{class:'muted small'},'Prompt awal dan aturan brand disimpan otomatis saat diedit. Logo, referensi dan katalog disimpan per akun. Storyteller melanjutkan cerita; Manager memeriksa konsistensi; Scheduler mengusulkan waktu dan alasan. Semua proposal sesi dibuat untuk akun yang dipilih di panel ini. Anda tetap menyetujui publikasi.'),
  h('details',{open:true},h('summary',{},'Fondasi cerita akun'),h('label',{},'Prompt cerita awal',seed),h('label',{},'Aturan brand',rules),button('Simpan fondasi cerita',async()=>{await save();toast('Fondasi cerita tersimpan');}),status,history),
  h('details',{},h('summary',{},'Logo, referensi visual, foto produk & video tersimpan'),assets),h('label',{},'Arahan sesi berikutnya (opsional)',direction),
- h('p',{class:'muted small'},'Jumlah konten, jumlah slide, rentang tanggal dan kandidat jam mengikuti panel Rencana & Jadwal di atas. Jadwal disarankan berdasarkan alur cerita; belum analisis performa akun.'),
+ h('p',{class:'muted small'},'Jumlah konten, jumlah slide, rentang tanggal dan kandidat jam mengikuti panel Rencana sesi berikutnya di atas. Jadwal disarankan berdasarkan alur cerita; belum analisis performa akun.'),
  h('label',{class:'check'},produce,'Buat media proposal sesudah QC Manager, tanpa persetujuan konsep terpisah. Gambar memakai biaya API; Reel memakai video unggahan.'),h('label',{class:'check'},paid,'Saya setuju biaya tiga agen cerita dan produksi konten yang dipilih. Publikasi tetap menunggu persetujuan.'),generate,progress,proposals);
  await loadProfile();const timer=setInterval(refresh,3000);
  return {element,dispose(){stopped=true;clearInterval(timer);clearTimeout(saveTimer);}};

@@ -2,7 +2,7 @@
 
 ## User workflow
 
-In Sosmed Generator, **Cerita Berkelanjutan & Brand Kit** selects one assigned Instagram account. Account Social rows also link here using **Brand & Story**. The account choice in this panel determines the session's target account.
+Open **Akun Sosial → Detail akun → Brand Kit & Cerita** to use **Cerita Berkelanjutan & Brand Kit** for that account. The account is fixed by the detail page. The Generator only links to account details and no longer embeds this workspace. Representatives can open the details of their assigned accounts via the Generator, while the account administration index remains owner-only. Integration summary and Brand Kit are separate tabs. Each account detail has independent session-date/count controls; model presets and personal provider credentials remain user-scoped.
 
 The initial prompt and brand rules autosave after editing, with a visible save status and an explicit save button. Generating a session waits for pending prompt saves. Logos, visual references, product photos and uploaded videos are stored in a reusable account catalog. Up to 250 assets per account and 20 files per upload batch are supported; batches can be repeated. Asset names/descriptions are editable. The first logo and first visual reference are reused automatically. The Storyteller selects at most two products per content item from the larger catalog, so actual image-generation inputs remain within the four-reference limit.
 

@@ -840,7 +840,7 @@ async function pageGenerator() {
   const accountBox = h('div', { class: 'acc-picker' });
   const company = h('select', { 'aria-label': 'Perusahaan generator', onchange: () => { selected.clear(); drawAccounts(); } }, h('option', { value: '' }, 'Semua perusahaan'), companyGroups().filter(c => c.accounts.length).map(c => h('option', { value: c.id || 'none' }, c.name)));
   function drawAccounts() {
-    accountBox.replaceChildren(...state.accounts.filter(a => a.status === 'active' && (!company.value || (a.company_id || 'none') === company.value)).map(a => h('label', { class: 'acc-chip' }, h('input', { type: 'checkbox', 'aria-label': `Pilih @${a.username}`, onchange: e => e.target.checked ? selected.add(a.id) : selected.delete(a.id) }), avatar(a), `@${a.username}`)));
+    accountBox.replaceChildren(...state.accounts.filter(a => a.status === 'active' && (!company.value || (a.company_id || 'none') === company.value)).map(a => h('label', { class: 'acc-chip' }, h('input', { type: 'checkbox', 'aria-label': `Pilih @${a.username}`, onchange: e => e.target.checked ? selected.add(a.id) : selected.delete(a.id) }), avatar(a), `@${a.username}`,h('a',{class:'btn sm',href:'#/accounts/'+encodeURIComponent(a.id)+'?tab=brand',onclick:e=>e.stopPropagation()},'Detail akun'))));
   }
   drawAccounts();
   const agentCards = Object.entries(labels).map(([role, name], i) => {
@@ -995,16 +995,15 @@ async function pageGenerator() {
     ],
     edges:[{from:'brief',to:'concept'},{from:'concept',to:'revision'},{from:'revision',to:'image'},{from:'image',to:'final'},{from:'final',to:'result'},{from:'reference',to:'image'},{from:'brief',to:'storyteller'},{from:'storyteller',to:'manager'},{from:'manager',to:'scheduler'},{from:'scheduler',to:'concept'}]
   });
-  const story=await storyWorkspace({h,api,uploadFile,accounts:state.accounts.filter(a=>a.platform==='instagram'&&a.status==='active'),agents:collectAgents,dates:{count:totalContents,slides:count,from:fromDate,until:endDate,times:postTimes},toast,fmtDT});
   await refresh();
   const timer = setInterval(refresh, 2500);
-  pageCleanup = () => { stopped = true; clearInterval(timer);workflow.dispose();story.dispose(); };
+  pageCleanup = () => { stopped = true; clearInterval(timer);workflow.dispose(); };
   return shell('/generator', h('div', {class:'generator-node-page'}, pagehead('Sosmed Generator', 'Susun prompt, provider dan referensi di workflow visual, lalu tinjau hasil sebelum disetujui.'),
     h('details', { class: 'panel gen-settings workflow-credentials' }, h('summary', {}, 'Koneksi provider & pengaturan tim agen', keySummary),
       h('p', { class: 'muted small' }, 'API key pribadi disimpan terenkripsi. Pilih model dan instruksi setiap agen di node workflow. Biaya API mengikuti provider Anda.'),keys,
       h('p',{class:'faint small'},'Pengaturan model dan instruksi berada di setiap node. Gunakan Simpan preset di toolbar untuk menyimpan konfigurasi.')),h('div',{class:'workflow-setup'},
         h('section',{class:'panel workflow-targets'},h('h2',{},'Perusahaan & Akun'),targetNode),
-        h('section',{class:'panel workflow-schedule'},h('h2',{},'Rencana & Jadwal'),scheduleNode)),story.element,workflow.element));
+        h('section',{class:'panel workflow-schedule'},h('h2',{},'Rencana & Jadwal'),scheduleNode)),workflow.element));
 }
 
 // ---------------- calendar ----------------
@@ -1366,6 +1365,43 @@ async function pageInsights() {
     tiles.length ? table : null));
 }
 
+// Account-specific integration details and reusable brand setup.
+async function pageAccountDetail(accountId) {
+  await loadAccounts();
+  const a=state.accounts.find(a=>a.id===accountId);
+  if(!a)throw new Error('Akun tidak ditemukan atau tidak ditugaskan kepada Anda.');
+  const q=new URLSearchParams(location.hash.split('?')[1]||''),tab=q.get('tab')==='brand'&&a.platform==='instagram'?'brand':'integration';
+  const back=isOwner()?'/accounts':'/generator';
+  const company=state.companies.find(c=>c.id===a.company_id);
+  const top=h('div',{},pagehead(a.name||'@'+a.username,'Detail integrasi dan pengaturan khusus akun ini.',h('a',{class:'btn',href:'#'+back},'Kembali')),
+    h('section',{class:'panel account-detail-header'},avatar(a,'lg'),h('div',{},h('h2',{},'@'+a.username),h('p',{class:'muted small'},`${company?.name||'Belum ditetapkan ke perusahaan'} · ${a.platform==='instagram'?'Instagram':'Threads'}`)),status(a.status)),
+    h('div',{class:'seg account-detail-tabs'},h('button',{class:tab==='integration'?'on':'',onclick:()=>go('/accounts/'+encodeURIComponent(a.id))},'Detail Integrasi'),a.platform==='instagram'?h('button',{class:tab==='brand'?'on':'',onclick:()=>go('/accounts/'+encodeURIComponent(a.id)+'?tab=brand')},'Brand Kit & Cerita'):null));
+  if(tab==='integration'){
+    top.append(h('section',{class:'panel'},h('h2',{},'Ringkasan akun'),h('p',{},`Nama: ${a.name||a.username}`),h('p',{},`Username: @${a.username}`),h('p',{},`Status integrasi: ${a.status}`),a.followers_count!=null?h('p',{},`Pengikut: ${a.followers_count.toLocaleString('id-ID')}`):null,a.token_expires_at?h('p',{},`Token berlaku sampai ${fmtDT(a.token_expires_at)}`):null,
+      a.last_error?h('p',{class:'err-box'},a.last_error):null,
+      h('div',{class:'row'},a.platform==='instagram'?h('a',{class:'btn primary',href:'#/accounts/'+encodeURIComponent(a.id)+'?tab=brand'},'Buka Brand Kit & Cerita'):null,isOwner()?h('a',{class:'btn',href:'/connect/'+a.platform},'Sambungkan ulang'):null)));
+    return shell(isOwner()?'/accounts':'/generator',top);
+  }
+  let config=await api('GET','/v1/generator/settings');
+  const count=h('input',{type:'number',min:1,max:30,value:12,'aria-label':'Jumlah konten rencana'}),slides=h('input',{type:'number',min:1,max:10,value:1,'aria-label':'Jumlah slide sesi'});
+  const from=h('input',{type:'date',value:new Date(Date.now()+864e5+7*3600000).toISOString().slice(0,10),'aria-label':'Tanggal mulai rencana'}),until=h('input',{type:'date',value:new Date(Date.now()+14*864e5+7*3600000).toISOString().slice(0,10),'aria-label':'Tanggal akhir rencana'}),times=h('input',{value:'12:15, 19:15','aria-label':'Jam rencana WIB'});
+  const planning=h('details',{class:'panel account-story-planning',open:true},h('summary',{},'Rencana sesi berikutnya'),h('div',{class:'account-story-fields'},h('label',{},'Jumlah konten',count),h('label',{},'Slide per carousel',slides),h('label',{},'Dari tanggal (WIB)',from),h('label',{},'Sampai tanggal (WIB)',until),h('label',{},'Kandidat jam (WIB)',times)));
+  const controls={};
+  const modelCards=Object.entries({storyteller:'Storyteller',manager:'Social Media Manager',scheduler:'Scheduler'}).map(([role,name])=>{
+    const model=h('select',{'aria-label':'Model '+name}),instructions=h('textarea',{'aria-label':'Instruksi '+name,maxlength:4000},config.agents[role].instructions);
+    function drawModels(p,current){const available=[...config.providers[p].textModels];if(current&&!available.some(m=>m.id===current))available.push({id:current,name:current+' · Preset tersimpan'});model.replaceChildren(...available.map(m=>h('option',{value:m.id,selected:m.id===(current||config.providers[p].textModel)},m.name)));}
+    const provider=h('select',{'aria-label':'Provider '+name,onchange:()=>drawModels(provider.value)},Object.entries(config.providers).map(([id,p])=>h('option',{value:id,selected:config.agents[role].provider===id},p.name)));
+    drawModels(provider.value,config.agents[role].model);controls[role]={provider,model,instructions};
+    return h('section',{},h('h3',{},name),h('label',{},'Provider',provider),h('label',{},'Model',model),h('details',{},h('summary',{},'Instruksi agen'),instructions));
+  });
+  const collect=()=>({...config.agents,...Object.fromEntries(Object.entries(controls).map(([role,v])=>[role,{provider:v.provider.value,model:v.model.value,instructions:v.instructions.value}]))});
+  const models=h('details',{class:'panel'},h('summary',{},'Model agen & koneksi AI'),h('div',{class:'account-story-models'},modelCards),h('div',{class:'row'},h('button',{class:'btn',onclick:async()=>{config=await api('PUT','/v1/generator/settings',{agents:collect()});toast('Preset agen disimpan');}},'Simpan model agen'),h('a',{class:'btn',href:'#/generator'},'API key & model produksi')));
+  const story=await storyWorkspace({h,api,uploadFile,accounts:[a],fixedAccount:true,agents:collect,dates:{count,slides,from,until,times},toast,fmtDT});
+  pageCleanup=()=>story.dispose();
+  top.append(planning,models,story.element);
+  return shell(isOwner()?'/accounts':'/generator',top);
+}
+
 // ---------------- accounts ----------------
 async function pageAccounts() {
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
@@ -1396,7 +1432,7 @@ async function pageAccounts() {
   function accountRow(a) {
     return h('div', { class: 'item account-row' }, avatar(a, 'lg'),
       h('div', { class: 'body' },
-        h('div', {}, h('b', {}, a.name || `@${a.username}`)),
+        h('div', {}, h('a',{href:'#/accounts/'+encodeURIComponent(a.id)},h('b', {}, a.name || `@${a.username}`))),
         h('div', { class: 'muted small' }, `@${a.username}`),
         h('div', { class: 'meta' }, plat(a.platform), a.followers_count != null ? h('span', {}, `${a.followers_count.toLocaleString('id-ID')} pengikut`) : null,
           a.token_expires_at ? h('span', {}, `Token berlaku s/d ${new Date(a.token_expires_at).toLocaleDateString('id-ID')} (diperpanjang otomatis)`) : null),
@@ -1407,7 +1443,7 @@ async function pageAccounts() {
         try { await api('PUT', `/v1/accounts/${a.id}/company`, { company_id: select.value || null }); toast('Perusahaan akun diperbarui'); route(); }
         catch (error) { select.value = a.company_id || ''; toast(errMsg(error), true); }
       } }, h('option', { value: '', selected: !a.company_id }, 'Belum ditetapkan'), state.companies.map(c => h('option', { value: c.id, selected: c.id === a.company_id }, c.name))) : null,
-      a.platform==='instagram'?h('a',{class:'btn sm',href:'#/generator?account='+a.id},'Brand & Story'):null,
+      h('a',{class:'btn sm',href:'#/accounts/'+encodeURIComponent(a.id)},'Detail akun'),
       h('a', { class: 'btn sm', href: `/connect/${a.platform}` }, 'Sambungkan ulang'),
       isOwner() ? h('button', { class: 'btn sm ghost danger', onclick: async () => {
         if (!confirm(`Putuskan @${a.username}? Post terjadwal ke akun ini dibatalkan.`)) return;
@@ -1667,13 +1703,13 @@ async function route() {
       state.stats = await api('GET', '/v1/stats');
       state.lastOverdue = 0;
     }
-    if (!isOwner() && /^\/(accounts|media|developer|team|admin)(?:\/|$)/.test(path)) { go('/compose'); return; }
+    if (!isOwner() && /^\/(accounts|media|developer|team|admin)(?:\/|$)/.test(path) && !/^\/accounts\/[^/]+$/.test(path)) { go('/compose'); return; }
     live.start();
     if (path === '/login') { go('/'); return; }
     let m, view;
     if (path === '/') view = await pageHome();
     else if (path === '/compose') view = await pageCompose();
-    else if (path === '/generator') view = await pageGenerator();
+    else if (path === '/generator') {const account=new URLSearchParams(location.hash.split('?')[1]||'').get('account');if(account){go('/accounts/'+encodeURIComponent(account)+'?tab=brand');return;}view=await pageGenerator();}
     else if (path === '/generator/drafts') view = await pageContentDrafts();
     else if ((m = path.match(/^\/compose\/(.+)$/))) view = await pageCompose(m[1]);
     else if ((m = path.match(/^\/posts\/(.+)$/))) view = await pagePost(m[1]);
@@ -1684,6 +1720,7 @@ async function route() {
     else if (path === '/insights') view = await pageInsights();
     else if (path === '/admin') view = await pageAdmin();
     else if (path === '/accounts') view = await pageAccounts();
+    else if ((m=path.match(/^\/accounts\/([^/]+)$/))) view=await pageAccountDetail(decodeURIComponent(m[1]));
     else if (path === '/media') view = await pageMedia();
     else if (path === '/developer') view = await pageDeveloper();
     else if (path === '/team') view = await pageTeam();
