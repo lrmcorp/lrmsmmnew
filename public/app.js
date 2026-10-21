@@ -4,6 +4,7 @@ import { generatorStudio } from './generator-studio.js';
 import { workflowCanvas } from './workflow-canvas.js';
 import { bindInteraction } from './interactions.js';
 import { createDraftPages, groupSessions } from './draft-sessions.js';
+import { createGeneratorPage } from './generator-redesign.js';
 import { HERO, PLATFORM_ICONS } from './icons.js';
 import { t } from './strings.en.js';
 import { createUI, readContentPrefs, contentInstruction, hasCaptionEmoji } from './ui.js';
@@ -922,8 +923,19 @@ async function pageSettings() {
   return shell('/settings',h('div',{class:'personal-settings'},pagehead(t('legacy.personal_settings'),t('api.personal.help'),h('a',{class:'btn',href:'#/generator'},t('legacy.back_to_content_generator'))),h('section',{class:'panel'},h('h2',{},t('legacy.ai_connections'),keySummary),h('p',{class:'muted small'},t('api.personal.security')),keys)));
 }
 
-// ---------------- Sosmed Generator ----------------
+// ---------------- Content Generator (Phases 3 & 4) ----------------
 async function pageGenerator(nav) {
+  await loadAccounts();
+  const page = await createGeneratorPage({
+    h, api, ui, icon, avatar, state, isOwner, shell, pagehead, modal, confirmDialog,
+    uploadFile, workflowCanvas, toast, errMsg, go, fmtDay, fmtTime, fmtSlot, fmtRange, ago
+  });
+  if (nav === navSeq) pageCleanup = page.cleanup;
+  else page.cleanup();
+  return page.view;
+}
+
+async function legacyPageGenerator(nav) {
   await loadAccounts();
   let config = await api('GET', '/v1/generator/settings');
   state.providerKeys=config.keys;state.providers=config.providers;

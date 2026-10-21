@@ -1559,5 +1559,10 @@ Object.assign(strings, {
   "draft.Action.revise": "Revise",
   "draft.dialog.revise.title": "Revise draft with AI?",
   "draft.select.hint": "Select a draft to preview",
-  "story.proposals.approved": "Added to Content Calendar"
+  "story.proposals.approved": "Added to Content Calendar",
+  "brandkit.assets.logo": "Logo",
+  "brandkit.assets.visual": "Visual references",
+  "brandkit.assets.product": "Product photos",
+  "brandkit.assets.video": "Video / Reels",
+  "brandkit.tab.memory": "Story memory"
 });
