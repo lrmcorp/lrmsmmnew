@@ -1,5 +1,6 @@
 // Heroicons v1 outline (MIT, Tailwind Labs) — same icon set as hrd.playgo.id
 export const HERO = {
+"info": "<path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z\"/>",
 "building": "<path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M3 21h18M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16M9 7h.01M9 11h.01M9 15h.01M15 7h.01M15 11h.01M15 15h.01M9 21v-4h6v4\"/>",
 "dots-vertical": "<path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M12 5h.01M12 12h.01M12 19h.01\"/>",
 "home": "<path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6\"/>",
