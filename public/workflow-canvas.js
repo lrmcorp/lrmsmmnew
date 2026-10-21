@@ -1,3 +1,5 @@
+import { t } from './strings.en.js';
+
 // Original LRMsmm node workspace. Layout is editable; execution follows the app's fixed workflow.
 export function workflowCanvas({ h, userId, nodes, edges, actions = [], history }) {
   const key = `lrmsmm.workflow-layout.v1.${userId}`;
@@ -10,12 +12,12 @@ export function workflowCanvas({ h, userId, nodes, edges, actions = [], history 
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
   svg.classList.add('workflow-wires');svg.setAttribute('aria-hidden','true');
   const plane=h('div',{class:'workflow-plane'},svg);
-  const viewport=h('div',{class:'workflow-viewport',tabindex:0,'aria-label':'Kanvas workflow. Geser latar untuk pan, gunakan tombol zoom atau Ctrl dan scroll.'},plane);
+  const viewport=h('div',{class:'workflow-viewport',tabindex:0,'aria-label':t('workflow.canvas.help')},plane);
   const map=document.createElementNS('http://www.w3.org/2000/svg','svg');map.classList.add('workflow-minimap');map.setAttribute('viewBox','0 0 2800 1800');map.setAttribute('aria-hidden','true');
   const elements=new Map(),states=new Map(),paths=new Map();
   let drag=null,raf=0,disposed=false;
   const zoomLabel=h('span',{class:'workflow-zoom-label'},'80%');
-  const info=h('span',{class:'workflow-status',role:'status'},'Belum ada proses aktif');
+  const info=h('span',{class:'workflow-status',role:'status'},t('workflow.none'));
   const save=()=>{try{localStorage.setItem(key,JSON.stringify(positions));}catch{}};
   function transform(){if(mode==='canvas'){viewport.scrollLeft=0;viewport.scrollTop=0;}plane.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;zoomLabel.textContent=Math.round(scale*100)+'%';viewport.style.backgroundSize=`${24*scale}px ${24*scale}px`;viewport.style.backgroundPosition=`${tx}px ${ty}px`;}
   function bounds(){return {w:Math.max(...nodes.map(n=>positions[n.id].x+(elements.get(n.id)?.offsetWidth||n.width))),h:Math.max(...nodes.map(n=>positions[n.id].y+(elements.get(n.id)?.offsetHeight||400)))};}
@@ -34,8 +36,8 @@ export function workflowCanvas({ h, userId, nodes, edges, actions = [], history 
   function focusNode(id,moveFocus=true){if(mode==='list'){elements.get(id)?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth',block:'center'});return;}const p=positions[id],el=elements.get(id);scale=.85;tx=viewport.clientWidth/2-(p.x+el.offsetWidth/2)*scale;ty=45-p.y*scale;transform();schedule();if(moveFocus)el.focus({preventScroll:true});}
   for(const edge of edges){const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('class','workflow-wire');path.dataset.to=edge.to;svg.append(path);paths.set(edge,path);}
   for(const node of nodes){
-    const badge=h('span',{class:'workflow-node-state'},node.role?'Menunggu':edges.some(e=>e.from===node.id)?'Input':'Output');
-    const header=h('div',{class:'workflow-node-head',role:'button',tabindex:0,'aria-label':`Pindahkan node ${node.title}. Tombol panah untuk menggeser.`},h('i',{class:'workflow-node-dot'}),h('span',{},node.title),badge);
+    const badge=h('span',{class:'workflow-node-state'},node.role?t('workflow.waiting'):edges.some(e=>e.from===node.id)?t('workflow.input'):t('workflow.output'));
+    const header=h('div',{class:'workflow-node-head',role:'button',tabindex:0,'aria-label':t('workflow.move',{name:node.title})},h('i',{class:'workflow-node-dot'}),h('span',{},node.title),badge);
     const result=h('div',{class:'workflow-node-result'});
     const el=h('section',{class:'workflow-node',tabindex:-1,'data-node':node.id,style:{width:node.width+'px','--node-accent':node.color||'#7fa89c'}},header,h('span',{class:'workflow-port input','aria-hidden':'true'}),h('div',{class:'workflow-node-body'},node.subtitle?h('p',{class:'workflow-node-description'},node.subtitle):null,node.content,result),h('span',{class:'workflow-port output','aria-hidden':'true'}));
     node.badge=badge;node.result=result;elements.set(node.id,el);plane.append(el);
@@ -52,17 +54,38 @@ export function workflowCanvas({ h, userId, nodes, edges, actions = [], history 
   viewport.addEventListener('pointerup',stopPan);viewport.addEventListener('pointercancel',stopPan);
   viewport.addEventListener('wheel',e=>{if(mode!=='canvas'||!e.ctrlKey)return;e.preventDefault();const rect=viewport.getBoundingClientRect();zoom(e.deltaY>0?.9:1.1,e.clientX-rect.left,e.clientY-rect.top);},{passive:false});
   viewport.addEventListener('keydown',e=>{if(e.target!==viewport)return;if(e.key==='0'){e.preventDefault();fit();}if(['+','=','-'].includes(e.key)){e.preventDefault();zoom(e.key==='-'?.8:1.25);}});
-  const modeButton=h('button',{class:'btn sm',onclick:()=>{mode=mode==='canvas'?'list':'canvas';root.dataset.mode=mode;modeButton.textContent=mode==='canvas'?'Tampilan daftar':'Tampilan kanvas';requestAnimationFrame(()=>{transform();schedule();});}},mode==='canvas'?'Tampilan daftar':'Tampilan kanvas');
+  const modeButton=h('button',{class:'btn sm',onclick:()=>{mode=mode==='canvas'?'list':'canvas';root.dataset.mode=mode;modeButton.textContent=mode==='canvas'?t('workflow.list'):t('workflow.canvas');requestAnimationFrame(()=>{transform();schedule();});}},mode==='canvas'?t('workflow.list'):t('workflow.canvas'));
   const root=h('div',{class:'workflow-workspace','data-mode':mode},
-    h('div',{class:'workflow-toolbar'},h('div',{class:'workflow-brand'},h('b',{},'Sosmed Workflow'),info),h('div',{class:'row'},...actions,modeButton)),
+    h('div',{class:'workflow-toolbar'},h('div',{class:'workflow-brand'},h('b',{},t('workflow.title')),info),h('div',{class:'row'},...actions,modeButton)),
     h('div',{class:'workflow-navigation'},nodes.map(n=>h('button',{class:'workflow-jump',onclick:()=>focusNode(n.id)},n.title))),
-    h('div',{class:'workflow-stage'},viewport,h('div',{class:'workflow-map'},map),h('div',{class:'workflow-tools'},h('button',{class:'btn sm','aria-label':'Zoom keluar',onclick:()=>zoom(.8)},'−'),zoomLabel,h('button',{class:'btn sm','aria-label':'Zoom masuk',onclick:()=>zoom(1.25)},'+'),h('button',{class:'btn sm',onclick:fit},'Fit'),h('button',{class:'btn sm',onclick:()=>{positions=structuredClone(defaults);save();fit();}},'Reset layout'))),
-    h('div',{class:'workflow-footer'},h('span',{},'Geser judul node · Geser latar untuk pan · Ctrl + scroll untuk zoom'),h('span',{},'Alur tetap: Konsep → Revisi → Gambar → Review → Draft')),
-    history?h('details',{class:'workflow-history'},h('summary',{},'Antrean & riwayat campaign'),history):null);
+    h('div',{class:'workflow-stage'},viewport,h('div',{class:'workflow-map'},map),h('div',{class:'workflow-tools'},h('button',{class:'btn sm','aria-label':t('workflow.zoom.out'),onclick:()=>zoom(.8)},'-'),zoomLabel,h('button',{class:'btn sm','aria-label':t('workflow.zoom.in'),onclick:()=>zoom(1.25)},'+'),h('button',{class:'btn sm',onclick:fit},t('workflow.fit')),h('button',{class:'btn sm',onclick:()=>{positions=structuredClone(defaults);save();fit();}},t('workflow.reset')))),
+    h('div',{class:'workflow-footer'},h('span',{},t('workflow.pan.help')),h('span',{},t('workflow.stages'))),
+    history?h('details',{class:'workflow-history'},h('summary',{},t('workflow.history')),history):null);
   const observer=new ResizeObserver(schedule);for(const el of elements.values())observer.observe(el);observer.observe(viewport);
   requestAnimationFrame(()=>{transform();schedule();});
   return {element:root,focusNode,fit,
-    setRun(r){info.textContent=r?`${({concept_review:'Tinjau konsep',planned:'Rencana',queued:'Antrean',running:'Agen bekerja',review:'Siap ditinjau',failed:'Perlu tindakan',cancelled:'Dibatalkan',drafted:'Draf dibuat',approved:'Disetujui'})[r.status]||r.status} · ${Object.values(r.steps).filter(s=>s.status==='done').length}/${r.story_job_id?8:5} tahap selesai`:'Belum ada proses aktif';for(const n of nodes){if(!n.role){if(n.id==='result')n.badge.textContent=r?.status==='concept_review'?'Tinjau konsep':r?.status==='review'?'Siap review':r?.status==='approved'?'Disetujui':r?.media?.length?'Preview':'Menunggu hasil';continue;}const step=r?.steps[n.role];const status=step?.status==='manual'?'manual':step?.status==='done'?'done':r?.status==='running'&&step?.status==='running'?'running':r?.status==='failed'&&step?.status==='running'?'failed':'waiting';states.set(n.id,status);elements.get(n.id).dataset.state=status;n.badge.textContent=status==='manual'?'Tinjau video':status==='done'?'Selesai ✓':status==='running'?'Bekerja…':status==='failed'?'Gagal':'Menunggu';const expanded=n.result.querySelector('details')?.open; n.result.replaceChildren(...(step?.output?[h('small',{class:'workflow-run-model'},step.source==='uploaded_video'?'Video unggahan · Perlu pemeriksaan manusia':r.agents?.[n.role]?`${r.agents[n.role].provider} · ${r.agents[n.role].model}`:'Model tidak tercatat pada proses lama'),h('details',{open:expanded},h('summary',{},'Hasil agen'),h('pre',{},typeof step.output==='string'?step.output:JSON.stringify(step.output,null,2)))]:[]));if(n.role==='image'&&r?.media?.some(m=>m.url)){n.result.append(h('div',{class:'workflow-image-result'},r.media.filter(m=>m.url).slice(-2).map(m=>h('img',{src:m.url,alt:'Hasil Image Creator'}))));}}for(const edge of edges)paths.get(edge).classList.toggle('active',states.get(edge.to)==='running'&&(edge.from!=='reference'||r?.reference_media_ids?.length>0));schedule();},
+    setRun(r) {
+      const names = { concept_review:'workflow.status.concept', planned:'workflow.status.planned', queued:'workflow.status.queued', running:'workflow.status.running', review:'workflow.status.review', failed:'workflow.status.failed', cancelled:'workflow.status.cancelled', drafted:'workflow.status.drafted', approved:'workflow.status.approved' };
+      info.textContent = r ? t('workflow.progress', {status:names[r.status] ? t(names[r.status]) : r.status, done:Object.values(r.steps || {}).filter(s=>s.status==='done').length, total:r.story_job_id?8:5}) : t('workflow.none');
+      for (const n of nodes) {
+        if (!n.role) {
+          if (n.id==='result') n.badge.textContent = r?.status==='concept_review'?t('workflow.status.concept'):r?.status==='review'?t('workflow.status.review'):r?.status==='approved'?t('workflow.status.approved'):r?.media?.length?t('workflow.preview'):t('workflow.waiting.results');
+          continue;
+        }
+        const step=r?.steps?.[n.role];
+        const status=step?.status==='manual'?'manual':step?.status==='done'?'done':r?.status==='running'&&step?.status==='running'?'running':r?.status==='failed'&&step?.status==='running'?'failed':'waiting';
+        states.set(n.id,status); elements.get(n.id).dataset.state=status;
+        n.badge.textContent=t('workflow.step.'+status);
+        const expanded=n.result.querySelector('details')?.open;
+        n.result.replaceChildren(...(step?.output ? [
+          h('small',{class:'workflow-run-model'},step.source==='uploaded_video'?t('workflow.video.manual'):r.agents?.[n.role]?`${r.agents[n.role].provider} · ${r.agents[n.role].model}`:t('workflow.model.unknown')),
+          h('details',{open:expanded},h('summary',{},t('workflow.agent.result')),h('pre',{},typeof step.output==='string'?step.output:JSON.stringify(step.output,null,2)))
+        ]:[]));
+        if(n.role==='image'&&r?.media?.some(m=>m.url)) n.result.append(h('div',{class:'workflow-image-result'},r.media.filter(m=>m.url).slice(-2).map(m=>h('img',{src:m.url,alt:t('workflow.image.result')}))));
+      }
+      for(const edge of edges) paths.get(edge).classList.toggle('active',states.get(edge.to)==='running'&&(edge.from!=='reference'||r?.reference_media_ids?.length>0));
+      schedule();
+    },
     dispose(){disposed=true;observer.disconnect();if(raf)cancelAnimationFrame(raf);}
   };
 }

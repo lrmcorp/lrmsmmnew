@@ -1,15 +1,24 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>LRMsmm</title>
   <meta name="theme-color" content="#047857">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23047857'/%3E%3Crect x='8' y='15' width='4' height='9' rx='2' fill='white'/%3E%3Crect x='14' y='8' width='4' height='16' rx='2' fill='white'/%3E%3Crect x='20' y='12' width='4' height='12' rx='2' fill='white'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/app.css">
-  <link rel="stylesheet" href="/components.css">
-  <link rel="stylesheet" href="/workflow-canvas.css">
-  <link rel="stylesheet" href="/generator-studio.css">
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,sans-serif;color:#101828;background:#f3f4f3}
+    button,input{font:inherit}.auth{min-height:100vh}.auth-bar{padding:16px 24px;background:#fff}.auth-main{max-width:1120px;margin:40px auto;padding:0 16px;display:grid;grid-template-columns:1fr 1fr}
+    .auth-card,.auth-side{padding:40px}.auth-card{background:#fff;border:1px solid #e4e7ec;border-radius:14px 0 0 14px}.auth-card .field{display:grid;gap:8px;margin:18px 0}.auth-card input{width:100%;min-height:44px;padding:10px;border:1px solid #d0d5dd;border-radius:8px}
+    .auth-card button[type=submit]{width:100%;min-height:44px;border:0;border-radius:8px;background:#0b6b4b;color:#fff}.auth-side{background:#101828;color:#fff;border-radius:0 14px 14px 0}.auth-side h2{color:#fff}.auth-error{color:#b42318}
+    .app{display:flex;min-height:100vh}.side{width:268px;flex:none;background:#fafbfa;border-right:1px solid #e4e7ec}.col{flex:1;min-width:0}.hdr{min-height:64px;background:#fff;border-bottom:1px solid #e4e7ec}.main{padding:24px}.wrap{max-width:1280px;margin:auto}
+    @media(max-width:760px){.auth-main{grid-template-columns:1fr;margin:16px auto}.auth-card{border-radius:14px}.auth-side{display:none}.side{position:fixed;transform:translateX(-100%)}.main{padding:16px}}
+  </style>
+  <script>window.retryStyle=function(link){if(link.dataset.retried)return;link.dataset.retried='1';var url=new URL(link.href);url.searchParams.set('v',String(Date.now()));link.href=url.href;}</script>
+  <link rel="stylesheet" href="/app.css" onerror="retryStyle(this)">
+  <link rel="stylesheet" href="/components.css" onerror="retryStyle(this)">
+  <link rel="stylesheet" href="/workflow-canvas.css" onerror="retryStyle(this)">
+  <link rel="stylesheet" href="/generator-studio.css" onerror="retryStyle(this)">
 </head>
 <body>
   <div id="app"></div>

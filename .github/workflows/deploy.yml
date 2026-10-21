@@ -27,6 +27,10 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - run: npm ci
       - run: npm test
+      - name: Check front-end language and icons
+        run: |
+          node public/scripts/check-no-emoji.mjs
+          node public/scripts/check-ui-language.mjs
       - name: Deployment boundary and closed initial setup tests
         run: |
           python3 -m unittest discover -s deploy/tests -v

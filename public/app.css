@@ -2,6 +2,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
+  --c-bg:#f3f4f3;--c-surface:#fff;--c-side:#fafbfa;
+  --c-text:#101828;--c-text-2:#344054;--c-muted:#667085;--c-faint:#98a2b3;
+  --c-line:#e4e7ec;--c-line-2:#d0d5dd;--c-ink-soft:#f2f4f7;
+  --c-brand:#0b6b4b;--c-brand-2:#0f8a61;--c-brand-soft:#e6f4ed;--c-brand-line:#bfe3d2;
+  --c-ok:#0b6b4b;--c-ok-soft:#e6f4ed;--c-warn:#b54708;--c-warn-soft:#fef4e6;--c-warn-line:#fbd9a7;
+  --c-bad:#b42318;--c-bad-soft:#fef0ef;--c-bad-line:#fecdca;--c-info:#175cd3;--c-info-soft:#eef4ff;--c-info-line:#c7d7fe;
+  --c-concept:#6941c6;--c-concept-soft:#f4f0ff;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;
+  --fs-xs:11px;--fs-sm:12.5px;--fs-md:13px;--fs-lg:14.5px;--fs-h3:15px;--fs-h2:18px;--fs-h1:22px;--fs-num:28px;
+  --shadow-pop:0 12px 30px rgba(16,24,40,.15);
   --slate-50: #f8fafc; --slate-100: #f1f5f9; --slate-200: #e2e8f0; --slate-300: #cbd5e1; --slate-400: #94a3b8;
   --slate-500: #64748b; --slate-600: #475569; --slate-700: #334155; --slate-800: #1e293b; --slate-900: #0f172a; --slate-950: #020617;
   --em-50: #ecfdf5; --em-100: #d1fae5; --em-200: #a7f3d0; --em-300: #6ee7b7; --em-400: #34d399; --em-500: #10b981;
@@ -426,6 +436,7 @@ dialog .df { padding: 1rem 1.5rem; border-top: 1px solid var(--slate-100); displ
 .overdue-pop { position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 60; display: flex; align-items: center; gap: .75rem; background: #fff; color: var(--ro-800); text-decoration: none; padding: .75rem .75rem .75rem .875rem; border-radius: var(--r-2xl); border: 1px solid var(--ro-200); box-shadow: var(--sh-xl); font-weight: 700; font-size: .8125rem; animation: pop .25s ease-out; max-width: 24rem; }
 .overdue-pop b { width: 2.5rem; height: 2.5rem; border-radius: var(--r-xl); background: var(--ro-600); color: #fff; display: grid; place-items: center; font-size: 1.125rem; font-weight: 800; flex: none; }
 .overdue-pop .x { background: var(--ro-50); border: 1px solid var(--ro-200); color: var(--ro-700); width: 1.75rem; height: 1.75rem; border-radius: var(--r-lg); cursor: pointer; flex: none; }
+.overdue-pop a{display:flex;align-items:center;gap:.75rem;color:inherit;text-decoration:none;min-width:0}.overdue-pop .x .hi{width:1rem;height:1rem}
 @keyframes pop { from { transform: translateY(8px); opacity: 0; } }
 @media (max-width: 639px) { .overdue-pop { left: 1rem; right: 1rem; bottom: 1rem; max-width: none; } #toast { left: 1rem; right: 1rem; } }
 
@@ -570,7 +581,7 @@ dialog .df { padding: 1rem 1.5rem; border-top: 1px solid var(--slate-100); displ
 .agent-activity-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
 .agent-workfloor { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin:24px 0; }
 .agent-desk { text-align:center; display:grid; justify-items:center; gap:8px; position:relative; min-width:0; }
-.agent-desk:not(:last-child)::after { content:'→'; position:absolute; top:28px; right:-14px; color:#94a3b8; }
+.agent-desk:not(:last-child)::after { content:''; position:absolute; top:31px; right:-14px; width:8px; height:8px; border-top:2px solid #94a3b8; border-right:2px solid #94a3b8; transform:rotate(45deg); }
 .agent-orbit { height:74px; width:74px; display:grid; place-items:center; position:relative; }
 .agent-face { display:grid; place-items:center; height:54px; width:54px; border-radius:18px; background:#e2e8f0; color:#64748b; font-weight:800; border:2px solid white; box-shadow:0 4px 14px #0f172a0a; }
 .agent-signal { position:absolute; right:7px; bottom:7px; width:13px; height:13px; border:3px solid white; border-radius:50%; background:#94a3b8; }
