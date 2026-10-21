@@ -78,6 +78,19 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.throws(() => make({ account_ids: ['unassigned'] }), /tidak ditemukan/);
       assert.throws(() => make({ agents: { ...gen.DEFAULT_AGENTS, image: { ...gen.DEFAULT_AGENTS.image, provider: 'anthropic' } } }), /Provider/);
     });
+    await t.test('planned concepts require only concept and revision keys before image approval',async()=>{
+      gen.saveKey(other,'openai',secret);
+      const agents=structuredClone(gen.settings(other).agents);
+      agents.concept={...agents.concept,provider:'openai',model:'gpt-4.1-mini'};
+      agents.revision={...agents.revision,provider:'openai',model:'gpt-4.1-mini'};
+      const date=new Date(Date.now()+2*864e5+7*3600000).toISOString().slice(0,10);
+      const plan=await gen.createPlan(other,{request_id:'concept-keys-only',brief:'A concept without paying for images',account_ids:['ig-generator'],content_count:1,start_date:date,end_date:date,times:['09:15'],manual:true,agents});
+      const planned=gen.listRuns(other).find(r=>r.plan_id===plan.id),before=providerCalls.length;
+      assert.equal(gen.startPlanned(other,planned.id).status,'queued');
+      assert.equal(providerCalls.length,before,'queue does not spend or invoke later providers');
+      gen.cancelRun(other,planned.id);gen.deleteKey(other,'openai');
+      run('DELETE FROM generator_runs WHERE plan_id=?',plan.id);run('DELETE FROM generator_plans WHERE id=?',plan.id);
+    });
     await t.test('Gemini catalog uses private key metadata, isolates users, and excludes unsupported models',async()=>{
       const before=providerCalls.length,reads=catalogReads;
       const catalog=await http('GET','/providers/gemini/models');assert.equal(catalog.status,200);assert.deepEqual(catalog.json.textModels.map(m=>m.id),['gemini-fixture-flash']);assert.deepEqual(catalog.json.imageModels.map(m=>m.id),['gemini-fixture-image']);assert.equal(catalog.json.live,true);assert.ok(!JSON.stringify(catalog.json).includes(secret));

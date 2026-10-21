@@ -127,7 +127,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log(`  MCP endpoint: ${config.publicUrl}/mcp`);
     if (!config.mock) {
       const e = process.env;
-      console.log(`  Instagram: ${e.IG_APP_ID && e.IG_APP_SECRET ? 'terkonfigurasi' : '⚠ IG_APP_ID / IG_APP_SECRET belum diisi'}`);
+      console.log(`  Instagram: ${e.IG_APP_ID && e.IG_APP_SECRET ? 'terkonfigurasi' : 'WARNING: IG_APP_ID / IG_APP_SECRET belum diisi'}`);
       console.log(`  Threads:   ${e.THREADS_APP_ID && e.THREADS_APP_SECRET ? 'terkonfigurasi' : 'belum diisi (opsional)'}`);
     }
     startWorker();
