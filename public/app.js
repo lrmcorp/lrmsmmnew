@@ -3,6 +3,7 @@ import { storyWorkspace } from './story-workspace.js';
 import { generatorStudio } from './generator-studio.js';
 import { workflowCanvas } from './workflow-canvas.js';
 import { bindInteraction } from './interactions.js';
+import { createDraftPages, groupSessions } from './draft-sessions.js';
 import { HERO, PLATFORM_ICONS } from './icons.js';
 import { t } from './strings.en.js';
 import { createUI, readContentPrefs, contentInstruction, hasCaptionEmoji } from './ui.js';
@@ -304,8 +305,8 @@ const live = {
   async refresh() {
     try { state.stats = await api('GET', '/v1/stats'); } catch { return; }
     try {
-      const runs=(await api('GET','/v1/generator/runs')).data||[];
-      state.stats.draftSessionsNeedsAction=new Set(runs.filter(r=>['planned','concept_review','review','failed'].includes(r.status)||(r.status==='expired'&&r.expires_at&&Date.now()-new Date(r.expires_at).getTime()<86400000)).map(r=>r.plan_id||r.id)).size;
+      const [plans,runs]=await Promise.all([api('GET','/v1/generator/plans'),api('GET','/v1/generator/runs')]);
+      state.stats.draftSessionsNeedsAction=groupSessions(plans.data||[],runs.data||[]).filter(s=>['plan','concept','review','failed'].includes(s.state)).length;
     }catch{state.stats.draftSessionsNeedsAction=0;}
     for (const el of document.querySelectorAll('[data-badge]')) {
       const b = badgeFor(el.dataset.badge);
@@ -1005,6 +1006,8 @@ async function pageGenerator(nav) {
     batch.signature='';return results;
   }
   const brief = h('textarea', { oninput:()=>{briefPreview.textContent=brief.value||t('legacy.no_campaign_direction_yet');brief.removeAttribute('aria-invalid');campaignError.hidden=true;}, 'aria-label': t('generator.brief.label'), placeholder: t('legacy.example_make_a_3_slide_carousel_for_hanna_beauty_include_goals_audience_verified_offer_visual_style_language_cta_and_claims_to_avoid'), maxlength: 10000, rows: 5 });
+  const prefilledBrief=new URLSearchParams(location.hash.split('?')[1]||'').get('brief');
+  if(prefilledBrief)brief.value=prefilledBrief.slice(0,10000);
   const count = h('input', { type: 'number', min: 1, max: 10, value: 1, 'aria-label': t('legacy.slide_count') });
   const tomorrow = new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0,10);
   const until = new Date(Date.now() + 14 * 864e5 + 7 * 3600000).toISOString().slice(0,10);
@@ -1013,7 +1016,7 @@ async function pageGenerator(nav) {
   const totalContents = h('input',{type:'number',min:1,max:30,value:12,'aria-label':t('legacy.posts_in_plan')});
   const postTimes = h('input',{value:'12:15, 19:15','aria-label':t('legacy.planned_times_wib')});
   const planningMode = h('select',{'aria-label':t('generator.planning.mode')},h('option',{value:'ai'},t('legacy.ai_plans_ideas_and_topics')),h('option',{value:'manual'},t('legacy.manual_dates_and_your_own_photos')));
-  const briefPreview=h('p',{class:'muted small'},t('legacy.no_campaign_direction_yet'));
+  const briefPreview=h('p',{class:'muted small'},brief.value||t('legacy.no_campaign_direction_yet'));
   const campaignError=h('p',{class:'err-box',role:'alert',hidden:true});
   const planButton=h('button',{class:'btn primary',onclick:async e=>{
     e.currentTarget.disabled=true;
@@ -1793,6 +1796,8 @@ async function pageAdmin() {
     body));
 }
 
+const draftPages=createDraftPages({h,api,ui,icon,avatar,state,isOwner,shell,pagehead,modal,confirmDialog,inputDialog,toast,errMsg,go,fmtDay,fmtTime,fmtSlot,fmtRange,ago,wibInput,wibIso,reload:()=>route()});
+
 // ---------------- router ----------------
 let pageCleanup = null;
 let navSeq = 0;
@@ -1822,7 +1827,8 @@ async function route() {
     else if (path === '/compose') view = await pageCompose();
     else if (path === '/generator') {const account=new URLSearchParams(location.hash.split('?')[1]||'').get('account');if(account){go('/accounts/'+encodeURIComponent(account)+'?tab=brand');return;}view=await pageGenerator(nav);}
     else if (path === '/settings') view=await pageSettings();
-    else if (path === '/generator/drafts') view = await pageContentDrafts(nav);
+    else if (path === '/generator/drafts') {const page=await draftPages.list();view=page.view;if(nav===navSeq)pageCleanup=page.cleanup;else page.cleanup();}
+    else if ((m=path.match(/^\/generator\/drafts\/([^/]+)$/))) {const page=await draftPages.session(decodeURIComponent(m[1]));view=page.view;if(nav===navSeq)pageCleanup=page.cleanup;else page.cleanup();}
     else if ((m = path.match(/^\/compose\/(.+)$/))) view = await pageCompose(m[1]);
     else if ((m = path.match(/^\/posts\/(.+)$/))) view = await pagePost(m[1]);
     else if (path === '/calendar') view = await pageCalendar();

@@ -249,8 +249,21 @@ export function createUI({ h, icon, avatar, state, isOwner, go, modal }) {
   const progressPipeline = steps => h('div', { class: 'ui-pipeline' }, steps.map(step => h('div', { class: `step ${step.state}` }, h('b', {}, step.label), h('span', {}, step.count ?? ''))));
   const sessionCard = session => h('article', { class: 'ui-session-card' }, h('h3', {}, session.title), chip(session.state, 'info'),
     h('p', {}, session.accounts?.map(a => '@' + a.username).join(', ') || ''), session.action || null);
-  const phonePreview = ({ account, media = [], caption = '', platform = 'instagram' }) => h('div', { class: `ui-phone-preview ${platform}` },
-    account ? accountChip(account) : null, media[0]?.url ? h('img', { src: media[0].url, alt: '' }) : null, h('p', {}, caption));
+  function phonePreview({ account, media = [], caption = '', platform = 'instagram' }) {
+    let slide=0,active=platform;
+    const root=h('div',{class:'ui-phone-preview'});
+    const tabs=h('div',{class:'ui-phone-tabs',role:'group','aria-label':t('draft.preview.platform')});
+    const stage=h('div',{class:'ui-phone-media'}),strip=h('div',{class:'ui-phone-strip'});
+    function draw(){
+      root.dataset.platform=active;
+      tabs.replaceChildren(...['instagram','threads'].map(value=>h('button',{type:'button',class:active===value?'on':'',onclick:()=>{active=value;draw();}},t('platform.'+value))));
+      const item=media[slide];stage.replaceChildren(item?.url?(item.type==='video'?h('video',{src:item.url,controls:true,preload:'metadata'}):h('img',{src:item.url,alt:t('draft.preview.slide',{n:slide+1})})):h('div',{class:'ui-phone-no-media'},icon('photograph'),t('legacy.no_image_yet')));
+      strip.replaceChildren(...media.map((m,i)=>h('button',{type:'button',class:i===slide?'on':'','aria-label':t('draft.preview.slide',{n:i+1}),onclick:()=>{slide=i;draw();}},m.url?h('img',{src:m.url,alt:''}):String(i+1))));
+    }
+    root.append(tabs,h('div',{class:'ui-phone-head'},account?accountChip(account):null),stage,
+      h('p',{class:'ui-phone-caption'},caption),strip);
+    draw();return root;
+  }
   const summaryPanel = model => h('aside', { class: 'ui-summary-panel' }, h('h2', {}, t('gen.summary')),
     h('b', {}, t('gen.summary.total', { total: model.total || 0 })), model.action || null);
   const readiness = (accountId,{aiImages=true,story=false}={}) => {

@@ -218,8 +218,8 @@ export const strings = {
   "draft.empty.none.cta": "Open Content Generator",
   "draft.empty.filter": "No sessions for {filter} in \"{tab}\"",
   "draft.empty.filter.cta": "Clear filter",
-  "draft.empty.expired.title": "This session's drafts were deleted automatically",
-  "draft.empty.expired.body": "Nothing changed for 7 days, so the images and captions were cleaned up. The plan and story memory are kept.",
+  "draft.empty.expired.title": "Drafts deleted",
+  "draft.empty.expired.body": "The generated drafts are no longer available. You can use the saved direction to start a new session.",
   "draft.plan.callout": "The plan is ready; concepts haven't been created. Check the order below, select all or some, then create concepts. Images are made only after you approve the concepts.",
   "draft.plan.cols": "Ep. · Planned episode · Type · Schedule · Scheduler reason",
   "draft.plan.needsvideo": "needs video",
@@ -1380,4 +1380,100 @@ Object.assign(strings, {
   "story.approve.ready": "Approve {n} ready proposals",
   "story.approve.posts": "Approve {n} posts",
   "story.approve.added": "{n} posts added to Content Calendar"
+});
+
+Object.assign(strings, {
+  "draft.count.item": "{n} {label}",
+  "draft.count.planned": "{n} planned",
+  "draft.count.queued": "{n} queued",
+  "draft.count.running": "{n} in progress",
+  "draft.count.concept_review": "{n} concepts to review",
+  "draft.count.review": "{n} ready",
+  "draft.count.failed": "{n} failed",
+  "draft.count.approved": "{n} approved",
+  "draft.count.drafted": "{n} in New Post",
+  "draft.count.cancelled": "{n} cancelled",
+  "draft.page.title": "Drafts",
+  "draft.count.posts": "{n} post{s}",
+  "draft.queued": "{n} posts queued for AI",
+  "draft.expiry.past": "Drafts expired",
+  "draft.account.unknown": "Account no longer connected",
+  "draft.tabs.label": "Session status",
+  "draft.sort.label": "Sort sessions",
+  "draft.sort.newest": "Newest",
+  "draft.sort.next": "Next scheduled",
+  "draft.sort.expiry": "Expiring first",
+  "draft.empty.filter.body": "{n} other sessions may be available in another tab or scope.",
+  "draft.expired.open.generator": "Open Content Generator with this direction",
+  "draft.selected.of": "{n} of {m} selected",
+  "draft.plan.col.episode": "Ep.",
+  "draft.plan.col.title": "Planned episode",
+  "draft.plan.col.type": "Type",
+  "draft.plan.col.schedule": "Schedule",
+  "draft.plan.col.reason": "Scheduler reason",
+  "draft.select.item": "Select {title}",
+  "draft.schedule.item": "Schedule {title} in WIB",
+  "draft.schedule.saved": "Schedule saved",
+  "draft.plan.reason.none": "No reason provided",
+  "draft.shift.days": "Days to shift",
+  "draft.full.edit": "Full edit"
+  ,"draft.preview.platform": "Preview platform"
+  ,"draft.preview.slide": "Preview slide {n}"
+  ,"draft.retry.one": "Retry"
+  ,"draft.unscheduled": "Unscheduled"
+  ,"platform.instagram": "Instagram"
+  ,"platform.threads": "Threads"
+  ,"draft.shift.failed": "Failed to shift schedules for {n} posts"
+  ,"autosave.saved_automatically": "Saved automatically"
+  ,"draft.concept.failed": "Failed to approve {n} concepts"
+  ,"draft.caption.count": "{n} / 2,200"
+  ,"draft.cal.move": "Reschedule"
+  ,"draft.cal.move.title": "Reschedule {title}"
+  ,"draft.cal.move.save": "Save schedule"
+  ,"draft.cal.move.cancel": "Cancel"
+  ,"draft.cal.previous": "Previous month"
+  ,"draft.cal.next": "Next month"
+  ,"draft.cal.hint.keyboard": "Drag an item to another date, or select Reschedule to pick a date."
+  ,"draft.cal.move.saved": "Moved to {date}"
+  ,"draft.cal.move.failed": "Failed to reschedule"
+  ,"draft.cal.status.planned": "Plan only"
+  ,"draft.cal.status.queued": "Queued"
+  ,"draft.cal.status.running": "In progress"
+  ,"draft.cal.status.concept_review": "Review concepts"
+  ,"draft.cal.status.review": "Ready"
+  ,"draft.cal.status.failed": "Failed"
+  ,"draft.cal.status.approved": "On calendar"
+  ,"draft.cal.status.drafted": "In New Post"
+  ,"draft.cal.status.cancelled": "Cancelled"
+  ,"draft.cal.event": "{title} · {time} · {status}"
+  ,"draft.cal.month": "{month} {year}"
+  ,"draft.more.duplicate": "Duplicate to Generator"
+  ,"draft.more.delete": "Delete session"
+  ,"draft.delete.session.title": "Delete this session?"
+  ,"draft.delete.session.body": "All drafts and planned episodes in this session will be permanently deleted."
+  ,"draft.delete.session.confirm": "Delete session"
+  ,"draft.delete.plan.title": "Delete plan?"
+  ,"draft.delete.plan.body": "This will delete all planned episodes in this plan."
+  ,"draft.delete.plan.confirm": "Delete plan"
+  ,"draft.delete.draft.title": "Delete draft?"
+  ,"draft.delete.draft.body": "This draft post and its generated images will be permanently deleted."
+  ,"draft.delete.draft.confirm": "Delete draft"
+  ,"draft.drawer.edit": "Edit draft"
+  ,"draft.slide.n": "Slide {n}"
+  ,"draft.slides.count": "{n} slides"
+  ,"draft.revise.submit": "Revise"
+  ,"draft.keyboard.hint": "Left/Right move · A approve · E edit · X select"
+  ,"draft.tab.open": "Open {tab}"
+  ,"draft.filter.tab_count": "{n} other sessions for this account are in the {tab} tab."
+  ,"draft.batch.approving": "Approving {i} of {n}…"
+  ,"draft.approving.wait": "Approving posts to calendar…"
+  ,"draft.filter.approved": "Approved"
+});
+
+Object.assign(strings, {
+  "draft.calendar.label": "Session calendar",
+  "draft.calendar.previous": "Previous month",
+  "draft.calendar.next": "Next month",
+  "draft.calendar.empty": "No sessions are scheduled in this month.",
+  "draft.calendar.session": "{title} · {range} · {state}"
 });
