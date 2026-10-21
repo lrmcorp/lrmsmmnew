@@ -1,0 +1,1591 @@
+<title>LRMsmm Redesign Mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: reading column for notes; each mockup sits in its own horizontal-scroll frame rendered as the light product UI. Sticky index on top. */
+:root{
+  --bg:#f5f6f4; --surface:#ffffff; --fg:#17201c; --muted:#5a6660; --line:#dde3df;
+  --accent:#0d6b4f; --accent-soft:#e3f2eb; --warn:#9a4a07; --warn-soft:#fdf1e2; --crit:#b42318; --crit-soft:#fdeceb;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --f-app:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --m-bg:#f3f4f3; --m-card:#ffffff; --m-fg:#101828; --m-muted:#667085; --m-line:#e4e7ec; --m-side:#fafbfa;
+  --m-green:#0b6b4b; --m-green-2:#0f8a61; --m-green-soft:#e6f4ed; --m-amber:#b54708; --m-amber-soft:#fef4e6;
+  --m-red:#b42318; --m-red-soft:#fef0ef; --m-blue:#175cd3; --m-blue-soft:#eef4ff; --m-ink-soft:#f2f4f7; --m-purple:#6941c6; --m-purple-soft:#f4f0ff;
+  --pin:#e8590c;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1311; --surface:#151c19; --fg:#e6ece9; --muted:#9aa8a1; --line:#27312c;
+  --accent:#5fd0a5; --accent-soft:#183128; --warn:#f0a24f; --warn-soft:#2e2215; --crit:#f28b82; --crit-soft:#331b1a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1311; --surface:#151c19; --fg:#e6ece9; --muted:#9aa8a1; --line:#27312c;
+  --accent:#5fd0a5; --accent-soft:#183128; --warn:#f0a24f; --warn-soft:#2e2215; --crit:#f28b82; --crit-soft:#331b1a; color-scheme:dark}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.6;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 80px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:64px}
+h1,h2,h3{text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(30px,4vw,42px);font-weight:700;letter-spacing:-.02em}
+h2{font-size:28px;font-weight:700;letter-spacing:-.01em}
+h3{font-size:18px;font-weight:600}
+p{margin:0}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.lede{font-size:18px;color:var(--muted);max-width:70ch}
+.stack{display:flex;flex-direction:column;gap:14px}
+.stack-lg{display:flex;flex-direction:column;gap:40px}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+a{color:var(--accent)}
+.index{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-left,0px))}
+.index-in{max-width:1240px;margin:0 auto;display:flex;gap:6px;overflow-x:auto;scrollbar-width:thin}
+.index a{flex:none;font-family:var(--f-mono);font-size:12.5px;text-decoration:none;color:var(--fg);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 11px;white-space:nowrap}
+.index a:hover,.index a:focus-visible{border-color:var(--accent);color:var(--accent);outline:none}
+header.top{padding-top:40px}
+.section-head{display:flex;flex-direction:column;gap:8px;border-top:2px solid var(--fg);padding-top:16px}
+.toc{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.toc a{display:flex;gap:10px;align-items:baseline;text-decoration:none;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px}
+.toc a b{font-family:var(--f-mono);font-size:12px;color:var(--accent);flex:none}
+.rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.rules div{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:12px 14px;font-size:15px}
+.mock-block{display:flex;flex-direction:column;gap:14px;scroll-margin-top:70px}
+.mock-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.mock-head .id{font-family:var(--f-mono);font-size:13px;font-weight:500;color:#fff;background:#0d6b4f;border-radius:5px;padding:1px 7px}
+.mock-head .tag{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.why{color:var(--muted);font-size:15px;max-width:80ch}
+.frame{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--m-bg)}
+.frame.center{display:flex;justify-content:center;gap:28px;flex-wrap:wrap;padding:24px}
+.legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 28px;font-size:14.5px;margin:0;padding:0;list-style:none}
+.legend li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;align-items:start}
+.legend .pin{margin-top:2px}
+.note{font-size:13.5px;color:var(--muted)}
+@media (max-width:760px){.legend,.rules{grid-template-columns:minmax(0,1fr)}}
+
+/* ============ PRODUCT UI (light) ============ */
+.app{font-family:var(--f-app);color:var(--m-fg);background:var(--m-bg);font-size:13px;line-height:1.45;padding:22px 24px;min-width:1080px}
+.app.wide{min-width:1240px;padding:0}
+.app.mobile{min-width:0;width:375px;flex:none;padding:0;border-radius:30px;overflow:hidden;border:8px solid #1d2420;background:var(--m-bg)}
+.app *{box-sizing:border-box}
+.app h4{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+.app h5{margin:0;font-size:14.5px;font-weight:700;line-height:1.3}
+.app h6{margin:0;font-size:13px;font-weight:700}
+.app .sub{color:var(--m-muted);font-size:12.5px}
+.app .xs{font-size:11px}
+.app .muted{color:var(--m-muted)}
+.app .row{display:flex;align-items:center;gap:8px}
+.app .row.wrap{flex-wrap:wrap}
+.app .between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.app .col{display:flex;flex-direction:column;gap:10px}
+.app .col.s{gap:4px}.app .col.l{gap:16px}.app .col.xl{gap:22px}
+.app .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.app .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.app .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.app .g5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.app .g6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.app .grow{flex:1;min-width:0}
+.app .card{background:var(--m-card);border:1px solid var(--m-line);border-radius:12px}
+.app .pad{padding:18px 20px}
+.app .pad-s{padding:12px 14px}
+.app .btn{font:inherit;font-weight:600;font-size:12.5px;border-radius:8px;padding:8px 13px;border:1px solid var(--m-line);background:var(--m-card);color:var(--m-fg);display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.app .btn.pri{background:var(--m-green);border-color:var(--m-green);color:#fff}
+.app .btn.ghost{border-color:transparent;background:transparent;color:var(--m-green);padding-inline:4px}
+.app .btn.lg{padding:12px 18px;font-size:14px;border-radius:10px}
+.app .btn.sm{padding:5px 9px;font-size:11.5px}
+.app .btn.danger{color:var(--m-red)}
+.app .btn.dangerfill{background:var(--m-red);border-color:var(--m-red);color:#fff}
+.app .btn.dis{background:var(--m-ink-soft);border-color:var(--m-line);color:#98a2b3}
+.app .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--m-ink-soft);color:#344054;white-space:nowrap}
+.app .chip.g{background:var(--m-green-soft);color:var(--m-green)}
+.app .chip.a{background:var(--m-amber-soft);color:var(--m-amber)}
+.app .chip.b{background:var(--m-blue-soft);color:var(--m-blue)}
+.app .chip.r{background:var(--m-red-soft);color:var(--m-red)}
+.app .chip.p{background:var(--m-purple-soft);color:var(--m-purple)}
+.app .chip.o{background:transparent;border:1px solid var(--m-line)}
+.app .chip.sel{background:var(--m-fg);color:#fff}
+.app .dot{width:7px;height:7px;border-radius:50%;display:inline-block;background:currentColor;flex:none}
+.app .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex:none}
+.app .av.s{width:20px;height:20px;font-size:8px}
+.app .av.l{width:48px;height:48px;font-size:15px}
+.app .avs{display:flex}.app .avs .av{border:2px solid #fff;margin-left:-7px}.app .avs .av:first-child{margin-left:0}
+.c1{background:#c2410c}.c2{background:#7c3aed}.c3{background:#db2777}.c4{background:#0891b2}.c5{background:#4d7c0f}.c6{background:#475467}.c7{background:#98a2b3}
+.app .label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--m-muted)}
+.app .flabel{font-size:12px;font-weight:600;color:#344054}
+.app .input{border:1px solid var(--m-line);border-radius:8px;background:#fff;padding:8px 10px;font-size:12.5px;color:var(--m-fg);display:flex;align-items:center;gap:6px;min-height:36px}
+.app .input.ph{color:#98a2b3}
+.app .input.focus{border-color:#7cc4a3;box-shadow:0 0 0 3px #e6f4ed}
+.app .input.err{border-color:#f04438;box-shadow:0 0 0 3px #fee4e2}
+.app .inl{display:inline-flex;padding:2px 8px;font-weight:700;color:var(--m-green);background:var(--m-green-soft);border:1px solid #bfe3d2;border-radius:6px}
+.app .ta{border:1px solid var(--m-line);border-radius:10px;padding:12px 14px;min-height:88px;background:#fff;font-size:13px;color:var(--m-fg)}
+.app .ta.focus{border-color:#7cc4a3;box-shadow:0 0 0 3px #e6f4ed}
+.app .hr{height:1px;background:var(--m-line);flex:none}
+.app .vr{width:1px;align-self:stretch;background:var(--m-line)}
+.app .step{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px}
+.app .num{width:26px;height:26px;border-radius:50%;background:var(--m-green);color:#fff;font-weight:700;font-size:12px;display:grid;place-items:center}
+.app .num.done{background:var(--m-green-soft);color:var(--m-green)}
+.app .num.off{background:var(--m-ink-soft);color:#98a2b3}
+.app .seg{display:inline-flex;padding:3px;border-radius:10px;background:var(--m-ink-soft);gap:3px}
+.app .seg span{padding:6px 12px;border-radius:8px;font-weight:600;font-size:12.5px;color:var(--m-muted);white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.app .seg span.on{background:#fff;color:var(--m-fg);box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.app .tabs{display:flex;gap:20px;border-bottom:1px solid var(--m-line)}
+.app .tabs span{padding:10px 0;font-weight:600;color:var(--m-muted);font-size:13px;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.app .tabs span.on{color:var(--m-fg);box-shadow:inset 0 -2px 0 var(--m-green)}
+.app .tabs b{font-size:11px;background:var(--m-ink-soft);border-radius:99px;padding:1px 7px;color:#344054}
+.app .tabs .on b{background:var(--m-green);color:#fff}
+.app .thumb{border-radius:8px;position:relative;overflow:hidden;flex:none}
+.t1{background:linear-gradient(135deg,#f7d9d4,#e9a8a0)}.t2{background:linear-gradient(135deg,#efe3d0,#c9a77c)}.t3{background:linear-gradient(135deg,#dde7f3,#9fb6d6)}
+.t4{background:linear-gradient(135deg,#e8dff1,#b49bd0)}.t5{background:linear-gradient(135deg,#dff0e6,#93c9a9)}.t6{background:linear-gradient(135deg,#f6ecd2,#e2c26b)}
+.tplan{background:repeating-linear-gradient(45deg,#f2f4f7 0 8px,#e9ecf0 8px 16px)}
+.tfail{background:var(--m-red-soft)}
+.app .badge-n{position:absolute;right:4px;top:4px;background:rgba(16,24,40,.72);color:#fff;font-size:9.5px;font-weight:700;border-radius:4px;padding:1px 4px}
+.app .bar{height:8px;border-radius:99px;background:var(--m-ink-soft);display:flex;overflow:hidden}
+.app .bar i{display:block;height:100%}
+.app .check{width:16px;height:16px;border-radius:4px;border:1.5px solid #98a2b3;background:#fff;flex:none;display:grid;place-items:center;color:#fff}
+.app .check.on{background:var(--m-green);border-color:var(--m-green)}
+.app .check.on::after{content:"";width:10px;height:10px;background:currentColor;-webkit-mask:var(--ic-check) center/contain no-repeat;mask:var(--ic-check) center/contain no-repeat}
+.app .radio{width:16px;height:16px;border-radius:50%;border:1.5px solid #98a2b3;background:#fff;flex:none}
+.app .radio.on{border:5px solid var(--m-green)}
+.app .tog{width:30px;height:18px;border-radius:99px;background:#d0d5dd;position:relative;flex:none}
+.app .tog::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px}
+.app .tog.on{background:var(--m-green)}.app .tog.on::after{left:14px}
+.app .ok{color:var(--m-green)}.app .wa{color:var(--m-amber)}.app .er{color:var(--m-red)}
+.app .callout{border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;font-size:12.5px}
+.app .callout.a{background:var(--m-amber-soft);border:1px solid #fbd9a7}.app .callout.a > .i{color:var(--m-amber)}
+.app .callout.b{background:var(--m-blue-soft);border:1px solid #c7d7fe}.app .callout.b > .i{color:var(--m-blue)}
+.app .callout.r{background:var(--m-red-soft);border:1px solid #fecdca}.app .callout.r > .i{color:var(--m-red)}
+.app .callout.g{background:var(--m-green-soft);border:1px solid #bfe3d2}.app .callout.g > .i{color:var(--m-green)}
+.app .kbd{font-family:var(--f-mono);font-size:10.5px;border:1px solid var(--m-line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:#fff;color:#344054}
+.app .mt{width:100%;border-collapse:collapse;font-size:12.5px}
+.app .mt th,.app .mt td{padding:9px 12px;border-bottom:1px solid var(--m-line);text-align:left;font-family:var(--f-app);vertical-align:middle}
+.app .mt th{font-size:10.5px;color:var(--m-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;background:#fafbfc}
+.app .mt tr:last-child td{border-bottom:none}
+.app .num-big{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.app .scrim{background:rgba(16,24,40,.45);padding:40px;display:grid;place-items:center}
+.app .dlg{background:#fff;border-radius:14px;box-shadow:0 20px 40px rgba(16,24,40,.25);width:480px;max-width:100%;padding:22px;display:flex;flex-direction:column;gap:14px}
+.app .drawer-wrap{display:grid;grid-template-columns:minmax(0,1fr) 440px;background:rgba(16,24,40,.35)}
+.app .drawer{background:#fff;border-left:1px solid var(--m-line);padding:20px;display:flex;flex-direction:column;gap:14px;box-shadow:-10px 0 30px rgba(16,24,40,.12)}
+.app .ghostpage{opacity:.5;padding:22px 24px;pointer-events:none}
+.app .toast{background:#101828;color:#fff;border-radius:10px;padding:10px 14px;display:inline-flex;gap:10px;align-items:center;font-weight:600;font-size:12.5px;box-shadow:0 8px 20px rgba(16,24,40,.25)}
+.app .toast u{color:#6ce9a6}
+.app .phone{border:1px solid var(--m-line);border-radius:14px;overflow:hidden;background:#fff}
+.app .ig-h{display:flex;align-items:center;gap:8px;padding:10px 12px;font-weight:700;font-size:12px}
+.app .img{aspect-ratio:4/5;max-width:100%;display:grid;place-items:end center;padding-bottom:10px}
+.app .dots{display:flex;gap:4px}.app .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.6)}.app .dots i.on{background:#fff}
+.app .bulk{display:flex;align-items:center;gap:10px;background:#101828;color:#fff;border-radius:12px;padding:10px 14px;font-weight:600;font-size:12.5px}
+.app .bulk .btn{background:#1d2939;border-color:#344054;color:#fff}
+.app .bulk .btn.pri{background:var(--m-green-2);border-color:var(--m-green-2)}
+.app .pipe{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.app .pipe div{display:flex;flex-direction:column;gap:6px;font-size:11.5px;font-weight:600;color:var(--m-muted)}
+.app .pipe div i{height:6px;border-radius:99px;background:var(--m-ink-soft);display:block}
+.app .pipe .d,.app .pipe .w{color:var(--m-fg)}
+.app .pipe .d i{background:var(--m-green)}
+.app .pipe .w i{background:linear-gradient(90deg,var(--m-green) 40%,var(--m-ink-soft) 40%)}
+.app .pipe .f i{background:var(--m-red)}
+.app .spark{width:100%;display:block}
+
+/* icons: line icons via CSS mask, no emoji anywhere */
+:root{
+--ic-check:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12l5 5 9-11'/></svg>");
+--ic-x:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'><path d='M6 6l12 12M18 6L6 18'/></svg>");
+--ic-search:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'><circle cx='11' cy='11' r='6.5'/><path d='M20 20l-4.2-4.2'/></svg>");
+--ic-building:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 21V5l8-2v18M12 9h8v12M7 8h2M7 12h2M7 16h2M15 13h2M15 17h2M2 21h20'/></svg>");
+--ic-user:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='8' r='4'/><path d='M4 21c1-4 4-6 8-6s7 2 8 6'/></svg>");
+--ic-spark:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><path d='M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z'/></svg>");
+--ic-pen:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><path d='M4 20l4-1L19 8l-3-3L5 16z'/></svg>");
+--ic-gear:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='3'/><path d='M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2'/></svg>");
+--ic-cal:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><rect x='3' y='5' width='18' height='16' rx='2'/><path d='M3 10h18M8 3v4M16 3v4'/></svg>");
+--ic-chat:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><path d='M4 5h16v11H9l-5 4z'/></svg>");
+--ic-lock:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><rect x='5' y='11' width='14' height='10' rx='2'/><path d='M8 11V8a4 4 0 0 1 8 0v3'/></svg>");
+--ic-alert:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l10 18H2z'/><path d='M12 10v5M12 18v.5'/></svg>");
+--ic-clock:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/></svg>");
+--ic-refresh:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'/></svg>");
+--ic-upload:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 16V4M7 9l5-5 5 5M4 20h16'/></svg>");
+--ic-bell:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><path d='M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z'/><path d='M10 21h4'/></svg>");
+--ic-info:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='9'/><path d='M12 11v6M12 7.5v.5'/></svg>");
+--ic-move:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3'/></svg>");
+--ic-copy:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><rect x='8' y='8' width='12' height='12' rx='2'/><path d='M16 8V4H4v12h4'/></svg>");
+--ic-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><rect x='3' y='4' width='18' height='16' rx='2'/><circle cx='9' cy='10' r='2'/><path d='M21 16l-5-5-9 9'/></svg>");
+--ic-grid:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><rect x='4' y='4' width='7' height='7'/><rect x='13' y='4' width='7' height='7'/><rect x='4' y='13' width='7' height='7'/><rect x='13' y='13' width='7' height='7'/></svg>");
+--ic-more:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'><circle cx='5' cy='12' r='2'/><circle cx='12' cy='12' r='2'/><circle cx='19' cy='12' r='2'/></svg>");
+--ic-team:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='9' cy='8' r='3.5'/><path d='M2.5 20c.8-3.5 3.3-5 6.5-5s5.7 1.5 6.5 5'/><circle cx='17' cy='9' r='2.5'/><path d='M16.5 14c2.6 0 4.4 1.4 5 4'/></svg>");
+}
+.i{display:inline-block;width:14px;height:14px;background:currentColor;flex:none;vertical-align:-2px;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
+.i.l{width:18px;height:18px}.i.xl{width:28px;height:28px}
+.i-check{--ic:var(--ic-check)}.i-x{--ic:var(--ic-x)}.i-search{--ic:var(--ic-search)}.i-building{--ic:var(--ic-building)}.i-user{--ic:var(--ic-user)}
+.i-spark{--ic:var(--ic-spark)}.i-pen{--ic:var(--ic-pen)}.i-gear{--ic:var(--ic-gear)}.i-cal{--ic:var(--ic-cal)}.i-chat{--ic:var(--ic-chat)}
+.i-lock{--ic:var(--ic-lock)}.i-alert{--ic:var(--ic-alert)}.i-clock{--ic:var(--ic-clock)}.i-refresh{--ic:var(--ic-refresh)}.i-upload{--ic:var(--ic-upload)}
+.i-bell{--ic:var(--ic-bell)}.i-info{--ic:var(--ic-info)}.i-move{--ic:var(--ic-move)}.i-copy{--ic:var(--ic-copy)}.i-image{--ic:var(--ic-image)}
+.i-grid{--ic:var(--ic-grid)}.i-more{--ic:var(--ic-more)}.i-team{--ic:var(--ic-team)}
+
+/* shell */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:640px}
+.side{background:var(--m-side);border-right:1px solid var(--m-line);padding:16px 12px;display:flex;flex-direction:column;gap:14px}
+.side .logo{font-weight:800;font-size:18px;letter-spacing:-.02em;padding:0 6px}
+.side .logo b{color:var(--m-green)}
+.side .grp{display:flex;flex-direction:column;gap:2px}
+.side .grp > .label{padding:0 8px 4px}
+.side .it{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;font-weight:600;color:#344054;font-size:12.5px}
+.side .it.on{background:var(--m-green-soft);color:var(--m-green)}
+.side .it.subit{padding-left:31px;font-weight:500}
+.side .it .cnt{margin-left:auto;font-size:10.5px;font-weight:700;background:var(--m-amber-soft);color:var(--m-amber);border-radius:99px;padding:0 6px}
+.topbar{display:flex;align-items:center;gap:10px;padding:12px 24px;border-bottom:1px solid var(--m-line);background:#fff}
+.main{padding:22px 24px;display:flex;flex-direction:column;gap:16px}
+
+/* account picker + scope bar */
+.apick{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ap{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px 0 4px;border:1.5px solid var(--m-line);border-radius:999px;background:#fff;font-weight:600;font-size:12.5px;white-space:nowrap;color:#344054}
+.ap.on{border-color:var(--m-green);background:var(--m-green-soft);color:var(--m-green)}
+.ap .wdot{width:8px;height:8px;border-radius:50%;background:#f79009;flex:none}
+.ap.dis{opacity:.5}
+.ap.more{padding:0 12px;border-style:dashed;color:var(--m-muted)}
+.ap.focus{box-shadow:0 0 0 3px #bfe3d2}
+.wdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f79009}
+.scope{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;background:#fff;border:1px solid var(--m-line);border-radius:12px}
+.scope-co{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;background:var(--m-ink-soft);font-weight:700;font-size:12.5px;white-space:nowrap;color:var(--m-fg)}
+.scope-co.o{background:#fff;border:1px solid var(--m-line)}
+.scope-sep{color:#98a2b3;font-weight:700}
+.dd{background:#fff;border:1px solid var(--m-line);border-radius:12px;box-shadow:0 12px 30px rgba(16,24,40,.15);padding:6px;display:flex;flex-direction:column;gap:2px;width:280px}
+.dd .opt{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px;border-radius:8px;font-size:12.5px}
+.dd .opt.on{background:var(--m-green-soft);color:var(--m-green);font-weight:700}
+.dd .opt.dis{color:#98a2b3}
+
+/* page specifics */
+.sumrow{display:grid;grid-template-columns:90px minmax(0,1fr) auto;gap:8px;align-items:baseline;font-size:12.5px;padding:7px 0;border-bottom:1px dashed var(--m-line)}
+.sumrow:last-child{border-bottom:none}
+.ck{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;font-size:12.5px;align-items:start}
+.sess{display:grid;grid-template-columns:96px minmax(0,1.5fr) minmax(0,1.3fr) 150px;gap:18px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--m-line)}
+.sess:last-child{border-bottom:none}
+.stackthumb{position:relative;width:96px;height:64px}
+.stackthumb .thumb{position:absolute;width:56px;height:56px;border:2px solid #fff;box-shadow:0 1px 3px rgba(16,24,40,.15)}
+.day{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid var(--m-line)}
+.day:last-child{border-bottom:none}
+.day .dl{font-size:11.5px;font-weight:700;color:var(--m-muted);line-height:1.3}
+.day .dl b{display:block;font-size:20px;color:var(--m-fg);font-weight:800}
+.posts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.post{display:grid;grid-template-columns:auto 64px minmax(0,1fr);gap:10px;align-items:start;padding:8px;border:1.5px solid var(--m-line);border-radius:10px;background:#fff}
+.post.sel{border-color:var(--m-green);box-shadow:0 0 0 3px #e6f4ed}
+.post .cap{font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chapter{border:1px solid var(--m-line);border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:6px}
+.chapter.cur{border-color:var(--m-green);background:#f5fbf8}
+.eps{display:flex;gap:4px}.eps i{flex:1;height:6px;border-radius:99px;background:var(--m-ink-soft)}.eps i.d{background:var(--m-green)}.eps i.n{background:#9ad5bb}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--m-line);border-left:1px solid var(--m-line)}
+.cal > div{border-right:1px solid var(--m-line);border-bottom:1px solid var(--m-line);min-height:92px;padding:6px;display:flex;flex-direction:column;gap:4px;font-size:11px}
+.cal .dh{min-height:0;font-weight:700;color:var(--m-muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;background:#fafbfc}
+.cal .n{font-weight:700;font-size:12px}
+.cal .o{color:#c0c5cd}
+.cal .today .n{background:var(--m-green);color:#fff;border-radius:99px;width:22px;height:22px;display:grid;place-items:center}
+.ev{border-radius:6px;padding:3px 6px;font-size:10.5px;font-weight:600;display:flex;gap:4px;align-items:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ev.pub{background:var(--m-green-soft);color:var(--m-green)}
+.ev.sch{background:var(--m-blue-soft);color:var(--m-blue)}
+.ev.dr{background:#fff;border:1px dashed #98a2b3;color:#475467}
+.ev.fail{background:var(--m-red-soft);color:var(--m-red)}
+.lanes{display:grid;grid-template-columns:150px repeat(7,minmax(0,1fr));border-top:1px solid var(--m-line);border-left:1px solid var(--m-line)}
+.lanes > div{border-right:1px solid var(--m-line);border-bottom:1px solid var(--m-line);padding:6px;min-height:58px;display:flex;flex-direction:column;gap:4px;font-size:11px}
+.lanes .lh{min-height:0;background:#fafbfc;font-weight:700;color:var(--m-muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em}
+.lanes .acc-h{flex-direction:row;align-items:center;gap:8px;font-weight:700;font-size:12px;background:#fafbfc}
+.gap{border:1.5px dashed #fbd9a7;background:var(--m-amber-soft);color:var(--m-amber);border-radius:6px;font-size:10px;font-weight:700;padding:2px 6px}
+.chat{display:flex;flex-direction:column;gap:8px}
+.bub{max-width:72%;padding:8px 11px;border-radius:14px;font-size:12.5px}
+.bub.in{background:var(--m-ink-soft);align-self:flex-start;border-bottom-left-radius:4px}
+.bub.out{background:var(--m-green);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.lrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--m-line)}
+.lrow.on{background:#f5fbf8;box-shadow:inset 3px 0 0 var(--m-green)}
+.lrow:last-child{border-bottom:none}
+.media-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.media-grid .thumb{aspect-ratio:1/1;width:100%;max-width:100%}
+.mob-top{background:#fff;padding:14px 16px 10px;border-bottom:1px solid var(--m-line);display:flex;flex-direction:column;gap:8px}
+.mob-body{display:flex;flex-direction:column;gap:10px;padding:12px}
+.mob-bar{background:#fff;border-top:1px solid var(--m-line);padding:10px 12px 14px;display:flex;gap:8px}
+.login{display:grid;grid-template-columns:1fr 1fr;min-height:560px}
+.login .l{padding:48px;display:flex;flex-direction:column;gap:18px;justify-content:center;background:#fff}
+.login .r{background:#0e2a20;color:#e6f4ed;padding:48px;display:flex;flex-direction:column;gap:18px;justify-content:center}
+.pin{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--pin);color:#fff;font:700 11px/1 var(--f-mono);flex:none;box-shadow:0 0 0 3px rgba(232,89,12,.18);vertical-align:middle}
+.pin.s{width:16px;height:16px;font-size:9px}
+</style>
+
+<nav class="index" aria-label="Mockup index"><div class="index-in">
+  <a href="#shell">Shell</a><a href="#gen">Content Generator</a><a href="#draft">Drafts</a><a href="#home">Home</a><a href="#compose">New Post</a><a href="#calendar">Calendar</a><a href="#dm">Messages</a><a href="#comments">Comments</a><a href="#insights">Insights</a><a href="#accounts">Companies &amp; Accounts</a><a href="#brandkit">Brand Kit</a><a href="#media">Media Library</a><a href="#api">API &amp; AI</a><a href="#team">Team &amp; Access</a><a href="#audit">Audit Log</a><a href="#settings">Settings</a><a href="#login">Sign in</a>
+</div></nav>
+
+<div class="wrap">
+<header class="top stack">
+  <span class="eyebrow">LRMsmm redesign · mockup set v3 · 20 Oct 2026</span>
+  <h1>Every menu, redrawn</h1>
+  <p class="lede">43 annotated screens covering every page in the sidebar, with the most depth on Content Generator and Drafts. Each screen has an ID (G1, D3, H1…) that the LLM instruction pack refers to. Orange pins match the numbered notes under each screen. Content is example data unless it says otherwise; accounts, follower counts, the Manisky story and model names come from your workspace.</p>
+  <div class="rules">
+    <div><b>English only.</b> Every label, message, date and number in the app is in English (dates like "Sat, 1 Nov · 12:15 WIB", numbers like 2,322). Menu names are renamed accordingly (Beranda → Home, Sosmed Generator → Content Generator, Draft Konten → Drafts…).</div>
+    <div><b>No emoji in the interface.</b> The app UI uses line icons from the app's icon set, never emoji. Post content is different: generated captions are <b>Indonesian by default</b> (language selectable per account and per session) and <b>may include emoji</b> (Brand Kit toggle, on by default).</div>
+  </div>
+  <div class="toc">
+    <a href="#S1"><b>S1–S4</b>Shell, dialogs, account picker, scope bar</a>
+    <a href="#G1"><b>G1–G10</b>Content Generator</a>
+    <a href="#D1"><b>D1–D10</b>Drafts</a>
+    <a href="#H1"><b>H1</b>Home</a>
+    <a href="#C1"><b>C1</b>New Post</a>
+    <a href="#K1"><b>K1–K3</b>Calendar</a>
+    <a href="#M1"><b>M1</b>Messages</a>
+    <a href="#R1"><b>R1</b>Comments</a>
+    <a href="#I1"><b>I1–I2</b>Insights</a>
+    <a href="#A1"><b>A1</b>Companies &amp; Accounts</a>
+    <a href="#B1"><b>B1–B2</b>Brand Kit &amp; Story</a>
+    <a href="#ME1"><b>ME1–ME2</b>Media Library</a>
+    <a href="#P1"><b>P1</b>API &amp; AI</a>
+    <a href="#T1"><b>T1</b>Team &amp; Access</a>
+    <a href="#J1"><b>J1</b>Audit Log</a>
+    <a href="#ST1"><b>ST1</b>Personal Settings</a>
+    <a href="#L1"><b>L1</b>Sign in</a>
+  </div>
+</header>
+
+<!-- ======================= SHELL ======================= -->
+<section class="stack-lg" id="shell">
+  <div class="section-head"><span class="eyebrow">Global</span><h2>App shell</h2><p class="why">The sidebar and top bar appear on every page. Today the breadcrumb is cut off at narrow widths, the "New Post" chip wraps onto two lines, every page repeats its group as an eyebrow chip, and Drafts has no badge even when sessions need review. The whole shell moves to English labels.</p></div>
+
+  <div class="mock-block" id="S1">
+    <div class="mock-head"><span class="id">S1</span><h3>Sidebar + top bar</h3><span class="tag">1240px · every page</span></div>
+    <div class="frame"><div class="app wide"><div class="shell">
+      <aside class="side">
+        <div class="logo">LRM<b>smm</b></div>
+        <div class="input ph" style="font-size:12px"><i class="i i-search"></i>Search pages, accounts, sessions <span class="kbd" style="margin-left:auto">Cmd K</span> <span class="pin s">1</span></div>
+        <div class="grp"><span class="label">Content</span>
+          <div class="it"><i class="i i-grid"></i>Home</div>
+          <div class="it on"><i class="i i-spark"></i>Content Generator</div>
+          <div class="it subit">Drafts <span class="cnt">2</span> <span class="pin s">2</span></div>
+          <div class="it"><i class="i i-pen"></i>New Post</div>
+          <div class="it"><i class="i i-cal"></i>Content Calendar</div>
+        </div>
+        <div class="grp"><span class="label">Engagement</span>
+          <div class="it"><i class="i i-chat"></i>Messages <span class="cnt">3</span></div>
+          <div class="it"><i class="i i-chat"></i>Comments</div>
+          <div class="it"><i class="i i-grid"></i>Insights</div>
+        </div>
+        <div class="grp"><span class="label">Workspace <span class="pin s">3</span></span>
+          <div class="it"><i class="i i-building"></i>Companies &amp; Accounts</div>
+          <div class="it"><i class="i i-image"></i>Media Library</div>
+          <div class="it"><i class="i i-team"></i>Team &amp; Access</div>
+          <div class="it"><i class="i i-gear"></i>API &amp; AI</div>
+          <div class="it"><i class="i i-lock"></i>Audit Log</div>
+        </div>
+        <div style="margin-top:auto" class="card pad-s row"><span class="av c6">RE</span><div class="grow"><b>Reyner</b><div class="sub xs">Owner · Personal settings</div></div><i class="i i-more muted"></i></div>
+      </aside>
+      <div>
+        <div class="topbar">
+          <span class="sub">Content</span><span class="sub">/</span><b>Content Generator</b> <span class="pin s">4</span>
+          <span class="grow"></span>
+          <span class="chip g"><span class="dot"></span>22:47 WIB</span>
+          <span class="btn sm"><i class="i i-pen"></i>New Post</span>
+          <span class="btn sm"><i class="i i-bell"></i><span class="chip a" style="padding:0 6px">3</span></span>
+          <span class="av s c6">RE</span>
+        </div>
+        <div class="main">
+          <div class="between"><div class="col s"><h4>Content Generator</h4><span class="sub">Pick accounts, write a direction, and AI prepares drafts for you to review.</span></div><span class="btn">Drafts <span class="chip a">2 to review</span></span></div>
+          <div class="card pad" style="height:260px;display:grid;place-items:center;color:#98a2b3">page content</div>
+        </div>
+      </div>
+    </div></div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Global search (Cmd/Ctrl K) lives in the sidebar. It searches pages, accounts and sessions.</span></li>
+      <li><span class="pin">2</span><span>Live counts: Drafts shows sessions waiting for review; Messages shows overdue DMs. Hidden at zero.</span></li>
+      <li><span class="pin">3</span><span>English group names: Content, Engagement, Workspace. "Personal settings" moves into the user card menu.</span></li>
+      <li><span class="pin">4</span><span>Breadcrumb never truncates the page name. Page eyebrow chips are removed. Top bar chips never wrap. Every icon is a line icon from <code>icons.js</code>, never an emoji.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="S2">
+    <div class="mock-head"><span class="id">S2</span><h3>Confirm dialog (replaces <code>confirm()</code> / <code>prompt()</code>)</h3><span class="tag">component · 22 call sites</span></div>
+    <p class="why">The app uses the browser's native <code>confirm()</code> 20 times and <code>prompt()</code> twice, for paid AI runs, deletes, slide revisions and alt text. Native dialogs can't show cost or context. One in-app dialog with three variants replaces them.</p>
+    <div class="frame"><div class="app" style="padding:0"><div class="scrim" style="grid-template-columns:repeat(3,auto);gap:20px;align-items:start">
+      <div class="dlg" style="width:330px">
+        <span class="chip b" style="align-self:flex-start">API cost</span>
+        <h5>Create concepts for 12 posts?</h5>
+        <p class="sub">Agents write concepts and captions using your API key. Images are created only after you approve the concepts.</p>
+        <div class="card pad-s col s" style="background:#fafbfc"><div class="between"><span class="sub">Posts</span><b>12</b></div><div class="between"><span class="sub">Runs now</span><b>Concept + review</b></div><div class="between"><span class="sub">Model</span><b>GPT-4.1 · Balanced</b></div></div>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Cancel</span><span class="btn pri">Create concepts</span></div>
+      </div>
+      <div class="dlg" style="width:330px">
+        <span class="chip r" style="align-self:flex-start">Cannot be undone</span>
+        <h5>Delete 3 drafts?</h5>
+        <p class="sub">Images not used by other posts are deleted too. Drafts already on the calendar are not affected.</p>
+        <div class="row"><span class="thumb t1" style="width:40px;height:40px"></span><span class="thumb t4" style="width:40px;height:40px"></span><span class="thumb t2" style="width:40px;height:40px"></span></div>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Cancel</span><span class="btn dangerfill">Delete 3 drafts</span></div>
+      </div>
+      <div class="dlg" style="width:330px">
+        <span class="chip p" style="align-self:flex-start">Revise slide 2</span>
+        <h5>What should change?</h5>
+        <div class="ta focus" style="min-height:70px">Keep the product, change the background to plain white.</div>
+        <div class="row wrap"><span class="chip o">White background</span><span class="chip o">Brighter</span><span class="chip o">No text</span><span class="chip o">Product close-up</span></div>
+        <p class="sub xs">Only slide 2 and the final review run again. API cost applies.</p>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Cancel</span><span class="btn pri">Revise slide 2</span></div>
+      </div>
+    </div></div></div>
+  </div>
+
+  <div class="mock-block" id="S3">
+    <div class="mock-head"><span class="id">S3</span><h3>Account picker (one component everywhere)</h3><span class="tag">Generator · New Post · filters</span></div>
+    <p class="why">Accounts are picked in one compact row of chips (avatar + @handle), never a vertical stack of cards and never full brand names like "Manisky Nails | your little nails obsession".</p>
+    <div class="frame"><div class="app col xl">
+      <div class="col s"><span class="label">A · Inline row (up to 8 accounts), multi-select <span class="pin s">1</span></span>
+        <div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on focus"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span><span class="ap"><span class="av s c1">MS</span>@manisky.id</span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka<b class="wdot"></b></span><span class="sub" style="margin-left:6px">2 selected · <u>Select all</u></span></div>
+        <div class="row" style="margin-left:150px"><span class="card pad-s xs" style="box-shadow:0 8px 20px rgba(16,24,40,.15)"><b>Hanna Beauty</b> · 2,769 followers · Brand Kit ready</span><span class="sub xs">tooltip on hover and focus <span class="pin s">2</span></span></div>
+      </div>
+      <div class="hr"></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start">
+        <div class="col s"><span class="label">B · Many accounts (more than 8) <span class="pin s">3</span></span>
+          <div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap on"><span class="av s c4">HN</span>@hannanails.id<i class="i i-check"></i></span><span class="ap more"><i class="i i-search"></i>9 more · Search accounts</span></div>
+          <span class="sub xs">Selected chips stay visible; the rest live in the popover.</span>
+          <div class="col s" style="margin-top:12px"><span class="label">C · Story mode, single-select</span>
+            <div class="apick"><span class="ap on"><span class="av s c1">MS</span>@manisky.id · Ep. 13<i class="i i-check"></i></span><span class="ap"><span class="av s c2">MJ</span>@moonjasmine.id</span><span class="ap dis"><span class="av s c5">AJ</span>@anekajaya.asemka<b class="wdot"></b></span></div>
+          </div>
+        </div>
+        <div class="card col" style="padding:10px;box-shadow:0 12px 30px rgba(16,24,40,.15)">
+          <div class="input focus"><i class="i i-search"></i>Search @handle or brand name</div>
+          <div class="between"><span class="label">LRM Corporation · 5</span><span class="btn ghost sm">Select all</span></div>
+          <div class="row"><span class="check on"></span><span class="av s c2">MJ</span><b class="grow">@moonjasmine.id</b><span class="sub xs">2,322</span></div>
+          <div class="row"><span class="check on"></span><span class="av s c3">HB</span><b class="grow">@hannabeauty.kr</b><span class="sub xs">2,769</span></div>
+          <div class="row"><span class="check on"></span><span class="av s c4">HN</span><b class="grow">@hannanails.id</b><span class="sub xs">4,497</span></div>
+          <div class="row"><span class="check"></span><span class="av s c1">MS</span><b class="grow">@manisky.id</b><span class="sub xs">2,510</span></div>
+          <div class="row"><span class="check"></span><span class="av s c5">AJ</span><b class="grow">@anekajaya.asemka</b><span class="chip a xs">No Brand Kit</span></div>
+          <div class="between"><span class="label">HR Group · 0</span><span class="sub xs">No accounts yet</span></div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Chip = 32px pill with Meta profile photo (initials fallback) and @handle. Selected = green fill + check icon. Amber dot = Brand Kit missing (Generator only).</span></li>
+      <li><span class="pin">2</span><span>Full brand name, follower count and readiness live in the tooltip, so the row stays short.</span></li>
+      <li><span class="pin">3</span><span>Above 8 accounts the row shows only selected chips plus "N more · Search accounts", opening a searchable, company-grouped checklist. Closes on outside click; no Done button.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="S4">
+    <div class="mock-head"><span class="id">S4</span><h3>Scope bar: Company &gt; Accounts &gt; View</h3><span class="tag">one filter for every list page</span></div>
+    <p class="why">Every page that lists content filters the same way, in the same order: choose the <b>company</b> first, then <b>one or more accounts</b> inside it, then the <b>view</b>. The choice carries over between pages and is kept in the URL.</p>
+    <div class="frame"><div class="app col xl">
+      <div class="col s"><span class="label">A · Desktop: company chosen, 2 accounts, view switcher <span class="pin s">1</span></span>
+        <div class="scope"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span><span class="ap"><span class="av s c1">MS</span>@manisky.id</span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka</span></div><span class="sub xs">2 of 5 accounts</span><span class="btn ghost sm">Reset</span><span class="grow"></span><span class="sub xs">View</span><div class="seg"><span class="on">Month</span><span>Week</span><span>List</span><span>By account</span></div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px;align-items:start">
+        <div class="col s"><span class="label">B · Step 1: choose a company <span class="pin s">2</span></span>
+          <div class="dd">
+            <div class="opt"><span></span><span>All companies</span><span class="sub xs">5 accounts</span></div>
+            <div class="opt on"><i class="i i-check"></i><span>LRM Corporation</span><span class="xs">5 accounts</span></div>
+            <div class="opt dis"><span></span><span>HR Group</span><span class="xs">0 accounts</span></div>
+            <div class="opt dis"><span></span><span>Unassigned</span><span class="xs">0 accounts</span></div>
+            <div class="hr"></div>
+            <div class="opt"><span></span><span class="sub xs">Manage companies</span><span></span></div>
+          </div>
+        </div>
+        <div class="col s"><span class="label">C · Step 2: only that company's accounts <span class="pin s">3</span></span>
+          <div class="scope"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap on"><span class="av s c4">HN</span>@hannanails.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c1">MS</span>@manisky.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c5">AJ</span>@anekajaya.asemka<i class="i i-check"></i></span></div><span class="sub xs">All (5)</span></div>
+          <span class="sub xs">Picking a company selects <b>all its accounts</b>. Click chips to narrow it down. Deselecting the last chip returns to all.</span>
+          <div class="scope" style="margin-top:6px"><span class="scope-co"><i class="i i-building"></i>All companies</span><span class="scope-sep">&gt;</span><span class="label">LRM Corporation</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span></div><span class="vr"></span><span class="label">HR Group</span><span class="sub xs">no accounts yet</span></div>
+          <span class="sub xs">With "All companies", chips are grouped under company labels.</span>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 343px;gap:24px;align-items:start">
+        <div class="col s"><span class="label">D · Active filter notice on other pages <span class="pin s">4</span></span>
+          <div class="callout b"><i class="i i-info"></i><span>Showing <b>2 accounts</b> in <b>LRM Corporation</b>: @moonjasmine.id, @hannabeauty.kr. This filter applies on every page.</span><span class="btn sm">Show all accounts</span></div>
+        </div>
+        <div class="col s"><span class="label">E · Mobile: two buttons + sheet <span class="pin s">5</span></span>
+          <div class="app mobile" style="width:343px;border-width:6px;border-radius:22px">
+            <div class="mob-top"><div class="row"><span class="scope-co" style="flex:1"><i class="i i-building"></i>LRM Corp.</span><span class="scope-co o" style="flex:1"><i class="i i-user"></i>2 accounts</span><span class="scope-co o"><i class="i i-grid"></i></span></div></div>
+            <div class="mob-body"><span class="label">Choose accounts · LRM Corporation</span>
+              <div class="row"><span class="check on"></span><span class="av s c2">MJ</span><b class="grow">@moonjasmine.id</b></div>
+              <div class="row"><span class="check on"></span><span class="av s c3">HB</span><b class="grow">@hannabeauty.kr</b></div>
+              <div class="row"><span class="check"></span><span class="av s c4">HN</span><b class="grow">@hannanails.id</b></div>
+              <div class="row"><span class="check"></span><span class="av s c1">MS</span><b class="grow">@manisky.id</b></div>
+              <div class="row"><span class="check"></span><span class="av s c5">AJ</span><b class="grow">@anekajaya.asemka</b></div>
+            </div>
+            <div class="mob-bar"><span class="btn" style="flex:1">All</span><span class="btn pri" style="flex:2">Show 2 accounts</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Fixed order: company &gt; accounts &gt; page filters &gt; view switcher on the right. Same height and position on every page.</span></li>
+      <li><span class="pin">2</span><span>Companies show account counts; empty companies are disabled. Representatives only see companies containing their assigned accounts.</span></li>
+      <li><span class="pin">3</span><span>Accounts cascade from the company. Multi-select by default; single-account views (Insights "Single account") switch to single-select.</span></li>
+      <li><span class="pin">4</span><span>Scope is global: <code>state.scope</code> + localStorage + URL (<code>?co=…&amp;acc=a,b&amp;view=…</code>). A one-time notice prevents "where did my posts go?".</span></li>
+      <li><span class="pin">5</span><span>On phones: company button, accounts button (bottom sheet), view icon. Chips never wrap into a stack.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= GENERATOR ======================= -->
+<section class="stack-lg" id="gen">
+  <div class="section-head"><span class="eyebrow">Focus page 1</span><h2>Content Generator</h2><p class="why">One composer for both modes, every setting visible as plain language, a summary that does the maths, and a checklist that explains a disabled button. Ten screens cover each state.</p></div>
+
+  <div class="mock-block" id="G1">
+    <div class="mock-head"><span class="id">G1</span><h3>Composer · New campaign · ready</h3><span class="tag">default state · 3 accounts selected</span></div>
+    <div class="frame"><div class="app">
+      <div class="between" style="margin-bottom:16px">
+        <div class="col s"><h4>Content Generator</h4><span class="sub">Pick accounts, write a direction, and AI prepares drafts for you to review.</span></div>
+        <span class="btn">Drafts <span class="chip a">2 to review</span></span>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start">
+        <div class="card pad col xl">
+          <div class="step"><span class="num done"><i class="i i-check"></i></span><div class="col">
+            <div class="between"><h5>1 · Which accounts? <span class="pin">1</span></h5><span class="sub">3 of 5 selected · <u style="color:var(--m-green);font-weight:600">Select all</u></span></div>
+            <div class="row"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap on"><span class="av s c4">HN</span>@hannanails.id<i class="i i-check"></i></span><span class="ap"><span class="av s c1">MS</span>@manisky.id</span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka<b class="wdot"></b></span></div></div>
+            <div class="sub xs"><b class="wdot"></b> = no Brand Kit yet. Details and the fix are in the session summary.</div>
+          </div></div>
+          <div class="hr"></div>
+          <div class="step"><span class="num done"><i class="i i-check"></i></span><div class="col">
+            <div class="between"><h5>2 · What do you want to make? <span class="pin">2</span></h5><div class="seg"><span><i class="i i-spark"></i>Continue story</span><span class="on"><i class="i i-pen"></i>New campaign</span></div></div>
+            <div class="ta focus">11.11 promo for lash clusters: focus on beginners, warm and playful tone, CTA to the link in bio. Avoid the "lasts 2 weeks" claim.</div>
+            <div class="between"><div class="row"><span class="sub xs">Quick ideas:</span><span class="chip o">Promo</span><span class="chip o">Product education</span><span class="chip o">Testimonial</span><span class="chip o">Behind the scenes</span></div><span class="sub xs">142 / 10,000</span></div>
+            <div class="row wrap" style="gap:14px"><span class="flabel">Format <span class="pin s">3</span></span><div class="seg"><span>Single</span><span class="on">Carousel</span></div><div class="row"><span class="sub">Slides</span><span class="input" style="min-height:30px;padding:4px 10px">-&nbsp; 3 &nbsp;+</span></div><span class="vr"></span><span class="flabel">Images</span><div class="seg"><span class="on">AI creates</span><span>My photos</span></div><span class="vr"></span><span class="flabel">Caption language <span class="pin s">6</span></span><span class="input" style="min-height:30px;padding:4px 10px">Indonesian (Brand Kit default)</span></div>
+          </div></div>
+          <div class="hr"></div>
+          <div class="step"><span class="num done"><i class="i i-check"></i></span><div class="col">
+            <h5>3 · When should it go out? <span class="pin">4</span></h5>
+            <div style="font-size:14px;line-height:2.2">Create <span class="inl">12 posts</span> per account, from <span class="inl">21 Oct</span> to <span class="inl">3 Nov</span>, at <span class="inl">12:15</span> <span class="inl">19:15</span> <span class="inl">+ time</span> WIB.</div>
+            <div class="row"><span class="tog on"></span><span>Let the AI Scheduler adjust times based on account insights</span></div>
+          </div></div>
+        </div>
+        <div class="card pad col l" style="position:sticky;top:0">
+          <div class="between"><h5>Session summary <span class="pin">5</span></h5><span class="chip b">Campaign</span></div>
+          <div><div class="num-big">36 posts</div><div class="sub">3 accounts × 12 posts</div></div>
+          <div>
+            <div class="sumrow"><span class="muted">Format</span><span>Carousel · 3 slides</span><span class="muted">108 images</span></div>
+            <div class="sumrow"><span class="muted">Period</span><span>21 Oct – 3 Nov</span><span class="muted">14 days</span></div>
+            <div class="sumrow"><span class="muted">Language</span><span>Indonesian captions</span><span></span></div>
+            <div class="sumrow"><span class="muted">Pace</span><span>about 0.9 posts/day/account</span><span></span></div>
+            <div class="sumrow"><span class="muted">AI team</span><span>Balanced · 5 agents</span><span class="btn ghost">Change</span></div>
+          </div>
+          <div class="hr"></div>
+          <div class="col s"><span class="label">Ready to generate</span>
+            <div class="ck"><i class="i i-check ok"></i><span>3 accounts, all Brand Kits ready</span></div>
+            <div class="ck"><i class="i i-check ok"></i><span>Direction written</span></div>
+            <div class="ck"><i class="i i-check ok"></i><span>OpenAI API key connected</span></div>
+          </div>
+          <span class="btn pri lg">Generate 36 posts</span>
+          <span class="sub" style="text-align:center">Step 1 creates concepts only. Images are made after you approve the concepts.</span>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px"><span class="btn ghost"><i class="i i-gear"></i>AI team &amp; models · Advanced</span><span class="sub">Last session: Manisky Chapter 01 (needs review)</span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Company first, then a single row of account chips for that company (S3/S4). Amber dot = missing Brand Kit; fixes live in the summary.</span></li>
+      <li><span class="pin">2</span><span>Mode switch sits inside step 2; both modes share steps 1 and 3. Quick-idea chips append a starter line and never overwrite text.</span></li>
+      <li><span class="pin">3</span><span>Format, slide count and image source are structured controls, so the brief can't contradict the slide setting.</span></li>
+      <li><span class="pin">4</span><span>The schedule reads as one sentence of editable values (popover in G8).</span></li>
+      <li><span class="pin">5</span><span>The summary recalculates on every change; the button label always shows the total.</span></li>
+      <li><span class="pin">6</span><span>Caption language for this session: Indonesian, English or Mixed. Defaults to each account's Brand Kit setting (Indonesian unless changed); changing it here only affects this session. The app UI stays English either way.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="G2">
+    <div class="mock-head"><span class="id">G2</span><h3>Composer · Continue story · @manisky.id</h3><span class="tag">real story state: episode 13, Chapters 1–4</span></div>
+    <p class="why">Today this mode pre-fills the direction box with the entire Brand Narrative Bible and shows the story as a wall of text. The direction field starts empty; the story is shown as a compact arc.</p>
+    <div class="frame"><div class="app">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start">
+        <div class="card pad col xl">
+          <div class="step"><span class="num done"><i class="i i-check"></i></span><div class="col">
+            <div class="between"><h5>1 · Story account</h5><span class="sub">Story mode: one account per session <span class="pin s">1</span></span></div>
+            <div class="row"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c1">MS</span>@manisky.id · Ep. 13<i class="i i-check"></i></span><span class="ap"><span class="av s c2">MJ</span>@moonjasmine.id</span><span class="ap"><span class="av s c3">HB</span>@hannabeauty.kr</span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span><span class="ap dis"><span class="av s c5">AJ</span>@anekajaya.asemka<b class="wdot"></b></span></div></div>
+          </div></div>
+          <div class="hr"></div>
+          <div class="step"><span class="num done"><i class="i i-check"></i></span><div class="col">
+            <div class="between"><h5>2 · Direction for this session <span class="pin">2</span></h5><div class="seg"><span class="on"><i class="i i-spark"></i>Continue story</span><span><i class="i i-pen"></i>New campaign</span></div></div>
+            <div class="card pad-s col" style="background:#fafbfc">
+              <div class="between"><span class="flabel">Manisky Brand Narrative · where the story is</span><span class="btn ghost sm">View Story Bible</span></div>
+              <div class="g4">
+                <div class="chapter"><b class="xs">CHAPTER 1 · Posts 01–03</b><span>A Little Hello</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+                <div class="chapter"><b class="xs">CHAPTER 2 · Posts 04–06</b><span>The Pretty Details</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+                <div class="chapter"><b class="xs">CHAPTER 3 · Posts 07–09</b><span>Beauty Made Simple</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+                <div class="chapter"><b class="xs">CHAPTER 4 · Posts 10–12</b><span>Your Manisky Moment</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+              </div>
+              <div class="callout g"><i class="i i-check"></i><span>The first arc is complete (12 episodes). This session starts <b>episodes 13–24</b>. The Storyteller will propose Chapter 5 from the story memory.</span><span></span></div>
+            </div>
+            <div class="ta" style="color:#98a2b3">Optional: focus for this session. Example: "Move into the holiday collection, keep it soft and elegant, introduce 2 new products." Leave empty to continue the story as is.</div>
+          </div></div>
+          <div class="hr"></div>
+          <div class="step"><span class="num done"><i class="i i-check"></i></span><div class="col">
+            <h5>3 · When should it go out?</h5>
+            <div style="font-size:14px;line-height:2.2">Continue with <span class="inl">12 episodes</span> from <span class="inl">21 Oct</span> to <span class="inl">3 Nov</span>, at <span class="inl">12:15</span> <span class="inl">19:15</span> WIB.</div>
+          </div></div>
+        </div>
+        <div class="card pad col l">
+          <div class="between"><h5>Session summary</h5><span class="chip p">Story</span></div>
+          <div><div class="num-big">12 episodes</div><div class="sub">@manisky.id · episodes 13–24</div></div>
+          <div>
+            <div class="sumrow"><span class="muted">Agent flow</span><span>Storyteller &gt; Manager &gt; Scheduler &gt; Concept</span><span></span></div>
+            <div class="sumrow"><span class="muted">Period</span><span>21 Oct – 3 Nov</span><span class="muted">14 days</span></div>
+            <div class="sumrow"><span class="muted">Assets</span><span>1 logo · 5 references · 0 products</span><span class="btn ghost">Manage</span></div>
+          </div>
+          <div class="callout a"><i class="i i-alert"></i><span>No <b>product photos</b> yet, so the Storyteller can't pick specific products. <u>Add product photos</u></span><span></span></div>
+          <span class="btn pri lg">Plan 12 episodes <span class="pin s">3</span></span>
+          <span class="sub" style="text-align:center">The plan and proposals appear in Drafts. No image cost until you approve concepts.</span>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Story mode is single-account. Accounts without a Brand Kit are dimmed; clicking one opens the G3 setup drawer.</span></li>
+      <li><span class="pin">2</span><span>The story position is a chapter arc built from the saved bible. The direction field is never pre-filled.</span></li>
+      <li><span class="pin">3</span><span>The button names what this mode does first: Plan, not Generate.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="G3">
+    <div class="mock-head"><span class="id">G3</span><h3>Blocked: account without a Brand Kit, quick setup drawer</h3><span class="tag">replaces the grey "save the brand foundation first" note</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="drawer-wrap">
+      <div class="ghostpage col l">
+        <h4>Content Generator</h4>
+        <div class="card pad col">
+          <div class="apick"><span class="ap on"><span class="av s c5">AJ</span>@anekajaya.asemka<i class="i i-check"></i><b class="wdot"></b></span></div>
+          <div class="ta" style="min-height:60px"></div>
+        </div>
+        <div class="card pad col s" style="width:320px;align-self:flex-end"><span class="label">Ready to generate</span><div class="ck"><i class="i i-alert wa"></i><span>@anekajaya.asemka has no Brand Kit</span></div><span class="btn dis lg">Generate 12 posts</span></div>
+      </div>
+      <div class="drawer">
+        <div class="between"><div class="col s"><span class="label">Quick Brand Kit · 2 minutes</span><h5>@anekajaya.asemka</h5></div><span class="btn sm"><i class="i i-x"></i></span></div>
+        <div class="row"><span class="num">1</span><span class="hr grow"></span><span class="num off">2</span><span class="hr grow"></span><span class="num off">3</span></div>
+        <div class="row" style="justify-content:space-between"><span class="xs"><b>Identity</b></span><span class="xs muted">Rules</span><span class="xs muted">Assets</span></div>
+        <div class="col s"><span class="flabel">What does this brand sell, and to whom?</span><div class="ta focus" style="min-height:70px">Wholesale hair and fashion accessories in Asemka, Jakarta. Buyers: online resellers and small shop owners.</div></div>
+        <div class="col s"><span class="flabel">Tone of voice</span><div class="row wrap"><span class="chip sel">Friendly</span><span class="chip o">Professional</span><span class="chip sel">Direct</span><span class="chip o">Playful</span><span class="chip o">Luxurious</span></div></div>
+        <div class="col s"><span class="flabel">Caption language</span><div class="seg"><span class="on">Indonesian</span><span>English</span><span>Mixed</span></div><span class="sub xs">Default for this account. Can be changed per session.</span></div>
+        <div class="col s"><span class="flabel">Emoji in captions</span><div class="row"><span class="tog on"></span><span class="sub">Allowed (default)</span></div></div>
+        <div class="callout b"><i class="i i-spark"></i><span>Not sure? <b>Fill from bio and the last 12 posts</b>. You can edit the result. <span class="pin s">1</span></span><span class="btn sm">Fill for me</span></div>
+        <div style="margin-top:auto" class="between"><span class="sub">Saved automatically</span><div class="row"><span class="btn">Later</span><span class="btn pri">Next: Rules</span></div></div>
+        <span class="sub xs">You can finish this any time in Companies &amp; Accounts &gt; Brand Kit. <span class="pin s">2</span></span>
+      </div>
+    </div></div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Optional AI starter (needs a new endpoint). Never required.</span></li>
+      <li><span class="pin">2</span><span>Writes to the same Brand Kit as B1. Closing returns to the Generator with the selection kept; the checklist updates live. Caption language (default Indonesian) and emoji in captions (allowed by default) are content settings; the app UI stays English with no emoji.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="G4">
+    <div class="mock-head"><span class="id">G4</span><h3>Pre-flight confirmation before a paid run</h3><span class="tag">replaces <code>confirm()</code> on Generate</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="scrim">
+      <div class="dlg" style="width:520px">
+        <div class="between"><h5>Start session "11.11 Promo"?</h5><span class="chip b">Campaign</span></div>
+        <table class="mt">
+          <tr><th>Stage</th><th>Amount</th><th>When</th></tr>
+          <tr><td>Concept + caption + review</td><td>36 posts</td><td><span class="chip g">Now</span></td></tr>
+          <tr><td>Images (GPT Image 1)</td><td>108 images</td><td><span class="chip">After concepts are approved</span></td></tr>
+          <tr><td>Publishing</td><td>0</td><td><span class="chip">Only after you approve</span></td></tr>
+        </table>
+        <div class="callout b"><i class="i i-info"></i><span>Charged to your OpenAI API key at the provider's rates. You can pause the session at any time.</span><span></span></div>
+        <div class="row"><span class="check on"></span><span class="sub">Notify me when concepts are ready to review</span></div>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Back</span><span class="btn pri">Start 36 concepts</span></div>
+      </div>
+    </div></div></div>
+  </div>
+
+  <div class="mock-block" id="G5">
+    <div class="mock-head"><span class="id">G5</span><h3>Session running (pinned above the composer)</h3><span class="tag">replaces the queue/history accordion at the bottom</span></div>
+    <div class="frame"><div class="app col">
+      <div class="card pad" style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;border-color:#bfe3d2">
+        <div class="col">
+          <div class="row"><span class="chip b"><span class="dot"></span>In progress</span><h5>11.11 Promo · Lash clusters for beginners</h5><span class="sub">· 3 accounts · 36 posts · started 22:41</span></div>
+          <div class="pipe">
+            <div class="d"><i></i>Concepts 36/36</div>
+            <div class="d"><i></i>Concept review</div>
+            <div class="w"><i></i>Visuals · 14/36</div>
+            <div><i></i>Images</div>
+            <div><i></i>Final review</div>
+          </div>
+          <div class="row sub"><span class="avs"><span class="av s c2">MJ</span><span class="av s c3">HB</span><span class="av s c4">HN</span></span> Concepts are ready while you wait. <u style="color:var(--m-green);font-weight:700">Review 36 concepts now</u> <span class="pin s">1</span></div>
+        </div>
+        <div class="row"><span class="btn">Pause</span><span class="btn pri">Open session</span></div>
+      </div>
+      <div class="card">
+        <div class="between pad" style="padding-bottom:8px"><h5>Recent sessions <span class="pin s">2</span></h5><span class="btn ghost">All sessions in Drafts</span></div>
+        <div class="hr"></div>
+        <div class="between pad" style="padding-block:10px"><div class="row"><span class="chip a">Needs review</span><b>Manisky: Chapter 01, A Little Beauty</b><span class="sub">Story · @manisky.id · 12 episodes · 20 Oct</span></div><span class="btn">Review</span></div>
+        <div class="hr"></div>
+        <div class="between pad" style="padding-block:10px"><div class="row"><span class="chip r">2 failed</span><b>Hanna Nails: rainy season collection</b><span class="sub">Campaign · 24 posts · 19 Oct</span></div><span class="btn">Fix</span></div>
+        <div class="hr"></div>
+        <div class="between pad" style="padding-block:10px"><div class="row"><span class="chip g">Done</span><b>Hanna Beauty: K-beauty routine</b><span class="sub">Campaign · 24 posts · all on the calendar</span></div><span class="btn">View</span></div>
+      </div>
+      <div class="row" style="justify-content:flex-end"><span class="toast"><i class="i i-check"></i>Concepts for "11.11 Promo" are ready to review · <u>Open</u></span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>People can review finished concepts while images are still pending (the <code>concept_review</code> status already exists).</span></li>
+      <li><span class="pin">2</span><span>Last 3 sessions with state and next action. Empty: "No sessions yet. Your first session will show up here."</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="G6">
+    <div class="mock-head"><span class="id">G6</span><h3>Session failed or needs action</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="card pad col" style="border-color:#fecdca">
+        <div class="row"><span class="chip r"><span class="dot"></span>Stopped</span><h5>Hanna Nails: rainy season collection</h5><span class="sub">· 24 posts · 19 Oct 14:02</span></div>
+        <div class="pipe"><div class="d"><i></i>Concepts</div><div class="d"><i></i>Review</div><div class="d"><i></i>Visuals</div><div class="f"><i></i>Images · 22/24</div><div><i></i>Final review</div></div>
+        <div class="callout r"><i class="i i-alert"></i><span><b>2 images failed: your OpenAI API quota ran out (429).</b> The other 22 posts are safe and ready to review. Add quota in your OpenAI dashboard, then try again. <span class="pin s">1</span></span><span class="row"><span class="btn sm">Switch to Gemini</span><span class="btn sm pri">Retry 2</span></span></div>
+        <div class="row"><span class="btn">Review the 22 that worked</span><span class="btn ghost">Technical details</span></div>
+      </div>
+    </div></div>
+    <ul class="legend"><li><span class="pin">1</span><span>Errors say what happened, what's safe and what to do. Raw provider messages sit behind "Technical details". Retry only touches failed items.</span></li></ul>
+  </div>
+
+  <div class="mock-block" id="G7">
+    <div class="mock-head"><span class="id">G7</span><h3>AI team &amp; models · presets first</h3><span class="tag">side drawer · canvas becomes optional</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="drawer-wrap" style="grid-template-columns:minmax(0,1fr) 560px">
+      <div class="ghostpage"><h4>Content Generator</h4></div>
+      <div class="drawer">
+        <div class="between"><div class="col s"><h5>AI team &amp; models</h5><span class="sub">Applies to this session · Campaign mode</span></div><span class="btn sm"><i class="i i-x"></i></span></div>
+        <div class="g3">
+          <div class="card pad-s col s"><b>Economy</b><span class="sub xs">Light models for every step. For ideas and tests.</span></div>
+          <div class="card pad-s col s" style="border:1.5px solid var(--m-green);background:#f5fbf8"><div class="between"><b>Balanced</b><span class="check on"></span></div><span class="sub xs">Detailed concepts, light reviews. Recommended.</span></div>
+          <div class="card pad-s col s"><b>Quality</b><span class="sub xs">Best model at every step. Slower.</span></div>
+        </div>
+        <div class="card" style="overflow:hidden">
+          <table class="mt">
+            <tr><th>Agent</th><th>Model <span class="pin s">1</span></th><th></th></tr>
+            <tr><td><b>Concept Creator</b><div class="sub xs">Ideas, caption, slide order</div></td><td><span class="input">GPT-4.1 · Detailed</span></td><td><span class="btn ghost sm">Instructions</span></td></tr>
+            <tr><td><b>Concept Reviewer</b><div class="sub xs">Critiques concepts</div></td><td><span class="input">GPT-4.1 mini · Light</span></td><td><span class="btn ghost sm">Instructions</span></td></tr>
+            <tr><td><b>Visual Conceptor</b><div class="sub xs">Image direction</div></td><td><span class="input">GPT-4.1 mini · Light</span></td><td><span class="btn ghost sm">Instructions</span></td></tr>
+            <tr><td><b>Image Creator</b><div class="sub xs">One image per slide</div></td><td><span class="input">GPT Image 1</span></td><td><span class="btn ghost sm">Instructions</span></td></tr>
+            <tr><td><b>Final Reviewer</b><div class="sub xs">Checks images</div></td><td><span class="input">GPT-4o · Multimodal</span></td><td><span class="btn ghost sm">Instructions</span></td></tr>
+          </table>
+        </div>
+        <div class="card pad-s col s">
+          <span class="label">Example model list · Scheduler (Gemini)</span>
+          <div class="col s" style="font-size:12px">
+            <span class="sub xs">RECOMMENDED</span><span>Gemini 2.5 Flash · fast</span><span>Gemini 2.5 Pro · detailed</span>
+            <span class="sub xs" style="margin-top:4px">OTHER TEXT MODELS</span><span>Gemini 3.5 Flash · Gemini Flash Latest · Gemini Pro Latest …</span>
+            <span class="sub xs" style="margin-top:4px">HIDDEN: NOT SUITABLE FOR THIS AGENT <span class="pin s">2</span></span><span class="muted">Transcribe, Computer Use, Nano Banana (image), Preview Custom Tools</span>
+          </div>
+        </div>
+        <div class="between" style="margin-top:auto"><span class="btn ghost">Open as canvas</span><div class="row"><span class="btn">Save as default</span><span class="btn pri">Apply</span></div></div>
+      </div>
+    </div></div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Only the current mode's agents are listed. Agent names are English.</span></li>
+      <li><span class="pin">2</span><span>Model lists are filtered by capability. Today the Scheduler shows 22 Gemini models, including transcription and computer-use models.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="G8">
+    <div class="mock-head"><span class="id">G8</span><h3>Schedule popover</h3><span class="tag">opened from the sentence in step 3</span></div>
+    <div class="frame"><div class="app">
+      <div style="font-size:14px;line-height:2.2">Create <span class="inl">12 posts</span> per account, from <span class="inl" style="box-shadow:0 0 0 3px #bfe3d2">21 Oct</span> to <span class="inl">3 Nov</span>, at <span class="inl">12:15</span> <span class="inl">19:15</span> WIB.</div>
+      <div class="card pad col" style="width:560px;margin-top:8px;margin-left:150px;box-shadow:0 12px 30px rgba(16,24,40,.15)">
+        <div class="row wrap"><span class="chip sel">2 weeks</span><span class="chip o">1 month</span><span class="chip o">This week</span><span class="chip o">From next Monday</span></div>
+        <div class="g2">
+          <div class="col s"><span class="flabel">October 2026</span>
+            <div class="cal" style="font-size:10px">
+              <div class="dh">M</div><div class="dh">T</div><div class="dh">W</div><div class="dh">T</div><div class="dh">F</div><div class="dh">S</div><div class="dh">S</div>
+              <div style="min-height:26px" class="o">19</div><div style="min-height:26px" class="today"><span class="n">20</span></div><div style="min-height:26px;background:var(--m-green);color:#fff;font-weight:700">21</div><div style="min-height:26px;background:var(--m-green-soft)">22</div><div style="min-height:26px;background:var(--m-green-soft)">23</div><div style="min-height:26px;background:var(--m-green-soft)">24</div><div style="min-height:26px;background:var(--m-green-soft)">25</div>
+              <div style="min-height:26px;background:var(--m-green-soft)">26</div><div style="min-height:26px;background:var(--m-green-soft)">27</div><div style="min-height:26px;background:var(--m-green-soft)">28</div><div style="min-height:26px;background:var(--m-green-soft)">29</div><div style="min-height:26px;background:var(--m-green-soft)">30</div><div style="min-height:26px;background:var(--m-green-soft)">31</div><div style="min-height:26px;background:var(--m-green-soft)">1</div>
+            </div>
+          </div>
+          <div class="col">
+            <span class="flabel">Spread</span>
+            <div class="row"><span class="radio on"></span><span>Evenly across the date range</span></div>
+            <div class="row"><span class="radio"></span><span>Specific days: <span class="chip o">Mon</span><span class="chip sel">Wed</span><span class="chip sel">Fri</span></span></div>
+            <div class="callout b"><i class="i i-info"></i><span>12 posts over 14 days is about <b>one post every 1–2 days</b> per account.</span><span></span></div>
+            <div class="row" style="justify-content:flex-end"><span class="btn pri sm">Done</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="mock-block" id="G9">
+    <div class="mock-head"><span class="id">G9</span><h3>Story Bible view (structured instead of a text wall)</h3><span class="tag">from your Manisky bible</span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="col s"><span class="label">Story Bible · @manisky.id</span><h4>Little details. Beautiful feelings.</h4></div><div class="row"><span class="btn">Edit as text</span><span class="btn">Version history</span></div></div>
+      <div class="g3">
+        <div class="card pad col s"><span class="label">Personality</span><div class="row wrap"><span class="chip o">Soft but confident</span><span class="chip o">Playful but sophisticated</span><span class="chip o">Feminine, never childish</span><span class="chip o">Premium but approachable</span><span class="chip o">Elegant, not too formal</span></div></div>
+        <div class="card pad col s"><span class="label">Tone of voice</span><span>Warm, subtle, elegant, playful charm, gentle confidence.</span><span class="label" style="margin-top:6px">Promise</span><span class="sub">Emotional: everyday confidence through beautiful nails. Functional: premium press-ons with an easy application kit.</span></div>
+        <div class="card pad col s"><span class="label">Visual</span><div class="row"><span class="thumb" style="width:28px;height:28px;background:#f2c4c4"></span><span class="thumb" style="width:28px;height:28px;background:#e9d8b4"></span><span class="thumb" style="width:28px;height:28px;background:#f6f1e7;border:1px solid var(--m-line)"></span><span class="thumb" style="width:28px;height:28px;background:#c99a9a"></span></div><span class="sub">Soft blush, champagne, ivory, muted rose · minimal on-image text · editorial, natural light</span></div>
+      </div>
+      <div class="card pad col">
+        <div class="between"><h5>Story arc</h5><span class="sub">12 of 12 episodes published · next arc proposed by the Storyteller</span></div>
+        <div class="g5">
+          <div class="chapter"><b class="xs">CH 1 · 01–03</b><b>A Little Hello</b><span class="sub xs">Introduce Manisky's world before the product.</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+          <div class="chapter"><b class="xs">CH 2 · 04–06</b><b>The Pretty Details</b><span class="sub xs">Nail detail, moods, everyday luxury.</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+          <div class="chapter"><b class="xs">CH 3 · 07–09</b><b>Beauty Made Simple</b><span class="sub xs">Easy application, build trust.</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+          <div class="chapter"><b class="xs">CH 4 · 10–12</b><b>Your Manisky Moment</b><span class="sub xs">Lifestyle and purchase intent.</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+          <div class="chapter cur" style="border-style:dashed"><b class="xs">CH 5 · 13–24</b><b>Next proposal</b><span class="sub xs">Created when you plan a session.</span><div class="eps"><i class="n"></i><i></i><i></i></div></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="mock-block" id="G10">
+    <div class="mock-head"><span class="id">G10</span><h3>Content Generator on a phone</h3><span class="tag">375px</span></div>
+    <div class="frame center">
+      <div class="app mobile">
+        <div class="mob-top"><div class="between"><b style="font-size:16px">Content Generator</b><span class="chip a">2</span></div><div class="seg" style="align-self:flex-start"><span>Story</span><span class="on">Campaign</span></div></div>
+        <div class="mob-body">
+          <div class="card pad-s col"><span class="flabel">1 · Accounts</span><div class="row"><span class="scope-co" style="height:28px"><i class="i i-building"></i>LRM Corp.</span></div><div class="apick" style="flex-wrap:nowrap;overflow:hidden"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id</span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr</span><span class="ap on"><span class="av s c4">HN</span>@hannan…</span></div></div>
+          <div class="card pad-s col"><span class="flabel">2 · Direction</span><div class="ta" style="min-height:70px;font-size:12px">11.11 promo for lash clusters: focus on beginners, warm tone…</div><div class="row"><span class="chip o">Carousel · 3</span><span class="chip o">AI creates</span></div></div>
+          <div class="card pad-s col"><span class="flabel">3 · Schedule</span><span style="font-size:12.5px">12 posts/account · 21 Oct – 3 Nov · 12:15, 19:15</span><span class="btn sm" style="align-self:flex-start">Change</span></div>
+        </div>
+        <div class="mob-bar" style="flex-direction:column"><div class="between"><span class="sub">36 posts · 108 images</span><span class="ok xs"><i class="i i-check"></i> Ready</span></div><span class="btn pri lg">Generate 36 posts</span></div>
+      </div>
+      <div class="app mobile">
+        <div class="mob-top"><b style="font-size:16px">Running sessions</b></div>
+        <div class="mob-body">
+          <div class="card pad-s col"><div class="row"><span class="chip b"><span class="dot"></span>In progress</span></div><b>11.11 Promo · Lash clusters</b>
+            <div class="col s" style="font-size:12px"><span><i class="i i-check ok"></i> Concepts 36/36</span><span><i class="i i-check ok"></i> Concept review</span><span><i class="i i-clock"></i> Visuals 14/36</span><span class="muted">Images</span><span class="muted">Final review</span></div>
+            <span class="btn pri">Review 36 concepts</span></div>
+          <div class="card pad-s row"><span class="chip a">Needs review</span><span class="grow" style="font-size:12px"><b>Manisky Ch. 01</b></span><span class="muted">&gt;</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= DRAFTS ======================= -->
+<section class="stack-lg" id="draft">
+  <div class="section-head"><span class="eyebrow">Focus page 2</span><h2>Drafts</h2><p class="why">The page becomes a list of sessions (one per Generator run or plan). Each session opens its own review page at <code>#/generator/drafts/&lt;sessionId&gt;</code>, where people move through concepts, images and approval with every state labelled and one obvious next action.</p></div>
+
+  <div class="mock-block" id="D1">
+    <div class="mock-head"><span class="id">D1</span><h3>Session list</h3><span class="tag">#/generator/drafts · the Manisky row is your real plan, others are examples</span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="col s"><h4>Drafts</h4><span class="sub">Every session from the Content Generator. Review, then approve to the calendar.</span></div><span class="btn pri">New session</span></div>
+      <div class="scope"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap on"><span class="av s c4">HN</span>@hannanails.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c1">MS</span>@manisky.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c5">AJ</span>@anekajaya.asemka<i class="i i-check"></i></span></div><span class="sub xs">All (5)</span> <span class="pin s">4</span><span class="grow"></span><span class="sub xs">View</span><div class="seg"><span class="on">List</span><span>Cards</span><span>Calendar</span></div></div>
+      <div class="between">
+        <div class="tabs"><span class="on">Needs action <b>3</b></span><span>In progress <b>1</b></span><span>Done <b>4</b></span><span>All <b>8</b></span> <span class="pin" style="align-self:center">1</span></div>
+        <div class="row"><span class="input ph" style="width:200px"><i class="i i-search"></i>Search sessions</span><span class="input">Newest</span></div>
+      </div>
+      <div class="card">
+        <div class="sess">
+          <div class="stackthumb"><div class="thumb tplan" style="left:0;top:4px"></div><div class="thumb tplan" style="left:20px;top:2px"></div><div class="thumb tplan" style="left:40px;top:0"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">Manisky: Chapter 01, A Little Beauty, A Little Manisky <span class="pin s">2</span></b><div class="row sub"><span class="av s c1">MS</span>@manisky.id · <span class="chip p">Story</span> · 21 Oct – 3 Nov · created 20 Oct 22:11</div></div>
+          <div class="col s"><div class="row"><span class="chip">Plan only</span><span class="sub">12 episodes planned · no concepts yet</span></div><div class="bar"><i style="width:100%;background:repeating-linear-gradient(45deg,#d0d5dd 0 4px,#e4e7ec 4px 8px)"></i></div><span class="chip a" style="align-self:flex-start"><i class="i i-clock"></i>Auto-deletes in 6 days <span class="pin s">3</span></span></div>
+          <span class="btn pri">Create 12 concepts</span>
+        </div>
+        <div class="sess">
+          <div class="stackthumb"><div class="thumb t1" style="left:0;top:4px"></div><div class="thumb t2" style="left:20px;top:2px"></div><div class="thumb t4" style="left:40px;top:0"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">11.11 Promo: Lash clusters for beginners</b><div class="row sub"><span class="avs"><span class="av s c2">MJ</span><span class="av s c3">HB</span><span class="av s c4">HN</span></span> 3 accounts · <span class="chip b">Campaign</span> · 1 – 14 Nov</div></div>
+          <div class="col s"><div class="row"><span class="chip a">Review images</span><span class="sub">8 approved · 24 ready · 2 failed · 2 in progress</span></div><div class="bar"><i style="width:22%;background:var(--m-green)"></i><i style="width:67%;background:#f5b45a"></i><i style="width:5.5%;background:var(--m-red)"></i><i style="width:5.5%;background:var(--m-blue)"></i></div><span class="sub">Edited 2 hours ago</span></div>
+          <span class="btn pri">Review 24</span>
+        </div>
+        <div class="sess">
+          <div class="stackthumb"><div class="thumb t5" style="left:0;top:4px"></div><div class="thumb t3" style="left:20px;top:2px"></div><div class="thumb t6" style="left:40px;top:0"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">Moon &amp; Jasmine: Halloween soft glam</b><div class="row sub"><span class="av s c2">MJ</span>@moonjasmine.id · <span class="chip b">Campaign</span> · 25 – 31 Oct</div></div>
+          <div class="col s"><div class="row"><span class="chip p">Review concepts</span><span class="sub">6 concepts waiting before images are made</span></div><div class="bar"><i style="width:100%;background:var(--m-purple)"></i></div><span class="sub">Concepts ready 10 minutes ago</span></div>
+          <span class="btn pri">Review concepts</span>
+        </div>
+        <div class="sess">
+          <div class="stackthumb"><div class="thumb t3" style="left:0;top:4px"></div><div class="thumb t5" style="left:20px;top:2px"></div><div class="thumb tplan" style="left:40px;top:0"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">Hanna Nails: rainy season collection</b><div class="row sub"><span class="av s c4">HN</span>@hannanails.id · <span class="chip b">Campaign</span> · 4 – 17 Nov</div></div>
+          <div class="col s"><div class="row"><span class="chip b"><span class="dot"></span>In progress</span><span class="sub">Images 9/24</span></div><div class="bar"><i style="width:38%;background:var(--m-blue)"></i></div><span class="sub">You can review the finished ones</span></div>
+          <span class="btn">View progress</span>
+        </div>
+        <div class="sess" style="opacity:.75">
+          <div class="stackthumb"><div class="thumb t4" style="left:0;top:4px"></div><div class="thumb t1" style="left:20px;top:2px"></div><div class="thumb t2" style="left:40px;top:0"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">Hanna Beauty: K-beauty routine</b><div class="row sub"><span class="av s c3">HB</span>@hannabeauty.kr · <span class="chip b">Campaign</span> · 5 – 18 Oct</div></div>
+          <div class="col s"><div class="row"><span class="chip g">Done</span><span class="sub">24 on the calendar · 18 published</span></div><div class="bar"><i style="width:100%;background:var(--m-green)"></i></div><span class="sub">Does not expire</span></div>
+          <span class="btn">View</span>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Tabs group sessions by what the user must do. "Needs action" = plan only, concept review, image review or failed.</span></li>
+      <li><span class="pin">2</span><span>Titles come from the plan's first heading or brief with markdown stripped. Dates are formatted, never ISO.</span></li>
+      <li><span class="pin">3</span><span>Expiry from the earliest <code>expires_at</code>: amber at 2 days or less, red at 1 day or less. Approved items never expire.</span></li>
+      <li><span class="pin">4</span><span>Scope bar (S4): a session shows if any of its accounts is in scope. Views: List, Cards, Calendar (sessions as date-range bars).</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="D2">
+    <div class="mock-head"><span class="id">D2</span><h3>Empty states</h3><span class="tag">no sessions · filter empty · session expired</span></div>
+    <div class="frame"><div class="app g3" style="align-items:stretch">
+      <div class="card pad col" style="align-items:center;text-align:center;padding-block:36px">
+        <div class="stackthumb"><div class="thumb tplan" style="left:0;top:4px"></div><div class="thumb tplan" style="left:20px;top:2px"></div><div class="thumb tplan" style="left:40px;top:0"></div></div>
+        <h5>No sessions yet</h5><span class="sub">Create a session in the Content Generator. Every concept and image the AI makes shows up here for you to review.</span><span class="btn pri">Open Content Generator</span>
+      </div>
+      <div class="card pad col" style="align-items:center;text-align:center;padding-block:36px">
+        <i class="i i-search xl muted"></i>
+        <h5>No sessions for @hannanails.id in "Needs action"</h5><span class="sub">2 other sessions for this account are in the Done tab.</span><div class="row"><span class="btn">Open Done</span><span class="btn ghost">Clear filter</span></div>
+      </div>
+      <div class="card pad col" style="align-items:center;text-align:center;padding-block:36px">
+        <i class="i i-clock xl muted"></i>
+        <h5>This session's drafts were deleted automatically</h5><span class="sub">Nothing changed for 7 days, so the images and captions were cleaned up. The plan and story memory are kept.</span><span class="btn pri">Recreate from plan</span>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="mock-block" id="D3">
+    <div class="mock-head"><span class="id">D3</span><h3>Session page · plan only</h3><span class="tag">#/generator/drafts/&lt;sessionId&gt; · the Manisky situation</span></div>
+    <p class="why">Today a 12-item plan shows "0 posts" and an empty filter message. The plan's episodes should be listed so people can see what the AI intends before paying for concepts, choose a subset, and change dates.</p>
+    <div class="frame"><div class="app col l">
+      <div class="sub">Drafts / <b style="color:var(--m-fg)">Manisky: Chapter 01</b></div>
+      <div class="between"><div class="col s"><h4>Manisky: Chapter 01, A Little Beauty, A Little Manisky</h4><div class="row sub"><span class="chip p">Story</span>@manisky.id · 21 Oct – 3 Nov · 12 episodes · <span class="chip a"><i class="i i-clock"></i>6 days left</span></div></div><div class="row"><span class="btn">View direction</span><span class="btn"><i class="i i-more"></i></span></div></div>
+      <div class="callout b"><i class="i i-info"></i><span><b>The plan is ready; concepts haven't been created.</b> Check the episode order below, select all or some, then create concepts. Images are made only after you approve the concepts. <span class="pin s">1</span></span><span class="btn pri">Create 12 concepts</span></div>
+      <div class="card" style="overflow:hidden">
+        <table class="mt">
+          <tr><th style="width:30px"><span class="check on"></span></th><th>Ep.</th><th>Planned episode</th><th>Type</th><th>Schedule <span class="pin s">2</span></th><th>Scheduler reason</th></tr>
+          <tr><td><span class="check on"></span></td><td><b>13</b></td><td><b>A Quiet Morning Ritual</b><div class="sub xs">Opens Chapter 5: a calm morning routine, product not shown yet.</div></td><td><span class="chip o">Carousel 3</span></td><td><span class="input" style="min-height:28px;padding:3px 8px">Wed, 21 Oct · 12:15</span></td><td class="sub xs">Lunch hour, audience active</td></tr>
+          <tr><td><span class="check on"></span></td><td><b>14</b></td><td><b>Shades of Blush</b><div class="sub xs">Explores the soft blush and champagne palette.</div></td><td><span class="chip o">Single</span></td><td><span class="input" style="min-height:28px;padding:3px 8px">Thu, 22 Oct · 19:15</span></td><td class="sub xs">Evening downtime</td></tr>
+          <tr><td><span class="check on"></span></td><td><b>15</b></td><td><b>Details That Whisper</b><div class="sub xs">Close-ups of texture and shimmer.</div></td><td><span class="chip o">Carousel 3</span></td><td><span class="input" style="min-height:28px;padding:3px 8px">Sat, 24 Oct · 12:15</span></td><td class="sub xs">Weekend</td></tr>
+          <tr><td><span class="check"></span></td><td><b>16</b></td><td><b>Press-On in 10 Minutes</b><div class="sub xs">How-to (Reel from an uploaded video).</div></td><td><span class="chip o">Reel</span> <span class="chip a">needs video</span></td><td><span class="input" style="min-height:28px;padding:3px 8px">Mon, 26 Oct · 19:15</span></td><td class="sub xs">-</td></tr>
+          <tr><td colspan="6" class="sub" style="text-align:center">+ 8 more episodes</td></tr>
+        </table>
+      </div>
+      <div class="bulk"><span>11 of 12 selected</span><span class="grow"></span><span class="btn">Shift all dates</span><span class="btn">Delete plan</span><span class="btn pri">Create 11 concepts</span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>A plain explanation of the state and the single next action.</span></li>
+      <li><span class="pin">2</span><span>Planned runs already have <code>scheduled_at</code>, <code>schedule_reason</code> and <code>content_type</code>. Dates can be edited before any cost.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="D4">
+    <div class="mock-head"><span class="id">D4</span><h3>Concept review (before images)</h3><span class="tag">status <code>concept_review</code></span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="col s"><h4>Moon &amp; Jasmine: Halloween soft glam</h4><div class="row sub"><span class="chip b">Campaign</span>@moonjasmine.id · 6 posts · Carousel 3</div></div><div class="row"><span class="btn">Regenerate all concepts</span><span class="btn pri">Approve 5 concepts and create 15 images</span></div></div>
+      <div class="row"><div class="seg"><span class="on">Concepts · 6</span><span>Images · 0</span><span>Approved · 0</span></div><span class="sub">Step 1 of 2. Approve concepts, AI creates images, then you review the images. <span class="pin s">1</span></span></div>
+      <div style="display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start">
+        <div class="card" style="overflow:hidden">
+          <div class="lrow on"><span class="check on"></span><div style="min-width:0"><b>1 · Soft Glam, Not Spooky</b><div class="sub xs">Sat, 25 Oct · 12:15</div></div><span class="chip g xs">OK</span></div>
+          <div class="lrow"><span class="check on"></span><div style="min-width:0"><b>2 · Pumpkin Spice Lids</b><div class="sub xs">Sat, 25 Oct · 19:15</div></div><span class="chip g xs">OK</span></div>
+          <div class="lrow"><span class="check on"></span><div style="min-width:0"><b>3 · 3 Looks, 1 Palette</b><div class="sub xs">Sun, 26 Oct · 12:15</div></div><span class="chip a xs">Note</span></div>
+          <div class="lrow"><span class="check"></span><div style="min-width:0"><b>4 · Trick or Treat Giveaway</b><div class="sub xs">Mon, 27 Oct · 19:15</div></div><span class="chip r xs">Claim</span></div>
+          <div class="lrow"><span class="check on"></span><div style="min-width:0"><b>5 · Night Out Routine</b><div class="sub xs">Wed, 29 Oct · 19:15</div></div><span class="chip g xs">OK</span></div>
+          <div class="lrow"><span class="check on"></span><div style="min-width:0"><b>6 · Halloween Recap</b><div class="sub xs">Fri, 31 Oct · 12:15</div></div><span class="chip g xs">OK</span></div>
+        </div>
+        <div class="card pad col l">
+          <div class="between"><div class="col s"><span class="label">Concept 1 of 6</span><span class="input" style="font-weight:700;font-size:15px">Soft Glam, Not Spooky</span></div><div class="row"><span class="btn sm">&lt;</span><span class="btn sm">&gt;</span></div></div>
+          <div class="callout g"><i class="i i-check"></i><span><b>Concept Reviewer:</b> Matches the Brand Kit (warm tone, no overclaiming). Suggests a more specific CTA. <span class="pin s">2</span></span><span class="btn ghost sm">Apply suggestion</span></div>
+          <div class="col s"><div class="between"><span class="flabel">Caption</span><span class="sub xs">168 / 2,200</span></div><div class="ta" style="min-height:70px">Halloween doesn't have to be scary. Try soft glam: champagne shimmer and a thin liner. Save this post for Saturday night inspiration. #moonjasmine #softglam</div></div>
+          <div class="col s"><span class="flabel">Visual direction per slide <span class="pin s">3</span></span>
+            <div class="g3">
+              <div class="card pad-s col s"><span class="label">Slide 1 · Cover</span><span class="xs">Eye close-up with champagne shimmer, cream background, warm light, text "Soft Glam, Not Spooky".</span></div>
+              <div class="card pad-s col s"><span class="label">Slide 2</span><span class="xs">Flat lay of the palette and 2 Moon &amp; Jasmine products, small pumpkin accent.</span></div>
+              <div class="card pad-s col s"><span class="label">Slide 3 · CTA</span><span class="xs">Short before/after, text "Save for Saturday night".</span></div>
+            </div>
+          </div>
+          <div class="input ph"><i class="i i-spark"></i>Ask for a revision of this concept: "make it more playful"</div>
+          <div class="row" style="justify-content:flex-end"><span class="btn">Skip this concept</span><span class="btn pri">Approve and go to concept 2</span></div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>The two-stage flow is explained in one line and reflected in the counts.</span></li>
+      <li><span class="pin">2</span><span>Reviewer output is shown as a verdict chip (OK / Note / Claim) instead of a hidden accordion.</span></li>
+      <li><span class="pin">3</span><span>Slide prompts are editable cards in carousel order.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="D5">
+    <div class="mock-head"><span class="id">D5</span><h3>Image review · by date with live preview</h3><span class="tag">main review screen</span></div>
+    <div class="frame"><div class="app col">
+      <div class="sub">Drafts / <b style="color:var(--m-fg)">11.11 Promo: Lash clusters for beginners</b></div>
+      <div class="between">
+        <div class="col s"><h4>11.11 Promo: Lash clusters for beginners</h4><div class="row sub"><span class="chip b">Campaign</span>3 accounts · 1 – 14 Nov · Carousel 3 · <span class="row" style="gap:4px;color:var(--m-green);font-weight:600"><i class="i i-check"></i>Saved automatically</span></div></div>
+        <div class="row"><span class="btn">View direction</span><span class="btn">Retry failed (2)</span><span class="btn pri">Approve 24 ready</span></div>
+      </div>
+      <div class="between"><div class="row"><span class="chip sel">All 36</span><span class="chip a">Ready 24</span><span class="chip g">Approved 8</span><span class="chip r">Failed 2</span><span class="chip b">In progress 2</span></div><div class="row"><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap on"><span class="av s c4">HN</span>@hannanails.id<i class="i i-check"></i></span></div><div class="seg"><span class="on">By date</span><span>Grid</span><span>Calendar</span></div></div></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start">
+        <div class="card" style="padding:4px 16px">
+          <div class="day"><div class="dl">Sat<b>1</b>Nov</div><div class="posts">
+            <div class="post sel"><span class="check on"></span><div class="thumb t1" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c2">MJ</span><b class="xs">12:15</b><span class="chip a xs">Ready</span></div><div class="cap">New to lash clusters? Three easy steps, ten minutes before you head out.</div></div></div>
+            <div class="post"><span class="check on"></span><div class="thumb t4" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c3">HB</span><b class="xs">12:15</b><span class="chip a xs">Ready</span></div><div class="cap">11.11 is coming. Our favourite lash clusters are on sale for beginners.</div></div></div>
+            <div class="post"><span class="check on"></span><div class="thumb t2" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c4">HN</span><b class="xs">19:15</b><span class="chip a xs">Ready</span></div><div class="cap">Press-on nails plus lash clusters: the time-saving 11.11 combo.</div></div></div>
+            <div class="post"><span class="check"></span><div class="thumb t3" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c3">HB</span><b class="xs">19:15</b><span class="chip g xs">Approved</span></div><div class="cap">Behind the scenes: how we choose lightweight lashes.</div></div></div>
+          </div></div>
+          <div class="day"><div class="dl">Sun<b>2</b>Nov</div><div class="posts">
+            <div class="post"><span class="check"></span><div class="thumb t5" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c2">MJ</span><b class="xs">12:15</b><span class="chip g xs">Approved</span></div><div class="cap">The most common first-time lash cluster mistakes.</div></div></div>
+            <div class="post" style="border-color:#fecdca"><span class="check"></span><div class="thumb tfail" style="width:64px;height:64px;display:grid;place-items:center;color:var(--m-red)"><i class="i i-alert l"></i></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c3">HB</span><b class="xs">12:15</b><span class="chip r xs">Failed</span></div><div class="cap">Slide 2 failed: API quota ran out. <u style="color:var(--m-green);font-weight:700">Retry</u></div></div></div>
+            <div class="post"><span class="check"></span><div class="thumb tplan" style="width:64px;height:64px;display:grid;place-items:center;font-size:10px;color:var(--m-blue);font-weight:700">2/3</div><div class="col s" style="min-width:0"><div class="row"><span class="av s c4">HN</span><b class="xs">19:15</b><span class="chip b xs">In progress</span></div><div class="cap">Images are being created.</div></div></div>
+          </div></div>
+        </div>
+        <div class="card pad col" style="position:sticky;top:0">
+          <div class="between"><h5>Preview</h5><div class="seg"><span class="on">Instagram</span><span>Threads</span></div></div>
+          <div class="phone">
+            <div class="ig-h"><span class="av s c2" style="width:24px;height:24px">MJ</span>moonjasmine.id<span class="muted xs" style="margin-left:auto;font-weight:500">Sat, 1 Nov · 12:15</span></div>
+            <div class="img t1"><div class="dots"><i class="on"></i><i></i><i></i></div></div>
+            <div style="padding:10px 12px;font-size:12px"><b>moonjasmine.id</b> New to lash clusters? Three easy steps, ten minutes before you head out. Check the link in bio for the 11.11 promo. <span style="color:var(--m-blue)">#lashcluster #moonjasmine</span></div>
+          </div>
+          <div class="row"><span class="thumb t1" style="width:44px;height:44px;outline:2px solid var(--m-green)"></span><span class="thumb t6" style="width:44px;height:44px"></span><span class="thumb t2" style="width:44px;height:44px"></span><span class="sub">3 slides</span></div>
+          <div class="input ph"><i class="i i-spark"></i>Ask for a revision: "shorter caption"</div>
+          <div class="row"><span class="btn sm"><i class="i i-pen"></i>Full edit</span><span class="btn sm"><i class="i i-refresh"></i>Revise slide</span><span class="btn sm"><i class="i i-cal"></i>1 Nov · 12:15</span></div>
+          <span class="btn pri lg">Approve to calendar</span>
+          <div class="row sub xs" style="justify-content:center"><span class="kbd">Left</span><span class="kbd">Right</span> move · <span class="kbd">A</span> approve · <span class="kbd">E</span> edit</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="mock-block" id="D6">
+    <div class="mock-head"><span class="id">D6</span><h3>Post editor (full edit drawer)</h3><span class="tag">replaces the modal preview dialog</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="drawer-wrap" style="grid-template-columns:minmax(0,1fr) 720px">
+      <div class="ghostpage"><h4>11.11 Promo</h4></div>
+      <div class="drawer">
+        <div class="between"><div class="row"><span class="av c2">MJ</span><div class="col s"><b>@moonjasmine.id · Sat, 1 Nov 12:15</b><span class="sub xs">Post 1 of 36 · <span class="chip a xs">Ready for review</span></span></div></div><div class="row"><span class="btn sm">&lt;</span><span class="btn sm">&gt;</span><span class="btn sm"><i class="i i-x"></i></span></div></div>
+        <div style="display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px">
+          <div class="col">
+            <div class="thumb t1" style="width:100%;aspect-ratio:4/5;max-width:100%"><span class="badge-n">1/3</span></div>
+            <div class="row"><span class="thumb t1" style="width:52px;height:52px;outline:2px solid var(--m-green)"></span><span class="thumb t6" style="width:52px;height:52px"></span><span class="thumb t2" style="width:52px;height:52px"></span><span class="thumb" style="width:52px;height:52px;border:1.5px dashed #98a2b3;display:grid;place-items:center;color:#667085">+</span></div>
+            <div class="card pad-s col s"><span class="label">Slide 1 <span class="pin s">1</span></span><div class="row wrap"><span class="btn sm"><i class="i i-refresh"></i>Revise this slide</span><span class="btn sm"><i class="i i-upload"></i>Replace with photo</span><span class="btn sm"><i class="i i-move"></i>Reorder</span></div></div>
+            <div class="card pad-s col s"><span class="label">Previous versions · slide 1</span><div class="row"><span class="thumb t3" style="width:40px;height:40px;opacity:.7"></span><span class="thumb t4" style="width:40px;height:40px;opacity:.7"></span><span class="sub xs">"brighter background" · 19:02</span></div></div>
+          </div>
+          <div class="col l">
+            <div class="col s"><div class="between"><span class="flabel">Caption</span><span class="row"><span class="sub xs">168 / 2,200 · 2 hashtags</span><span class="btn ghost sm"><i class="i i-spark"></i>Improve with AI</span></span></div><div class="ta focus" style="min-height:120px">New to lash clusters? Three easy steps, ten minutes before you head out.<br><br>Check the link in bio for the 11.11 promo.<br><br>#lashcluster #moonjasmine</div></div>
+            <div class="g2">
+              <div class="col s"><span class="flabel">Schedule (WIB)</span><span class="input">Sat, 1 Nov 2026 · 12:15</span><span class="sub xs">Scheduler: lunch hour, audience most active.</span></div>
+              <div class="col s"><span class="flabel">Also publish to</span><div class="row"><span class="check on"></span>Instagram<span class="check"></span>Threads</div></div>
+            </div>
+            <div class="callout a"><i class="i i-alert"></i><span><b>Final Reviewer:</b> Slide 3 text is too small for the feed. Consider revising slide 3. <span class="pin s">2</span></span><span class="btn sm">Revise slide 3</span></div>
+            <details class="card pad-s"><summary class="flabel">Prompt and direction for this post</summary></details>
+            <div class="between" style="margin-top:auto"><div class="row"><span class="btn danger">Delete</span><span class="btn">Send to New Post</span></div><div class="row"><span class="sub xs"><i class="i i-check ok"></i> Saved 19:04 <span class="pin s">3</span></span><span class="btn pri">Approve to calendar</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div></div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Per-slide actions sit next to the slide. "Revise this slide" opens the S2 dialog.</span></li>
+      <li><span class="pin">2</span><span>Reviewer findings are actionable callouts.</span></li>
+      <li><span class="pin">3</span><span>Autosave replaces the "Save draft" button and its warning.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="D7">
+    <div class="mock-head"><span class="id">D7</span><h3>Grid view + bulk actions</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><span class="chip sel">Ready 24</span><span class="chip o">All 36</span></div><div class="seg"><span>By date</span><span class="on">Grid</span><span>Calendar</span></div></div>
+      <div class="g6">
+        <div class="col s"><div class="thumb t1" style="width:100%;aspect-ratio:4/5;max-width:100%;outline:3px solid var(--m-green)"><span class="badge-n">3</span><span class="check on" style="position:absolute;left:6px;top:6px"></span></div><span class="xs"><b>MJ</b> · 1 Nov 12:15</span></div>
+        <div class="col s"><div class="thumb t4" style="width:100%;aspect-ratio:4/5;max-width:100%;outline:3px solid var(--m-green)"><span class="badge-n">3</span><span class="check on" style="position:absolute;left:6px;top:6px"></span></div><span class="xs"><b>HB</b> · 1 Nov 12:15</span></div>
+        <div class="col s"><div class="thumb t2" style="width:100%;aspect-ratio:4/5;max-width:100%;outline:3px solid var(--m-green)"><span class="badge-n">3</span><span class="check on" style="position:absolute;left:6px;top:6px"></span></div><span class="xs"><b>HN</b> · 1 Nov 19:15</span></div>
+        <div class="col s"><div class="thumb t6" style="width:100%;aspect-ratio:4/5;max-width:100%"><span class="badge-n">3</span><span class="check" style="position:absolute;left:6px;top:6px"></span></div><span class="xs"><b>MJ</b> · 3 Nov 12:15</span></div>
+        <div class="col s"><div class="thumb t3" style="width:100%;aspect-ratio:4/5;max-width:100%"><span class="badge-n">3</span><span class="check" style="position:absolute;left:6px;top:6px"></span></div><span class="xs"><b>HB</b> · 3 Nov 19:15</span></div>
+        <div class="col s"><div class="thumb t5" style="width:100%;aspect-ratio:4/5;max-width:100%"><span class="badge-n">3</span><span class="check" style="position:absolute;left:6px;top:6px"></span></div><span class="xs"><b>HN</b> · 4 Nov 12:15</span></div>
+      </div>
+      <div class="bulk"><span class="pin s">1</span>3 selected <span class="grow"></span><span class="btn">Shift schedule</span><span class="btn">Revise with AI</span><span class="btn" style="color:#fda29b">Delete</span><span class="btn pri">Approve 3 to calendar</span></div>
+    </div></div>
+    <ul class="legend"><li><span class="pin">1</span><span>Bulk actions lead with approval. Today selection can only delete.</span></li></ul>
+  </div>
+
+  <div class="mock-block" id="D8">
+    <div class="mock-head"><span class="id">D8</span><h3>Bulk approve confirmation and result</h3></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="scrim" style="grid-template-columns:auto auto;gap:24px;align-items:start">
+      <div class="dlg">
+        <h5>Approve 24 posts to the calendar?</h5>
+        <p class="sub">Posts publish automatically on schedule. You can still change or cancel them from the Calendar before they go out.</p>
+        <table class="mt"><tr><th>Account</th><th>Posts</th><th>First</th><th>Last</th></tr>
+          <tr><td>@moonjasmine.id</td><td>8</td><td>1 Nov 12:15</td><td>14 Nov 19:15</td></tr>
+          <tr><td>@hannabeauty.kr</td><td>8</td><td>1 Nov 12:15</td><td>14 Nov 12:15</td></tr>
+          <tr><td>@hannanails.id</td><td>8</td><td>1 Nov 19:15</td><td>13 Nov 19:15</td></tr></table>
+        <div class="callout a"><i class="i i-alert"></i><span>2 posts clash with posts already scheduled at the same time. <u>Shift by 15 minutes</u></span><span></span></div>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Cancel</span><span class="btn pri">Approve 24 posts</span></div>
+      </div>
+      <div class="dlg" style="align-items:center;text-align:center">
+        <i class="i i-check xl ok"></i>
+        <h5>24 posts added to the calendar</h5>
+        <p class="sub">First post goes out Sat, 1 Nov at 12:15 WIB. 12 posts in this session are still waiting.</p>
+        <div class="row"><span class="btn">Stay in session</span><span class="btn pri">Open Calendar</span></div>
+      </div>
+    </div></div></div>
+  </div>
+
+  <div class="mock-block" id="D9">
+    <div class="mock-head"><span class="id">D9</span><h3>Session calendar (drag to reschedule)</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h5>1 – 14 Nov · 36 posts</h5><div class="seg"><span>By date</span><span>Grid</span><span class="on">Calendar</span></div></div>
+      <div class="cal">
+        <div class="dh">Mon</div><div class="dh">Tue</div><div class="dh">Wed</div><div class="dh">Thu</div><div class="dh">Fri</div><div class="dh">Sat</div><div class="dh">Sun</div>
+        <div><span class="n o">27</span><div class="ev pub">Published · Test</div></div><div><span class="n o">28</span></div><div><span class="n o">29</span></div><div><span class="n o">30</span></div><div><span class="n o">31</span></div>
+        <div><span class="n">1</span><div class="ev dr">12:15 MJ · Ready</div><div class="ev dr">12:15 HB · Ready</div><div class="ev sch">19:15 HB · Approved</div></div>
+        <div><span class="n">2</span><div class="ev sch">12:15 MJ · Approved</div><div class="ev fail">12:15 HB · Failed</div><div class="ev dr">19:15 HN · In progress</div></div>
+        <div><span class="n">3</span><div class="ev dr">12:15 MJ · Ready</div><div class="ev dr" style="box-shadow:0 6px 14px rgba(16,24,40,.2);transform:rotate(-2deg)"><i class="i i-move"></i>19:15 HB · Ready</div></div>
+        <div><span class="n">4</span><div class="ev dr">12:15 HN · Ready</div></div><div><span class="n">5</span><div class="ev dr">19:15 MJ · Ready</div></div><div><span class="n">6</span></div><div><span class="n">7</span><div class="ev dr">12:15 HB · Ready</div></div><div><span class="n">8</span><div class="ev dr">12:15 MJ · Ready</div></div><div><span class="n">9</span><div class="ev dr">19:15 HN · Ready</div></div>
+      </div>
+      <div class="row sub xs"><span class="ev dr">Draft</span><span class="ev sch">Approved</span><span class="ev pub">Published (other session)</span><span class="ev fail">Failed</span> · Drag to change the date (saved automatically).</div>
+    </div></div>
+  </div>
+
+  <div class="mock-block" id="D10">
+    <div class="mock-head"><span class="id">D10</span><h3>Drafts on a phone</h3><span class="tag">session list · one-at-a-time review</span></div>
+    <div class="frame center">
+      <div class="app mobile">
+        <div class="mob-top"><b style="font-size:16px">Drafts</b><div class="row"><span class="scope-co" style="flex:1"><i class="i i-building"></i>LRM Corp.</span><span class="scope-co o" style="flex:1"><i class="i i-user"></i>All accounts</span></div><div class="seg" style="align-self:flex-start"><span class="on">Needs action 3</span><span>All</span></div></div>
+        <div class="mob-body">
+          <div class="card pad-s col s"><div class="row"><span class="chip">Plan only</span><span class="chip a xs"><i class="i i-clock"></i>6 days</span></div><b>Manisky: Chapter 01</b><span class="sub xs">@manisky.id · 12 episodes · 21 Oct – 3 Nov</span><span class="btn pri sm" style="align-self:flex-start">Create 12 concepts</span></div>
+          <div class="card pad-s col s"><div class="row"><span class="chip a">Review images</span></div><b>11.11 Promo: Lash clusters</b><div class="bar"><i style="width:22%;background:var(--m-green)"></i><i style="width:67%;background:#f5b45a"></i><i style="width:5%;background:var(--m-red)"></i></div><span class="sub xs">8 approved · 24 ready · 2 failed</span></div>
+          <div class="card pad-s col s"><div class="row"><span class="chip p">Review concepts</span></div><b>Moon &amp; Jasmine: Halloween</b><span class="sub xs">6 concepts waiting</span></div>
+        </div>
+      </div>
+      <div class="app mobile">
+        <div class="mob-top" style="flex-direction:row;justify-content:space-between;align-items:center"><span class="sub">&lt; 3 / 24</span><b style="font-size:13px">Sat, 1 Nov · 12:15</b><span class="sub">Edit</span></div>
+        <div class="phone" style="border:none;border-radius:0">
+          <div class="ig-h"><span class="av s c2" style="width:24px;height:24px">MJ</span>moonjasmine.id</div>
+          <div class="img t1"><div class="dots"><i class="on"></i><i></i><i></i></div></div>
+          <div style="padding:10px 12px;font-size:12px"><b>moonjasmine.id</b> New to lash clusters? Three easy steps, ten minutes before you head out.</div>
+        </div>
+        <div style="padding:0 12px 10px"><div class="input ph"><i class="i i-spark"></i>Ask AI for a revision</div></div>
+        <div class="mob-bar"><span class="btn" style="flex:1">Skip</span><span class="btn pri" style="flex:2">Approve and next</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= HOME ======================= -->
+<section class="stack-lg" id="home">
+  <div class="section-head"><span class="eyebrow">Content</span><h2>Home</h2><p class="why">Today the dashboard opens with four equal stat cards and six quick-action tiles that repeat the sidebar. On first load it showed "5 · 0 Instagram · 0 Threads" because accounts weren't loaded yet. Home should answer one question: what needs me today?</p></div>
+  <div class="mock-block" id="H1">
+    <div class="mock-head"><span class="id">H1</span><h3>Home · "Today"</h3><span class="tag">task-first dashboard</span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="col s"><span class="sub">Tuesday, 20 October 2026</span><h4>Hi, Reyner</h4><div class="row" style="margin-top:4px"><span class="scope-co"><i class="i i-building"></i>All companies</span><span class="scope-sep">&gt;</span><span class="sub">All accounts (5)</span></div></div><div class="row"><span class="btn"><i class="i i-spark"></i>New session</span><span class="btn pri"><i class="i i-pen"></i>New Post</span></div></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:start">
+        <div class="card">
+          <div class="between pad" style="padding-bottom:10px"><h5>Needs action · 4 <span class="pin s">1</span></h5><span class="sub">most urgent first</span></div>
+          <div class="hr"></div>
+          <div class="lrow"><span class="chip r">Failed</span><div><b>1 post failed to publish on @hannabeauty.kr</b><div class="sub xs">Token expired · 2 hours ago</div></div><span class="btn sm">Fix</span></div>
+          <div class="lrow"><span class="chip a">Draft</span><div><b>Manisky: Chapter 01, plan has no concepts yet</b><div class="sub xs">Auto-deletes in 6 days</div></div><span class="btn sm pri">Open session</span></div>
+          <div class="lrow"><span class="chip p">Concepts</span><div><b>6 Halloween concepts waiting for approval</b><div class="sub xs">@moonjasmine.id · ready 10 minutes ago</div></div><span class="btn sm">Review</span></div>
+          <div class="lrow"><span class="chip b">DM</span><div><b>3 messages waiting more than 5 minutes</b><div class="sub xs">One reply window closes at 21:10</div></div><span class="btn sm">Reply</span></div>
+        </div>
+        <div class="card pad col">
+          <div class="between"><h5>Today's schedule</h5><span class="btn ghost sm">Calendar</span></div>
+          <div class="col s" style="border-left:2px solid var(--m-line);padding-left:12px">
+            <div class="row"><b class="xs" style="width:38px">12:15</b><span class="av s c2">MJ</span><span class="grow xs">New to lash clusters?…</span><span class="chip g xs">Published</span></div>
+            <div class="row"><b class="xs" style="width:38px">19:15</b><span class="av s c3">HB</span><span class="grow xs">11.11 is coming…</span><span class="chip b xs">Scheduled</span></div>
+            <div class="row"><b class="xs" style="width:38px">19:15</b><span class="av s c4">HN</span><span class="grow xs">Press-on plus lash combo…</span><span class="chip b xs">Scheduled</span></div>
+          </div>
+          <div class="hr"></div>
+          <div class="between"><h6>Accounts</h6><span class="sub xs">5 Instagram · 0 Threads <span class="pin s">2</span></span></div>
+          <div class="row wrap"><span class="chip g"><span class="av s c2">MJ</span>active</span><span class="chip r"><span class="av s c3">HB</span>token</span><span class="chip g"><span class="av s c4">HN</span>active</span><span class="chip g"><span class="av s c1">MS</span>active</span><span class="chip g"><span class="av s c5">AJ</span>active</span></div>
+        </div>
+      </div>
+      <div class="g4">
+        <div class="card pad-s col s"><span class="label">Scheduled, next 7 days</span><div class="num-big">18</div><span class="sub xs">across 4 accounts</span></div>
+        <div class="card pad-s col s"><span class="label">Published, last 7 days</span><div class="num-big">11</div><span class="sub xs">0 failed</span></div>
+        <div class="card pad-s col s"><span class="label">Unanswered comments</span><div class="num-big">0</div><span class="sub xs">all clear</span></div>
+        <div class="card pad-s col s"><span class="label">Followers (total)</span><div class="num-big">14,663</div><span class="sub xs"><span class="er">-41</span> in 30 days · @anekajaya.asemka</span></div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>One prioritised list merges failed posts, sessions to review, concept approvals, overdue DMs and expiring tokens. Empty: "You're all caught up for today."</span></li>
+      <li><span class="pin">2</span><span>Counts render only after accounts load. The "Connect your first account" card shows only when there are no accounts.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= NEW POST ======================= -->
+<section class="stack-lg" id="compose">
+  <div class="section-head"><span class="eyebrow">Content</span><h2>New Post</h2><p class="why">The page opens with a personal AI connection panel above the actual task. Target accounts are long brand names in pills that wrap into several rows. A literal <code>null</code> renders below the media button. The preview sits at the bottom.</p></div>
+  <div class="mock-block" id="C1">
+    <div class="mock-head"><span class="id">C1</span><h3>Composer with live preview</h3><span class="tag">two columns · preview always visible</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h4>New Post</h4><span class="chip b"><i class="i i-spark"></i>2 AI drafts waiting · <u>Open</u> <span class="pin s">1</span></span></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start">
+        <div class="card pad col l">
+          <div class="col s"><span class="flabel">Post to</span><div class="row"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap"><span class="av s c3">HB</span>@hannabeauty.kr</span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span><span class="ap"><span class="av s c1">MS</span>@manisky.id</span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka</span></div></div><span class="sub xs">Company first, then accounts. One row of chips; full brand names on hover. <span class="pin s">2</span></span></div>
+          <div class="col s"><span class="flabel">Media</span><div class="row"><span class="thumb t1" style="width:72px;height:90px"><span class="badge-n">1</span></span><span class="thumb t6" style="width:72px;height:90px"><span class="badge-n">2</span></span><span class="thumb" style="width:72px;height:90px;border:1.5px dashed #98a2b3;display:grid;place-items:center;color:#667085;text-align:center;font-size:11px">Add photo or video<br>or from Library</span></div><span class="sub xs">Carousel 2/10 · 4:5 ratio <i class="i i-check ok"></i> <span class="pin s">3</span></span></div>
+          <div class="col s"><div class="between"><span class="flabel">Caption</span><div class="seg"><span class="on">Same for all</span><span>Per platform</span></div></div><div class="ta focus">Weekend glow. Two new shades for a soft glam look that still feels natural.</div><div class="between"><span class="row"><span class="btn ghost sm"><i class="i i-spark"></i>Improve with AI</span><span class="btn ghost sm"># Hashtags</span></span><span class="sub xs">74 / 2,200</span></div></div>
+          <div class="col s"><span class="flabel">When</span><div class="row"><div class="seg"><span>Now</span><span class="on">Schedule</span></div><span class="input">Sat, 24 Oct · 12:15 WIB</span><span class="sub xs">Popular slots: 12:15 · 19:15</span></div></div>
+          <div class="between"><span class="sub xs">Media is removed from the server after publishing. Keep your originals.</span><div class="row"><span class="btn">Save draft</span><span class="btn pri">Schedule</span></div></div>
+        </div>
+        <div class="card pad col" style="position:sticky;top:0">
+          <div class="between"><h5>Preview</h5><div class="seg"><span class="on">Instagram</span><span>Threads</span></div></div>
+          <div class="phone"><div class="ig-h"><span class="av s c2" style="width:24px;height:24px">MJ</span>moonjasmine.id</div><div class="img t1"><div class="dots"><i class="on"></i><i></i></div></div><div style="padding:10px 12px;font-size:12px"><b>moonjasmine.id</b> Weekend glow. Two new shades for a soft glam look that still feels natural.</div></div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>The personal AI connection panel moves to API &amp; AI and Settings. Only a chip remains, and only when AI drafts are waiting.</span></li>
+      <li><span class="pin">2</span><span>Target accounts use the S3 picker with the company step first.</span></li>
+      <li><span class="pin">3</span><span>Media validation inline (ratio, count). Fix the stray <code>null</code> text node.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= CALENDAR ======================= -->
+<section class="stack-lg" id="calendar">
+  <div class="section-head"><span class="eyebrow">Content</span><h2>Content Calendar</h2><p class="why">The month view works, but filters take a full row of large selects, events show only a time and a few letters, there's no account colour, and Drafts waiting for approval don't appear, so gaps are invisible.</p></div>
+  <div class="mock-block" id="K1">
+    <div class="mock-head"><span class="id">K1</span><h3>Month view with account identity and drafts</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>October 2026</h4><span class="btn sm">&lt;</span><span class="btn sm">Today</span><span class="btn sm">&gt;</span></div><span class="btn pri">New Post</span></div>
+      <div class="scope"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span><span class="ap on"><span class="av s c1">MS</span>@manisky.id<i class="i i-check"></i></span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka</span></div> <span class="pin s">1</span><span class="vr"></span><span class="tog on"></span><span class="sub xs">Show drafts <span class="pin s">2</span></span><span class="grow"></span><span class="sub xs">View</span><div class="seg"><span class="on">Month</span><span>Week</span><span>List</span><span>By account</span></div></div>
+      <div class="cal">
+        <div class="dh">Mon</div><div class="dh">Tue</div><div class="dh">Wed</div><div class="dh">Thu</div><div class="dh">Fri</div><div class="dh">Sat</div><div class="dh">Sun</div>
+        <div><span class="n">12</span></div><div><span class="n">13</span></div><div><span class="n">14</span></div><div><span class="n">15</span></div>
+        <div><span class="n">16</span><div class="ev pub"><span class="av s c3" style="width:14px;height:14px;font-size:6px">HB</span>13:55 Test</div></div>
+        <div><span class="n">17</span><div class="ev pub"><span class="av s c2" style="width:14px;height:14px;font-size:6px">MJ</span>17:48 A little lash knowledge</div></div>
+        <div><span class="n">18</span></div>
+        <div><span class="n">19</span></div>
+        <div class="today"><span class="n">20</span></div>
+        <div><span class="n">21</span><div class="ev dr"><span class="av s c1" style="width:14px;height:14px;font-size:6px">MS</span>12:15 Ep.13 · plan</div></div>
+        <div><span class="n">22</span><div class="ev dr"><span class="av s c1" style="width:14px;height:14px;font-size:6px">MS</span>19:15 Ep.14 · plan</div></div>
+        <div><span class="n">23</span></div>
+        <div><span class="n">24</span><div class="ev sch"><span class="av s c2" style="width:14px;height:14px;font-size:6px">MJ</span>12:15 Weekend glow</div><div class="ev dr"><span class="av s c1" style="width:14px;height:14px;font-size:6px">MS</span>12:15 Ep.15</div></div>
+        <div><span class="n">25</span><div class="ev fail"><span class="av s c3" style="width:14px;height:14px;font-size:6px">HB</span>19:15 Failed</div></div>
+      </div>
+      <div class="row sub xs"><span class="ev pub">Published</span><span class="ev sch">Scheduled</span><span class="ev dr">Draft or plan (not approved)</span><span class="ev fail">Failed</span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Scope bar (S4) replaces two full-width selects: company &gt; accounts, then views Month / Week / List / By account (K3).</span></li>
+      <li><span class="pin">2</span><span>Drafts and plans from sessions show as dashed events linking to D5. Turn off to see only what will really publish.</span></li>
+    </ul>
+  </div>
+  <div class="mock-block" id="K2">
+    <div class="mock-head"><span class="id">K2</span><h3>Event side panel</h3><span class="tag">click an event, no page change</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="drawer-wrap" style="grid-template-columns:minmax(0,1fr) 380px">
+      <div class="ghostpage"><h4>October 2026</h4></div>
+      <div class="drawer">
+        <div class="between"><span class="chip b">Scheduled</span><span class="btn sm"><i class="i i-x"></i></span></div>
+        <div class="row"><span class="thumb t1" style="width:84px;height:105px"></span><div class="col s"><b>Weekend glow</b><span class="sub xs">@moonjasmine.id · Instagram</span><span class="sub xs">Sat, 24 Oct · 12:15 WIB</span><span class="chip p xs" style="align-self:flex-start">from session 11.11 Promo</span></div></div>
+        <span class="sub">Weekend glow. Two new shades for a soft glam look that still feels natural.</span>
+        <div class="row wrap"><span class="btn"><i class="i i-pen"></i>Edit</span><span class="btn"><i class="i i-cal"></i>Reschedule</span><span class="btn"><i class="i i-copy"></i>Duplicate</span><span class="btn danger">Cancel post</span></div>
+      </div>
+    </div></div></div>
+  </div>
+  <div class="mock-block" id="K3">
+    <div class="mock-head"><span class="id">K3</span><h3>Calendar · "By account" (lanes)</h3><span class="tag">compare several accounts side by side</span></div>
+    <p class="why">With multiple accounts selected, a month grid mixes everything together. "By account" gives each account its own row across the week, so gaps and clashes per brand are obvious.</p>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>19 – 25 Oct 2026</h4><span class="btn sm">&lt;</span><span class="btn sm">This week</span><span class="btn sm">&gt;</span></div><span class="btn pri">New Post</span></div>
+      <div class="scope"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap on"><span class="av s c4">HN</span>@hannanails.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c1">MS</span>@manisky.id<i class="i i-check"></i></span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka</span></div><span class="grow"></span><span class="sub xs">View</span><div class="seg"><span class="on">By account</span><span>Month</span><span>Week</span><span>List</span></div></div>
+      <div class="lanes">
+        <div class="lh">Account</div><div class="lh">Mon 19</div><div class="lh">Tue 20</div><div class="lh">Wed 21</div><div class="lh">Thu 22</div><div class="lh">Fri 23</div><div class="lh">Sat 24</div><div class="lh">Sun 25</div>
+        <div class="acc-h"><span class="av s c2">MJ</span>@moonjasmine.id</div><div></div><div></div><div></div><div><span class="gap">empty 4 days</span></div><div></div><div><div class="ev sch">12:15 Weekend glow</div></div><div></div>
+        <div class="acc-h"><span class="av s c3">HB</span>@hannabeauty.kr</div><div></div><div></div><div><div class="ev sch">19:15 K-beauty 2</div></div><div></div><div><div class="ev sch">12:15 K-beauty 3</div></div><div></div><div><div class="ev fail">19:15 Failed</div></div>
+        <div class="acc-h"><span class="av s c4">HN</span>@hannanails.id</div><div><div class="ev pub">12:15 Rainy set</div></div><div></div><div><div class="ev sch">12:15 Nail care</div><div class="ev sch">12:20 Promo</div><span class="gap">clash: 5 min apart</span></div><div></div><div></div><div></div><div></div>
+        <div class="acc-h"><span class="av s c1">MS</span>@manisky.id</div><div></div><div></div><div><div class="ev dr">12:15 Ep.13 · plan</div></div><div><div class="ev dr">19:15 Ep.14</div></div><div></div><div><div class="ev dr">12:15 Ep.15</div></div><div></div>
+      </div>
+      <div class="row sub xs"><span class="gap">empty</span> 3+ days without a post · <span class="gap">clash</span> two posts under 30 minutes apart · Drag a post to move it.</div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= MESSAGES ======================= -->
+<section class="stack-lg" id="dm">
+  <div class="section-head"><span class="eyebrow">Engagement</span><h2>Messages</h2><p class="why">With no conversations, the page shows five identical diagnostic paragraphs (one per account) and an empty box. The inbox needs a three-pane layout and a visible 24-hour reply window.</p></div>
+  <div class="mock-block" id="M1">
+    <div class="mock-head"><span class="id">M1</span><h3>Three-pane inbox</h3></div>
+    <div class="frame"><div class="app" style="padding:0">
+      <div class="between" style="padding:16px 20px;border-bottom:1px solid var(--m-line);background:#fff"><div class="row"><h4>Messages</h4><div class="seg"><span class="on">Needs reply 3</span><span>All</span><span>Done</span></div></div><div class="row"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><span class="scope-co o"><span class="avs"><span class="av s c2">MJ</span><span class="av s c3">HB</span></span>2 accounts</span><span class="chip a"><i class="i i-alert"></i>5 accounts: Meta isn't sending DMs · <u>Check permissions</u> <span class="pin s">1</span></span><span class="btn sm"><i class="i i-refresh"></i>Refresh</span></div></div>
+      <div style="display:grid;grid-template-columns:300px minmax(0,1fr) 260px;min-height:420px">
+        <div style="border-right:1px solid var(--m-line);background:#fff">
+          <div class="lrow on"><span class="av c7">SR</span><div style="min-width:0"><b>sari.rahma</b><div class="sub xs" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Do you have the natural lash clusters in stock?</div></div><div class="col s" style="align-items:flex-end"><span class="sub xs">7 min</span><span class="chip r xs">over 5 min</span></div></div>
+          <div class="lrow"><span class="av c7">DN</span><div style="min-width:0"><b>dina.nails</b><div class="sub xs">Cash on delivery in West Jakarta?</div></div><div class="col s" style="align-items:flex-end"><span class="sub xs">22 min</span><span class="av s c4">HN</span></div></div>
+          <div class="lrow"><span class="av c7">AY</span><div style="min-width:0"><b>ayu_p</b><div class="sub xs">Thank you!</div></div><div class="col s" style="align-items:flex-end"><span class="sub xs">1 hr</span><span class="av s c3">HB</span></div></div>
+        </div>
+        <div class="col" style="padding:16px;background:var(--m-bg)">
+          <div class="between"><div class="row"><b>sari.rahma</b><span class="sub xs">via @moonjasmine.id</span></div><span class="chip a"><i class="i i-clock"></i>Reply window: 23 h 53 min left <span class="pin s">2</span></span></div>
+          <div class="chat grow">
+            <div class="bub in">Hi, quick question</div>
+            <div class="bub in">Do you have the natural lash clusters in stock? Which one is best for beginners?</div>
+          </div>
+          <div class="row wrap"><span class="chip o"><i class="i i-spark"></i>Yes, in stock! For beginners we recommend…</span><span class="chip o"><i class="i i-spark"></i>Send catalogue link</span> <span class="pin s">3</span></div>
+          <div class="row"><div class="input grow ph">Write a reply</div><span class="btn pri">Send</span></div>
+        </div>
+        <div style="border-left:1px solid var(--m-line);background:#fff;padding:16px" class="col">
+          <span class="label">Customer</span><b>sari.rahma</b><span class="sub xs">First message 3 months ago · 4 conversations</span>
+          <div class="hr"></div><span class="label">Related post</span><div class="row"><span class="thumb t1" style="width:40px;height:40px"></span><span class="xs">A little lash knowledge…</span></div>
+          <div class="hr"></div><span class="btn sm">Mark as done</span>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Per-account sync diagnostics collapse into one warning chip with a popover.</span></li>
+      <li><span class="pin">2</span><span>The Meta 24-hour reply window is a live countdown; the composer locks with an explanation after it ends.</span></li>
+      <li><span class="pin">3</span><span>Optional AI reply suggestions in the brand's tone. The user always sends. Customer messages are shown exactly as written.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= COMMENTS ======================= -->
+<section class="stack-lg" id="comments">
+  <div class="section-head"><span class="eyebrow">Engagement</span><h2>Comments</h2><p class="why">Filters are spread across a select and two segmented controls on separate lines. Group comments by post so replies have context, and put reply and hide inline.</p></div>
+  <div class="mock-block" id="R1">
+    <div class="mock-head"><span class="id">R1</span><h3>Comments grouped by post</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>Comments</h4><div class="seg"><span class="on">Needs reply 4</span><span>All</span><span>Hidden</span></div></div><div class="row"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><span class="scope-co o"><span class="avs"><span class="av s c2">MJ</span><span class="av s c3">HB</span></span>2 accounts</span><div class="seg"><span class="on">By post</span><span>Latest</span><span>By account</span></div><span class="sub xs">Synced 2 min ago</span></div></div>
+      <div class="card">
+        <div class="row pad-s" style="background:#fafbfc;border-bottom:1px solid var(--m-line)"><span class="thumb t1" style="width:44px;height:44px"></span><div class="grow"><b>A little lash knowledge, a lovely place to start…</b><div class="sub xs">@moonjasmine.id · published 17 Oct · 3 need a reply</div></div><span class="btn sm">Open post</span></div>
+        <div class="lrow"><span class="av c7">RN</span><div><b>rina.nv</b> <span class="sub xs">· 1 hr</span><div>How many times can these be worn?</div><div class="row" style="margin-top:6px"><div class="input grow" style="min-height:30px"><i class="i i-spark"></i>3 to 5 wears with proper care.</div><span class="btn sm pri">Reply</span></div></div><span class="btn ghost sm">Hide</span></div>
+        <div class="lrow"><span class="av c7">TT</span><div><b>tiara.t</b> <span class="sub xs">· 3 hr</span><div>What's the price?</div><div class="row" style="margin-top:6px"><span class="btn sm">Reply</span><span class="btn sm">Reply by DM</span></div></div><span class="btn ghost sm">Hide</span></div>
+        <div class="lrow"><span class="av c7">XX</span><div><b>promo_follower99</b> <span class="sub xs">· 5 hr</span> <span class="chip r xs">likely spam</span><div>Want 10k followers? DM us!</div></div><span class="btn sm danger">Hide</span></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= INSIGHTS ======================= -->
+<section class="stack-lg" id="insights">
+  <div class="section-head"><span class="eyebrow">Engagement</span><h2>Insights</h2><p class="why">Nine equal cards, each with a sparkline without a y-axis, so a drop from 2,606 to 2,565 looks like a crash. The account select shows the full brand description, and there's no comparison or link to the posts behind the numbers.</p></div>
+  <div class="mock-block" id="I1">
+    <div class="mock-head"><span class="id">I1</span><h3>Single account · headline numbers, one real chart, top posts</h3></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="row"><h4>Insights</h4><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><span class="ap on"><span class="av s c5">AJ</span>@anekajaya.asemka</span><div class="seg"><span class="on">Single account</span><span>Compare</span></div></div><div class="row"><div class="seg"><span>7 days</span><span class="on">30 days</span><span>90 days</span></div><span class="sub xs">Updated 2 hours ago · Meta can lag up to 48 hours</span></div></div>
+      <div class="g4">
+        <div class="card pad-s col s"><span class="label">Followers</span><div class="row"><span class="num-big">2,565</span><span class="chip r">-41 · -1.6%</span></div><span class="sub xs">vs previous 30 days</span></div>
+        <div class="card pad-s col s"><span class="label">Reach</span><div class="row"><span class="num-big">28</span><span class="chip g">+12</span></div><span class="sub xs">unique accounts</span></div>
+        <div class="card pad-s col s"><span class="label">Views</span><div class="row"><span class="num-big">123</span><span class="chip g">+64</span></div><span class="sub xs">all content</span></div>
+        <div class="card pad-s col s"><span class="label">Interactions</span><div class="row"><span class="num-big">2</span><span class="chip">0</span></div><span class="sub xs">1 like · 1 save · 0 comments</span></div>
+      </div>
+      <div class="card pad col">
+        <div class="between"><h5>Followers, 30 days</h5><div class="seg"><span class="on">Followers</span><span>Reach</span><span>Views</span></div></div>
+        <svg viewBox="0 0 900 180" class="spark" style="height:180px" role="img" aria-label="Followers fell from 2,606 to 2,565">
+          <g font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#667085">
+            <text x="0" y="16">2,610</text><text x="0" y="86">2,585</text><text x="0" y="156">2,560</text>
+            <text x="50" y="176">21 Sep</text><text x="440" y="176">5 Oct</text><text x="840" y="176">20 Oct</text>
+          </g>
+          <g stroke="#eaecf0"><line x1="44" y1="12" x2="900" y2="12"/><line x1="44" y1="82" x2="900" y2="82"/><line x1="44" y1="152" x2="900" y2="152"/></g>
+          <path d="M50 24 L180 22 L300 26 L420 24 L540 30 L660 34 L760 40 L800 90 L840 132 L880 140 L880 152 L50 152Z" fill="#e6f4ed" opacity=".6"/>
+          <path d="M50 24 L180 22 L300 26 L420 24 L540 30 L660 34 L760 40 L800 90 L840 132 L880 140" fill="none" stroke="#0b6b4b" stroke-width="2.5"/>
+          <circle cx="880" cy="140" r="4" fill="#0b6b4b"/>
+          <line x1="790" y1="12" x2="790" y2="152" stroke="#b54708" stroke-dasharray="3 3"/><text x="660" y="64" font-size="11" fill="#b54708" font-family="Plus Jakarta Sans, sans-serif">14 Oct: -28 in 3 days</text>
+        </svg>
+      </div>
+      <div class="card">
+        <div class="pad-s"><h5>Top posts this period</h5></div>
+        <table class="mt"><tr><th>Post</th><th>Published</th><th>Reach</th><th>Saves</th><th>Likes</th></tr>
+          <tr><td><div class="row"><span class="thumb t2" style="width:32px;height:32px"></span>Pearl hair clips restock</div></td><td>14 Oct</td><td>21</td><td>1</td><td>1</td></tr>
+          <tr><td><div class="row"><span class="thumb t3" style="width:32px;height:32px"></span>Wholesale from one dozen</div></td><td>9 Oct</td><td>7</td><td>0</td><td>0</td></tr></table>
+      </div>
+    </div></div>
+  </div>
+  <div class="mock-block" id="I2">
+    <div class="mock-head"><span class="id">I2</span><h3>Compare accounts</h3><span class="tag">company &gt; several accounts · real follower counts</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>Insights</h4><div class="seg"><span>Single account</span><span class="on">Compare</span></div></div><div class="seg"><span>7 days</span><span class="on">30 days</span><span>90 days</span></div></div>
+      <div class="scope"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i class="i i-check"></i></span><span class="ap on"><span class="av s c4">HN</span>@hannanails.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c1">MS</span>@manisky.id<i class="i i-check"></i></span><span class="ap on"><span class="av s c5">AJ</span>@anekajaya.asemka<i class="i i-check"></i></span></div><span class="sub xs">All (5)</span></div>
+      <div class="card" style="overflow:hidden"><table class="mt">
+        <tr><th>Account</th><th>Followers</th><th>30-day change</th><th>Reach</th><th>Interactions</th><th>Published</th><th>Scheduled, next 7 days</th></tr>
+        <tr><td><div class="row"><span class="av s c4">HN</span>@hannanails.id</div></td><td><b>4,497</b></td><td><span class="chip g">+38</span></td><td>412</td><td>27</td><td>9</td><td>3</td></tr>
+        <tr><td><div class="row"><span class="av s c3">HB</span>@hannabeauty.kr</div></td><td><b>2,769</b></td><td><span class="chip g">+12</span></td><td>188</td><td>11</td><td>6</td><td>2</td></tr>
+        <tr><td><div class="row"><span class="av s c5">AJ</span>@anekajaya.asemka</div></td><td><b>2,565</b></td><td><span class="chip r">-41</span></td><td>28</td><td>2</td><td>2</td><td><span class="chip a">0</span></td></tr>
+        <tr><td><div class="row"><span class="av s c1">MS</span>@manisky.id</div></td><td><b>2,510</b></td><td><span class="chip">0</span></td><td>96</td><td>8</td><td>4</td><td>3</td></tr>
+        <tr><td><div class="row"><span class="av s c2">MJ</span>@moonjasmine.id</div></td><td><b>2,322</b></td><td><span class="chip g">+5</span></td><td>140</td><td>9</td><td>5</td><td>1</td></tr>
+        <tr style="background:#fafbfc"><td><b>Total, LRM Corporation</b></td><td><b>14,663</b></td><td><b>+14</b></td><td>864</td><td>57</td><td>26</td><td>9</td></tr>
+      </table></div>
+      <span class="sub xs">Follower counts and the @anekajaya.asemka change are real; other figures are examples. Click a row to open Single account.</span>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= ACCOUNTS ======================= -->
+<section class="stack-lg" id="accounts">
+  <div class="section-head"><span class="eyebrow">Workspace</span><h2>Companies &amp; Accounts</h2><p class="why">Each account card has an always-visible company select, so one mis-click moves a brand to another company. "Add company" is the primary button although connecting accounts is the common task. Brand Kit status isn't shown.</p></div>
+  <div class="mock-block" id="A1">
+    <div class="mock-head"><span class="id">A1</span><h3>Accounts table grouped by company</h3><span class="tag">real accounts and follower counts</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h4>Companies &amp; Accounts</h4><div class="row"><span class="btn">Add company</span><span class="btn pri">Connect account</span></div></div>
+      <div class="card" style="overflow:hidden">
+        <div class="between pad-s" style="background:#fafbfc;border-bottom:1px solid var(--m-line)"><div class="row"><i class="i i-building"></i><b>LRM Corporation</b><span class="sub">5 accounts</span></div><span class="btn ghost sm">Rename</span></div>
+        <table class="mt">
+          <tr><th>Account</th><th>Followers</th><th>Brand Kit <span class="pin s">1</span></th><th>Connection</th><th></th></tr>
+          <tr><td><div class="row"><span class="av c5">AJ</span><div><b>Aneka Jaya: Jakarta accessories wholesale</b><div class="sub xs">@anekajaya.asemka · Instagram</div></div></div></td><td>2,565</td><td><span class="chip a">Not set up · Set up</span></td><td><span class="chip g">Active until 15 Dec</span></td><td><span class="btn sm"><i class="i i-more"></i> <span class="pin s">2</span></span></td></tr>
+          <tr><td><div class="row"><span class="av c3">HB</span><div><b>@hannabeauty.kr</b><div class="sub xs">Instagram</div></div></div></td><td>2,769</td><td><span class="chip g">Complete</span></td><td><span class="chip g">Active until 14 Dec</span></td><td><span class="btn sm"><i class="i i-more"></i></span></td></tr>
+          <tr><td><div class="row"><span class="av c4">HN</span><div><b>Hanna Nails: Premium Press-On Nails</b><div class="sub xs">@hannanails.id · Instagram</div></div></div></td><td>4,497</td><td><span class="chip g">Complete</span></td><td><span class="chip g">Active until 15 Dec</span></td><td><span class="btn sm"><i class="i i-more"></i></span></td></tr>
+          <tr><td><div class="row"><span class="av c1">MS</span><div><b>Manisky Nails</b><div class="sub xs">@manisky.id · Instagram</div></div></div></td><td>2,510</td><td><span class="chip a">3 of 4 · no products</span></td><td><span class="chip g">Active until 15 Dec</span></td><td><span class="btn sm"><i class="i i-more"></i></span></td></tr>
+          <tr><td><div class="row"><span class="av c2">MJ</span><div><b>Moon and Jasmine Beauty</b><div class="sub xs">@moonjasmine.id · Instagram</div></div></div></td><td>2,322</td><td><span class="chip g">Complete</span></td><td><span class="chip g">Active until 15 Dec</span></td><td><span class="btn sm"><i class="i i-more"></i></span></td></tr>
+        </table>
+      </div>
+      <div class="card pad-s between"><div class="row"><i class="i i-building"></i><b>HR Group</b><span class="sub">0 accounts</span></div><span class="sub xs">Move accounts here from the row menu: "Move to company"</span></div>
+      <div class="card pad-s col s" style="width:260px;margin-left:auto;box-shadow:0 10px 24px rgba(16,24,40,.12)"><span class="xs">Brand Kit &amp; Story</span><span class="xs">Integration details</span><span class="xs">Move to company…</span><span class="xs">Refresh name and photo</span><span class="xs">Reconnect</span><div class="hr"></div><span class="xs er">Disconnect account…</span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Brand Kit completeness uses the same rules as the Generator readiness check.</span></li>
+      <li><span class="pin">2</span><span>Rare and destructive actions live in a row menu. Moving companies opens a confirm dialog instead of an inline select that saves on change.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= BRAND KIT ======================= -->
+<section class="stack-lg" id="brandkit">
+  <div class="section-head"><span class="eyebrow">Per account</span><h2>Brand Kit &amp; Story</h2><p class="why">The foundation is one large textarea of raw markdown. The note says changes save automatically, yet there's a manual save button. Assets are listed by file name ("WhatsApp Image 2026-10-19 at 13.23.15 (1).jpeg"), and nothing shows what's missing.</p></div>
+  <div class="mock-block" id="B1">
+    <div class="mock-head"><span class="id">B1</span><h3>Brand Kit overview with completeness</h3><span class="tag">@manisky.id · real asset counts</span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="row"><span class="av l c1">MS</span><div class="col s"><h4>Manisky Nails</h4><span class="sub">@manisky.id · LRM Corporation · Instagram · <span class="chip g xs">Active</span></span></div></div><div class="row"><span class="btn">Integration details</span><span class="btn pri"><i class="i i-spark"></i>Plan a session</span></div></div>
+      <div class="tabs"><span class="on">Brand Kit</span><span>Story Bible</span><span>Story memory · 12</span><span>Integration</span></div>
+      <div class="card pad-s between"><div class="row"><b>75% complete</b><div class="bar" style="width:220px"><i style="width:75%;background:var(--m-green)"></i></div></div><span class="sub">Add product photos so the Storyteller can pick specific products. <span class="pin s">1</span></span></div>
+      <div class="g2">
+        <div class="card pad col">
+          <div class="between"><h5>Identity and tone <i class="i i-check ok"></i></h5><span class="sub xs">Saved automatically 22:48 <span class="pin s">2</span></span></div>
+          <div class="g2"><div class="col s"><span class="label">Essence</span><span>Little details. Beautiful feelings.</span></div><div class="col s"><span class="label">Caption language</span><span>Indonesian (default) · change</span></div></div>
+          <div class="col s"><span class="label">Tone</span><div class="row wrap"><span class="chip o">Warm</span><span class="chip o">Subtle</span><span class="chip o">Elegant</span><span class="chip o">Playful charm</span></div></div>
+          <div class="row"><span class="label">Emoji in captions</span><span class="tog on"></span><span class="sub xs">Allowed</span></div>
+          <span class="btn ghost sm" style="align-self:flex-start">Edit full prompt (markdown)</span>
+        </div>
+        <div class="card pad col">
+          <div class="between"><h5>Brand rules <i class="i i-check ok"></i></h5></div>
+          <div class="col s"><span class="label">Do</span><span class="xs">Soft blush, champagne, ivory · minimal on-image text · natural light</span></div>
+          <div class="col s"><span class="label">Don't</span><span class="xs">Overclaim durability · neon colours · childish styling</span></div>
+        </div>
+      </div>
+      <div class="card pad col">
+        <div class="between"><h5>Brand assets</h5><span class="sub xs">6 of 250 assets</span></div>
+        <div class="g4">
+          <div class="col s"><span class="label">Logo · 1 <i class="i i-check ok"></i></span><span class="thumb" style="width:64px;height:64px;background:#fff;border:1px solid var(--m-line);display:grid;place-items:center;font-weight:800;color:#c99a9a">M</span></div>
+          <div class="col s"><span class="label">Visual references · 5 <i class="i i-check ok"></i></span><div class="row"><span class="thumb t1" style="width:40px;height:40px"></span><span class="thumb t2" style="width:40px;height:40px"></span><span class="thumb t6" style="width:40px;height:40px"></span><span class="chip xs">+2</span></div><span class="sub xs">Labels: "Feed mood", "Packaging"</span></div>
+          <div class="col s"><span class="label">Product photos · 0 <i class="i i-alert wa"></i></span><div class="thumb" style="width:100%;height:64px;border:1.5px dashed #f5b45a;display:grid;place-items:center;color:var(--m-amber);font-size:11px;font-weight:600;background:var(--m-amber-soft)">Add products</div></div>
+          <div class="col s"><span class="label">Video / Reels · 0</span><div class="thumb" style="width:100%;height:64px;border:1.5px dashed #98a2b3;display:grid;place-items:center;color:#667085;font-size:11px">Add video</div><span class="sub xs">Optional. Agents don't create video.</span></div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Completeness follows the same rules as the Generator checklist; each missing item links to its slot.</span></li>
+      <li><span class="pin">2</span><span>Autosave only. The manual save button is removed. The full markdown prompt stays behind "Edit full prompt".</span></li>
+    </ul>
+  </div>
+  <div class="mock-block" id="B2">
+    <div class="mock-head"><span class="id">B2</span><h3>Add product photos (named catalogue)</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h5>Product photos · 3 new</h5><span class="btn pri">Save 3 products</span></div>
+      <div class="g3">
+        <div class="card pad-s col s"><span class="thumb t1" style="width:100%;height:120px;max-width:100%"></span><span class="input">Blush Petal · Almond M</span><span class="input ph">Description: soft pink, glossy finish</span><div class="row"><span class="chip o">Collection: Everyday</span><span class="chip o">Add tag</span></div></div>
+        <div class="card pad-s col s"><span class="thumb t6" style="width:100%;height:120px;max-width:100%"></span><span class="input">Champagne Shimmer · Coffin S</span><span class="input ph">Description</span><div class="row"><span class="chip o">Collection: Party</span></div></div>
+        <div class="card pad-s col s"><span class="thumb t2" style="width:100%;height:120px;max-width:100%"></span><span class="input err">Product name is required</span><span class="input ph">Description</span><div class="row"><span class="chip o">Add collection</span></div></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= MEDIA ======================= -->
+<section class="stack-lg" id="media">
+  <div class="section-head"><span class="eyebrow">Workspace</span><h2>Media Library</h2><p class="why">The header says "720 KB · 7 files" but no files are listed; they're Brand Kit assets stored outside the library list. Alt text is edited through <code>prompt()</code>. The library should show everything, filtered by company &gt; account and by source.</p></div>
+  <div class="mock-block" id="ME1">
+    <div class="mock-head"><span class="id">ME1</span><h3>Library with scope, sources and usage</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>Media Library</h4><span class="sub">7 files · 720 KB</span></div><span class="btn pri"><i class="i i-upload"></i>Upload</span></div>
+      <div class="scope"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap"><span class="av s c2">MJ</span>@moonjasmine.id</span><span class="ap"><span class="av s c3">HB</span>@hannabeauty.kr</span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span><span class="ap on"><span class="av s c1">MS</span>@manisky.id<i class="i i-check"></i></span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka</span></div> <span class="pin s">2</span><span class="grow"></span><span class="sub xs">View</span><div class="seg"><span class="on">Grid</span><span>List</span><span>By account</span></div></div>
+      <div class="between"><div class="row"><span class="chip sel">All 7</span><span class="chip o">Team uploads 0</span><span class="chip o">Brand Kit 6</span><span class="chip o">AI results 1</span> <span class="pin s">1</span></div><div class="seg"><span class="on">All</span><span>Photos</span><span>Videos</span></div></div>
+      <div class="media-grid">
+        <div class="col s"><span class="thumb" style="background:#fff;border:1px solid var(--m-line);display:grid;place-items:center;font-weight:800;color:#c99a9a;aspect-ratio:1/1;width:100%">M</span><span class="xs"><b>Logo</b> · @manisky.id</span></div>
+        <div class="col s"><span class="thumb t1"></span><span class="xs"><b>Feed mood 1</b> · Brand Kit</span></div>
+        <div class="col s"><span class="thumb t2"></span><span class="xs"><b>Feed mood 2</b> · Brand Kit</span></div>
+        <div class="col s"><span class="thumb t6"></span><span class="xs"><b>Packaging</b> · Brand Kit</span></div>
+        <div class="col s"><span class="thumb t4"></span><span class="xs"><b>Reference 4</b> · used in 3 drafts</span></div>
+        <div class="col s"><span class="thumb t3"></span><span class="xs"><b>AI result</b> · 11.11 Promo</span></div>
+      </div>
+      <div class="card pad-s row" style="border-style:dashed;justify-content:center"><span class="sub">Drop photos or videos here · JPEG/PNG up to 8 MB · MP4/MOV up to 300 MB · feed ratio 4:5 to 1.91:1</span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Source filter makes the storage count match what's visible. Alt text is edited inline in the side panel.</span></li>
+      <li><span class="pin">2</span><span>Scope bar (S4). Brand Kit assets and AI results belong to an account; untagged team uploads appear under "All accounts (untagged)". Views: Grid, List, By account (ME2).</span></li>
+    </ul>
+  </div>
+  <div class="mock-block" id="ME2">
+    <div class="mock-head"><span class="id">ME2</span><h3>Media Library · "By account"</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="scope"><span class="scope-co"><i class="i i-building"></i>LRM Corporation</span><span class="scope-sep">&gt;</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i class="i i-check"></i></span><span class="ap"><span class="av s c3">HB</span>@hannabeauty.kr</span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span><span class="ap on"><span class="av s c1">MS</span>@manisky.id<i class="i i-check"></i></span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka</span></div><span class="grow"></span><span class="sub xs">View</span><div class="seg"><span class="on">By account</span><span>Grid</span><span>List</span></div></div>
+      <div class="card pad col">
+        <div class="between"><div class="row"><span class="av c1">MS</span><b>@manisky.id</b><span class="sub">6 files · 640 KB</span></div><span class="btn ghost sm">Brand Kit</span></div>
+        <div class="media-grid"><span class="thumb" style="aspect-ratio:1/1;width:100%;background:#fff;border:1px solid var(--m-line);display:grid;place-items:center;font-weight:800;color:#c99a9a">M</span><span class="thumb t1"></span><span class="thumb t2"></span><span class="thumb t6"></span><span class="thumb t4"></span><span class="thumb t3"></span></div>
+      </div>
+      <div class="card pad col">
+        <div class="between"><div class="row"><span class="av c2">MJ</span><b>@moonjasmine.id</b><span class="sub">1 file · 80 KB</span></div><span class="btn ghost sm">Brand Kit</span></div>
+        <div class="media-grid"><span class="thumb t5"></span></div>
+      </div>
+      <div class="card pad-s between" style="border-style:dashed"><div class="row"><b>All accounts (untagged)</b><span class="sub">0 files · team uploads not tagged to an account</span></div><span class="btn ghost sm">Tag to account</span></div>
+      <div class="card" style="overflow:hidden"><table class="mt"><tr><th colspan="6">List view (example row)</th></tr><tr><th>File</th><th>Account</th><th>Source</th><th>Size</th><th>Used in</th><th>Uploaded</th></tr>
+        <tr><td><div class="row"><span class="thumb t1" style="width:28px;height:28px"></span>Feed mood 1</div></td><td>@manisky.id</td><td><span class="chip">Brand Kit</span></td><td>112 KB</td><td>3 drafts</td><td>19 Oct</td></tr></table></div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= API & AI ======================= -->
+<section class="stack-lg" id="api">
+  <div class="section-head"><span class="eyebrow">Workspace</span><h2>API &amp; AI</h2><p class="why">Good content, but it reads as one long document. Three clear cards, and keys as a table with access level and last use.</p></div>
+  <div class="mock-block" id="P1">
+    <div class="mock-head"><span class="id">P1</span><h3>Connect · Keys · Apps</h3></div>
+    <div class="frame"><div class="app col">
+      <h4>API &amp; AI</h4>
+      <div class="g3">
+        <div class="card pad col s"><span class="label">1 · Claude or ChatGPT</span><b>Add as a connector</b><div class="input" style="font-family:var(--f-mono);font-size:11px">https://lrmsosmed.playgo.id/mcp<span class="btn sm" style="margin-left:auto"><i class="i i-copy"></i>Copy</span></div><span class="sub xs">Claude: Settings &gt; Connectors &gt; Add custom connector.</span></div>
+        <div class="card pad col s"><span class="label">2 · Claude Code, Cursor, n8n</span><b>Use an API key</b><div class="input" style="font-family:var(--f-mono);font-size:10.5px">claude mcp add --transport http lrmsmm …<span class="btn sm" style="margin-left:auto"><i class="i i-copy"></i>Copy</span></div><span class="sub xs">Needs an API key below.</span></div>
+        <div class="card pad col s"><span class="label">3 · REST API</span><b>Post from other systems</b><div class="row"><span class="btn sm">API guide</span><span class="btn sm">OpenAPI JSON</span></div><span class="sub xs">Base URL: /v1</span></div>
+      </div>
+      <div class="card">
+        <div class="between pad-s"><h5>API keys</h5><span class="btn sm pri">Create API key</span></div>
+        <table class="mt"><tr><th>Name</th><th>Access</th><th>Created</th><th>Last used</th><th></th></tr>
+          <tr><td><b>n8n production</b><div class="sub xs">lrm_live_…a91f</div></td><td><span class="chip a">Read and write</span></td><td>12 Oct</td><td>2 hours ago</td><td><span class="btn sm danger">Revoke</span></td></tr>
+          <tr><td colspan="5" class="sub xs">Example row; there are no API keys yet. A key is shown only once; LRMsmm stores only its hash.</td></tr></table>
+      </div>
+      <div class="card pad-s between"><div class="col s"><h6>Connected apps (OAuth)</h6><span class="sub xs">No AI apps connected yet.</span></div><span class="btn sm">How to connect</span></div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= TEAM ======================= -->
+<section class="stack-lg" id="team">
+  <div class="section-head"><span class="eyebrow">Workspace</span><h2>Team &amp; Access</h2><p class="why">The member list is clear, but the owner's own password form sits on this team page. Assigned accounts show as plain text, with no last activity.</p></div>
+  <div class="mock-block" id="T1">
+    <div class="mock-head"><span class="id">T1</span><h3>Members table and role explainer</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h4>Team &amp; Access</h4><span class="btn pri">Invite member</span></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:16px;align-items:start">
+        <div class="card" style="overflow:hidden"><table class="mt">
+          <tr><th>Member</th><th>Role</th><th>Account access</th><th>Last active</th><th></th></tr>
+          <tr><td><div class="row"><span class="av c6">RE</span><div><b>Reyner</b> <span class="chip xs">You</span><div class="sub xs">superadmin@gmail.com</div></div></div></td><td><span class="chip g">Owner</span></td><td class="sub">All companies and accounts</td><td>Now</td><td></td></tr>
+          <tr><td><div class="row"><span class="av c6">DE</span><div><b>Devon Cuaca</b><div class="sub xs">devon@lrmcorporation.com</div></div></div></td><td><span class="chip p">Representative</span></td><td><div class="row"><span class="av s c1">MS</span><span class="av s c2">MJ</span><span class="sub xs">2 accounts</span></div></td><td>Yesterday 16:20</td><td><span class="btn sm"><i class="i i-more"></i></span></td></tr>
+        </table></div>
+        <div class="card pad col s"><span class="label">Roles</span><b>Owner</b><span class="sub xs">All accounts, settings, API, team, audit log.</span><b style="margin-top:6px">Representative</b><span class="sub xs">Posting, replying to comments and DMs, and the Generator, only on assigned accounts.</span><div class="hr"></div><span class="sub xs">Change your password in <u>Personal settings &gt; Security</u>.</span></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= AUDIT ======================= -->
+<section class="stack-lg" id="audit">
+  <div class="section-head"><span class="eyebrow">Workspace</span><h2>Audit Log</h2><p class="why">The log shows raw event codes ("brand.save", "story.start", "generator.bulk_delete") line after line, under four stat cards that duplicate Home. An audit log should read as sentences, grouped by day and filterable.</p></div>
+  <div class="mock-block" id="J1">
+    <div class="mock-head"><span class="id">J1</span><h3>Readable audit log</h3><span class="tag">events from your real log, rewritten</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>Audit Log</h4><span class="chip a"><i class="i i-alert"></i>Webhook not active · syncing periodically <span class="pin s">1</span></span></div><div class="row"><span class="scope-co"><i class="i i-building"></i>All companies</span><span class="scope-sep">&gt;</span><span class="scope-co o">All accounts</span><span class="input">All members</span><span class="input">All activity</span><span class="input">20 Oct</span><span class="btn sm">Export CSV</span></div></div>
+      <div class="tabs"><span class="on">Activity</span><span>Failed posts <b>0</b></span></div>
+      <div class="card">
+        <div class="pad-s label" style="background:#fafbfc;border-bottom:1px solid var(--m-line)">Today · Tuesday 20 Oct</div>
+        <div class="lrow"><span class="chip g xs">Brand Kit</span><div><b>Reyner</b> updated the Brand Kit for <b>@manisky.id</b> <span class="sub xs">· 2 changes combined</span></div><span class="sub xs">22:48 · dashboard</span></div>
+        <div class="lrow"><span class="chip g xs">Assets</span><div><b>Reyner</b> added 7 brand assets to <b>@manisky.id</b> <span class="sub xs">· 22:36–22:44</span></div><span class="sub xs">dashboard</span></div>
+        <div class="lrow"><span class="chip r xs">Delete</span><div><b>Reyner</b> bulk-deleted drafts in Drafts <span class="btn ghost sm">Details</span></div><span class="sub xs">22:36 · dashboard</span></div>
+        <div class="lrow"><span class="chip p xs">Generator</span><div><b>Reyner</b> started a story session for <b>@manisky.id</b> <span class="sub xs">· 4 times today (15:00, 15:12, 15:54, 22:11)</span></div><span class="sub xs">dashboard</span></div>
+      </div>
+    </div></div>
+    <ul class="legend"><li><span class="pin">1</span><span>Health status is a chip with an explanation. Stat cards are removed (they live on Home). Repeated events collapse.</span></li></ul>
+  </div>
+</section>
+
+<!-- ======================= SETTINGS ======================= -->
+<section class="stack-lg" id="settings">
+  <div class="section-head"><span class="eyebrow">Personal</span><h2>Personal Settings</h2><p class="why">The breadcrumb, eyebrow and sidebar each name this page differently. It only holds AI keys, and the cards have different heights. Password and profile belong here too.</p></div>
+  <div class="mock-block" id="ST1">
+    <div class="mock-head"><span class="id">ST1</span><h3>Profile · Security · AI connections</h3></div>
+    <div class="frame"><div class="app col">
+      <h4>Personal Settings</h4>
+      <div class="tabs"><span>Profile</span><span>Security</span><span class="on">AI connections <b>2</b></span><span>Notifications</span></div>
+      <div class="card" style="overflow:hidden"><table class="mt">
+        <tr><th>Provider</th><th>Status</th><th>Used by agents</th><th>Saved</th><th></th></tr>
+        <tr><td><b>OpenAI</b><div class="sub xs">ChatGPT models, GPT Image</div></td><td><span class="chip g"><i class="i i-check"></i>Connected · test passed 19 Oct</span></td><td><span class="sub xs">Concept, Reviewer, Visual, Image, Final</span></td><td class="sub xs">Mon, 19 Oct 14:02</td><td><div class="row"><span class="btn sm">Test</span><span class="btn sm">Replace</span><span class="btn sm danger">Remove</span></div></td></tr>
+        <tr><td><b>Google Gemini</b></td><td><span class="chip g"><i class="i i-check"></i>Connected · 22 models</span></td><td><span class="sub xs">Scheduler</span></td><td class="sub xs">Tue, 20 Oct 13:42</td><td><div class="row"><span class="btn sm">Test</span><span class="btn sm">Replace</span><span class="btn sm danger">Remove</span></div></td></tr>
+        <tr><td><b>Anthropic</b><div class="sub xs">Claude</div></td><td><span class="chip">No key yet</span></td><td class="sub xs">-</td><td></td><td><div class="row"><span class="input ph" style="min-height:30px;width:200px">sk-ant-…</span><span class="btn sm pri">Save</span></div></td></tr>
+      </table></div>
+      <span class="sub xs">Keys are stored encrypted and never shown again. Costs follow the provider's rates. Models per agent are set in Content Generator &gt; AI team.</span>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= LOGIN ======================= -->
+<section class="stack-lg" id="login">
+  <div class="section-head"><span class="eyebrow">Public</span><h2>Sign in</h2><p class="why">On first load, <code>app.css</code> failed with a connection reset and the page rendered unstyled. After a successful sign-in, the "wrong email or password" toast stayed on screen. Errors belong under the field, and the page needs inline critical CSS.</p></div>
+  <div class="mock-block" id="L1">
+    <div class="mock-head"><span class="id">L1</span><h3>Sign in with inline error and loading state</h3></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="login">
+      <div class="l">
+        <div style="font-weight:800;font-size:20px">LRM<span style="color:var(--m-green)">smm</span></div>
+        <div class="col s"><h4>Welcome back</h4><span class="sub">Sign in to manage Instagram and Threads content for every brand.</span></div>
+        <div class="col s"><span class="flabel">Email</span><div class="input">superadmin@gmail.com</div></div>
+        <div class="col s"><span class="flabel">Password</span><div class="input err">••••••••<span class="sub xs" style="margin-left:auto">Show</span></div><span class="xs er" style="font-weight:600">Wrong email or password. 4 attempts left. <span class="pin s">1</span></span></div>
+        <span class="btn pri lg">Sign in</span>
+        <span class="sub xs"><i class="i i-lock"></i> Encrypted connection · Meta tokens stored with AES-256</span>
+      </div>
+      <div class="r">
+        <b style="font-size:20px;color:#fff">One place for every social account</b>
+        <div class="col s"><b style="color:#fff"><i class="i i-spark"></i> Content Generator</b><span style="font-size:12.5px;opacity:.8">From brief to dozens of review-ready drafts, matched to each account's Brand Kit.</span></div>
+        <div class="col s"><b style="color:#fff"><i class="i i-cal"></i> Calendar and scheduling</b><span style="font-size:12.5px;opacity:.8">Write once, publish to Instagram and Threads.</span></div>
+        <div class="col s"><b style="color:#fff"><i class="i i-chat"></i> One inbox</b><span style="font-size:12.5px;opacity:.8">Comments and DMs for every account, with a 5-minute reminder.</span></div>
+      </div>
+    </div></div></div>
+    <ul class="legend"><li><span class="pin">1</span><span>Auth errors render under the field and clear on input and on success. They are never toasts that outlive the page.</span></li></ul>
+  </div>
+</section>
+
+<p class="note">Built from a walkthrough on 20 Oct 2026 as Owner, plus a read of the public front-end bundle. Nothing was generated, approved or deleted during the review. The password dots in L1 are a standard masked field, not decoration.</p>
+</div>

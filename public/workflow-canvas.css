@@ -62,8 +62,8 @@
 .generator-node-page .workflow-setup{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:0}
 .generator-node-page .workflow-setup>.panel{padding:12px 14px;align-self:start;border-radius:12px}
 .generator-account-picker>summary,.generator-schedule-picker>summary{display:flex;align-items:center;gap:10px;min-height:24px;cursor:pointer;list-style:none}
-.generator-account-picker>summary::before,.generator-schedule-picker>summary::before{content:'›';color:#64748b;font-size:18px;flex:none}
-.generator-account-picker[open]>summary::before,.generator-schedule-picker[open]>summary::before{transform:rotate(90deg)}
+.generator-account-picker>summary::before,.generator-schedule-picker>summary::before{content:'';width:7px;height:7px;border-right:2px solid #64748b;border-bottom:2px solid #64748b;transform:rotate(-45deg);flex:none}
+.generator-account-picker[open]>summary::before,.generator-schedule-picker[open]>summary::before{transform:rotate(45deg)}
 .generator-account-picker>summary::-webkit-details-marker,.generator-schedule-picker>summary::-webkit-details-marker{display:none}
 .generator-account-summary,.generator-schedule-summary{font-size:12px;font-weight:400;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .generator-account-controls{display:flex;align-items:end;gap:8px;margin-top:10px}
