@@ -1796,7 +1796,7 @@ async function pageAdmin() {
     body));
 }
 
-const draftPages=createDraftPages({h,api,ui,icon,avatar,state,isOwner,shell,pagehead,modal,confirmDialog,inputDialog,toast,errMsg,go,fmtDay,fmtTime,fmtSlot,fmtRange,ago,wibInput,wibIso,reload:()=>route()});
+const draftPages=createDraftPages({h,api,ui,icon,avatar,state,isOwner,shell,pagehead,modal,confirmDialog,inputDialog,pickMedia,toast,errMsg,go,fmtDay,fmtTime,fmtSlot,fmtRange,ago,wibInput,wibIso,reload:()=>route()});
 
 // ---------------- router ----------------
 let pageCleanup = null;

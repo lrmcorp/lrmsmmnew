@@ -1,7 +1,7 @@
 import { t as defaultT } from './strings.en.js';
 
 const zone = 'Asia/Jakarta';
-const states = new Set(['planned', 'queued', 'running', 'concept_review', 'review', 'failed', 'approved', 'drafted', 'cancelled']);
+const states = new Set(['planned', 'queued', 'running', 'concept_review', 'review', 'failed', 'approved', 'drafted', 'cancelled', 'published', 'scheduled']);
 const wibParts = iso => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
@@ -15,9 +15,14 @@ const monthKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
 const monthDays = (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate();
 
 // onMove receives the run and a YYYY-MM-DD date in Asia/Jakarta.
-export function renderRunCalendar({ h, runs = [], onSelect, onMove, icon, t = defaultT } = {}) {
-  const scheduled = runs.filter(run => wibParts(run.scheduled_at));
-  const first = scheduled.map(run => wibParts(run.scheduled_at).date).sort()[0];
+export function renderRunCalendar({ h, runs = [], contextPosts = [], onSelect, onMove, icon, t = defaultT, subtitle = '' } = {}) {
+  const allEntries = [
+    ...runs,
+    ...contextPosts.map(p => ({ ...p, otherSession: true }))
+  ];
+  const scheduled = allEntries.filter(run => wibParts(run.scheduled_at));
+  const sessionScheduled = runs.filter(run => wibParts(run.scheduled_at));
+  const first = (sessionScheduled.length ? sessionScheduled : scheduled).map(run => wibParts(run.scheduled_at).date).sort()[0];
   const now = wibParts(new Date().toISOString()).date;
   const initial = first || now;
   let year = Number(initial.slice(0, 4)), month = Number(initial.slice(5, 7));
@@ -25,6 +30,7 @@ export function renderRunCalendar({ h, runs = [], onSelect, onMove, icon, t = de
 
   const root = h('section', { class: 'draft-run-calendar', 'aria-label': t('view.calendar') });
   const title = h('h2', { class: 'draft-run-calendar-title' });
+  const subEl = subtitle ? h('span', { class: 'draft-run-calendar-sub' }, subtitle) : null;
   const grid = h('div', { class: 'draft-run-calendar-grid' });
   const feedback = h('p', { class: 'draft-run-calendar-feedback', role: 'status', 'aria-live': 'polite' });
   const moveTitle = h('h3');
@@ -34,15 +40,31 @@ export function renderRunCalendar({ h, runs = [], onSelect, onMove, icon, t = de
     if (!moving || !dateInput.value || saving) return;
     await move(moving, dateInput.value);
   } }, moveTitle, dateInput,
-  h('button', { type: 'submit', class: 'btn primary' }, t('draft.cal.move.save')),
-  h('button', { type: 'button', class: 'btn', onclick: closeMove }, t('draft.cal.move.cancel')));
+  h('button', { type: 'submit', class: 'btn primary sm' }, t('draft.cal.move.save')),
+  h('button', { type: 'button', class: 'btn sm', onclick: closeMove }, t('draft.cal.move.cancel')));
   const previous = h('button', { type: 'button', class: 'btn sm', 'aria-label': t('draft.cal.previous'),
     onclick: () => changeMonth(-1) }, icon('chevron-left'));
   const next = h('button', { type: 'button', class: 'btn sm', 'aria-label': t('draft.cal.next'),
     onclick: () => changeMonth(1) }, icon('chevron-right'));
-  root.append(h('div', { class: 'draft-run-calendar-toolbar' }, title,
-    h('div', { class: 'draft-run-calendar-navigation' }, previous, next)), feedback, moveForm, grid,
-    h('p', { class: 'draft-run-calendar-hint' }, t('draft.cal.hint.keyboard')));
+
+  const legend = h('div', { class: 'draft-run-calendar-legend' },
+    h('span', { class: 'draft-cal-legend-pill draft-cal-legend-item is-draft' }, t('draft.cal.legend.draft')),
+    h('span', { class: 'draft-cal-legend-pill draft-cal-legend-item is-approved' }, t('draft.cal.legend.approved')),
+    h('span', { class: 'draft-cal-legend-pill draft-cal-legend-item is-other' }, t('draft.cal.legend.published')),
+    h('span', { class: 'draft-cal-legend-pill draft-cal-legend-item is-failed' }, t('draft.cal.legend.failed')),
+    h('span', { class: 'draft-run-calendar-hint' }, '· ' + t('draft.cal.hint'))
+  );
+
+  root.append(
+    h('div', { class: 'draft-run-calendar-toolbar' },
+      h('div', { class: 'draft-run-calendar-head' }, title, subEl),
+      h('div', { class: 'draft-run-calendar-navigation' }, previous, next)
+    ),
+    feedback,
+    moveForm,
+    grid,
+    legend
+  );
 
   function closeMove() {
     const trigger = moving?.trigger;
@@ -92,15 +114,34 @@ export function renderRunCalendar({ h, runs = [], onSelect, onMove, icon, t = de
     const slot = wibParts(run.scheduled_at);
     const status = states.has(run.status) ? run.status : 'planned';
     const statusLabel = t('draft.cal.status.' + status);
-    const label = t('draft.cal.event', { title: run.title || run.brief || t('draft.title'), status: statusLabel, time: slot.time });
-    const event = h('div', { class: `draft-run-calendar-event state-${status}${run.otherSession ? ' is-other' : ''}`,
-      draggable: !!onMove && !run.otherSession, 'data-run-id': run.id,
-      ondragstart: e => { dragging = run.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(run.id)); },
+    const displayTitle = run.accountShort
+      ? `${run.accountShort} · ${run.title || run.brief || t('draft.title')}`
+      : (run.title || run.brief || t('draft.title'));
+    const label = t('draft.cal.event', { title: displayTitle, status: statusLabel, time: slot.time });
+    const event = h('div', { class: `draft-run-calendar-event draft-run-event state-${status}${run.otherSession ? ' is-other state-published' : ''}`,
+      draggable: !!(onMove && !run.otherSession), 'data-run-id': run.id,
+      onkeydown: e => {
+        if (!onMove || run.otherSession || !e.altKey) return;
+        const delta = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!delta) return;
+        e.preventDefault();
+        const nextDay = new Date(Date.parse(slot.date + 'T00:00:00Z') + delta * 86400000).toISOString().slice(0, 10);
+        move(run, nextDay);
+      },
+      ondragstart: e => {
+        if (run.otherSession) return;
+        dragging = run.id;
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(run.id));
+        }
+      },
       ondragend: () => { dragging = null; } },
       h('button', { type: 'button', class: 'draft-run-calendar-select', 'aria-label': label,
-        onclick: () => onSelect?.(run) },
+        disabled: !!run.otherSession,
+        onclick: () => { if (!run.otherSession) onSelect?.(run); } },
         h('span', { class: 'draft-run-calendar-event-time' }, slot.time),
-        h('span', { class: 'draft-run-calendar-event-title' }, run.title || run.brief || t('draft.title')),
+        h('span', { class: 'draft-run-calendar-event-title' }, displayTitle),
         h('span', { class: 'draft-run-calendar-event-status' }, statusLabel)),
       onMove && !run.otherSession ? h('button', { type: 'button', class: 'draft-run-calendar-move-button',
         'aria-label': `${t('draft.cal.move')}: ${run.title || run.brief || t('draft.title')}`,
@@ -112,7 +153,7 @@ export function renderRunCalendar({ h, runs = [], onSelect, onMove, icon, t = de
       .format(new Date(Date.UTC(year, month - 1, 1)));
     title.textContent = t('draft.cal.month', { month: monthName, year });
     const byDay = new Map();
-    for (const run of scheduled) {
+    for (const run of allEntries) {
       const day = wibParts(run.scheduled_at)?.date;
       if (day && day.startsWith(monthKey(year, month))) {
         if (!byDay.has(day)) byDay.set(day, []);
@@ -134,8 +175,14 @@ export function renderRunCalendar({ h, runs = [], onSelect, onMove, icon, t = de
       const events = (byDay.get(day) || []).sort((a, b) => String(a.scheduled_at).localeCompare(String(b.scheduled_at)));
       return h('div', { class: `draft-run-calendar-day${inMonth ? '' : ' is-outside'}`,
         'data-date': day, 'aria-label': new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date),
-        ondragover: e => { if (dragging) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } },
-        ondrop: e => { e.preventDefault(); const run = runs.find(item => String(item.id) === String(dragging)); dragging = null; if (run) move(run, day); } },
+        ondragover: e => { if (dragging) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; } },
+        ondrop: e => {
+          e.preventDefault();
+          const dragId = dragging || e.dataTransfer?.getData('text/plain');
+          const run = runs.find(item => String(item.id) === String(dragId));
+          dragging = null;
+          if (run) move(run, day);
+        } },
         h('span', { class: 'draft-run-calendar-day-number' }, date.getUTCDate()),
         ...events.map(eventNode));
     });
