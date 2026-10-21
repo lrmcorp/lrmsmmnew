@@ -1,4 +1,6 @@
 // Real application + temporary database; no provider or production requests.
+function reportCIError(error){const message=String(error?.stack||error).replace(/%/g,'%25').replace(/\r/g,'%0D').replace(/\n/g,'%0A');if(process.env.GITHUB_ACTIONS)console.error('::error title=Browser workflow failure::'+message);}
+process.on('unhandledRejection',error=>{reportCIError(error);console.error(error);process.exit(1);});
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 (async()=>{
@@ -58,6 +60,6 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
   const repResponse=await fetch(base+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:rep.email,password:'fixture-password'})}),sid=repResponse.headers.get('set-cookie').split(';')[0].split('=')[1],repContext=await browser.newContext({viewport:{width:375,height:812}});await repContext.addCookies([{name:'lrmsmm_sid',value:sid,url:base}]);const rp=await repContext.newPage();await rp.goto(base+'/#/_ui');await rp.waitForURL(base+'/#/');await rp.getByRole('heading',{name:'Halo, Devon',exact:true}).waitFor();assert.equal(await rp.getByRole('link',{name:t('nav.team'),exact:true}).count(),0);await rp.goto(base+'/#/generator/drafts/'+ready.id);await rp.getByText('Sesi tidak ditemukan',{exact:true}).waitFor();await repContext.close();
   const fallback=await browser.newContext({viewport:{width:375,height:812}}),fp=await fallback.newPage();let attempts=0;await fp.route('**/app.css*',r=>{attempts++;r.abort();});await fp.goto(base+'/#/login');await fp.getByRole('heading',{name:t('login.title'),exact:true}).waitFor();await fp.waitForTimeout(250);assert.equal(attempts,2);assert.ok((await fp.getByLabel(t('login.email'),{exact:true}).boundingBox()).width>200);await fp.screenshot({path:'/tmp/redesign-login-fallback-375.png',fullPage:true});await fallback.close();
   for(const route of ['/','/generator','/generator/drafts','/calendar'])await page.evaluate(route=>location.hash=route,route);await page.waitForFunction(()=>document.querySelector('.crumb b')?.textContent==='Kalender Konten');assert.deepEqual(errors,[]);console.log('PASS redesign auth, scope keyboard, paid cancel, bulk delete cancel, autosave flush, bulk approval, retained approved, generator summary, mobile375/390, all menus, Representative guards, CSS fallback and route race');
- }catch(e){console.error(e);console.error((await page.locator('body').innerText()).slice(0,3500));await screenshot('failure');process.exitCode=1;}
+ }catch(e){reportCIError(e);console.error(e);console.error((await page.locator('body').innerText()).slice(0,3500));await screenshot('failure');process.exitCode=1;}
  finally{await browser.close();await new Promise(r=>server.close(r));fs.rmSync(tmp,{recursive:true,force:true});}
 })();
