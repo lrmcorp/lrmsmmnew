@@ -4,3 +4,6 @@ data/
 *.db*
 __pycache__/
 out/
+
+# Local development dependency symlink.
+node_modules

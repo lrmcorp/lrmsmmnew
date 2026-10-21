@@ -26,11 +26,26 @@ jobs:
       - name: Install video test prerequisite
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - run: npm ci
+      - name: Bahasa Indonesia UI and SVG-only icons
+        run: |
+          node scripts/check-ui-language.mjs
+          node scripts/check-no-emoji.mjs
       - run: npm test
+      - name: Browser workflow and responsive checks
+        run: |
+          npm install --prefix "$RUNNER_TEMP/lrmsmm-browser-tools" --no-save --ignore-scripts playwright@1.56.1
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/lrmsmm-browser-tools/node_modules/playwright" CHROMIUM_PATH="$(command -v google-chrome)" node --no-warnings test/redesign-browser.cjs
+      - name: Upload browser review screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: redesign-browser-screenshots
+          path: /tmp/redesign-*.png
+          if-no-files-found: ignore
       - name: Deployment boundary and closed initial setup tests
         run: |
           python3 -m unittest discover -s deploy/tests -v
-          node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js
+          node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js
 
   deploy:
     needs: test
@@ -66,7 +81,7 @@ jobs:
           IMAGE: ghcr.io/lrmcorp/lrmsmmnew:${{ github.sha }}
         run: |
           docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings test/e2e.js
-          docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js
+          docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js
       - name: Publish tested image
         id: publish
         env:
@@ -87,6 +102,12 @@ jobs:
           REGISTRY_ACTOR: ${{ github.actor }}
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 deploy/ssh-client.py
+      - name: Verify public application health
+        if: vars.ENABLE_VPS_DEPLOY == 'true'
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors --max-time 20 https://lrmsosmed.playgo.id/healthz
+          curl --fail --silent --show-error --max-time 20 https://lrmsosmed.playgo.id/content-workspace.js -o /tmp/deployed-content-workspace.js
+          cmp public/content-workspace.js /tmp/deployed-content-workspace.js
       - name: Deployment pending setup
         if: vars.ENABLE_VPS_DEPLOY != 'true'
         run: echo 'Image published. VPS deployment is disabled until its dedicated SSH secrets and ENABLE_VPS_DEPLOY=true are configured.' >> "$GITHUB_STEP_SUMMARY"

@@ -337,7 +337,8 @@ export function listPlans(user) {
 }
 export function startPlanned(user, rid) {
   const r = rawRun(user, rid);
-  for (const a of Object.values(parseJSON(r.agents,{}))) keyOf(user.id, a.provider);
+  const agents = parseJSON(r.agents,{});
+  for (const role of ['concept','revision']) keyOf(user.id, agents[role].provider);
   if (!run("UPDATE generator_runs SET status='queued',updated_at=? WHERE id=? AND status='planned'", now(), rid).changes) throw err(409, 'generator_state', 'Konten ini sudah diproses.');
   return getRun(user, rid);
 }

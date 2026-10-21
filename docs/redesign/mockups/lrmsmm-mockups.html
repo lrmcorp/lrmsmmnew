@@ -1,0 +1,1464 @@
+<title>LRMsmm Redesign Mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: reading column for notes; each mockup sits in its own horizontal-scroll frame rendered as the light product UI. Sticky index on top. */
+:root{
+  --bg:#f5f6f4; --surface:#ffffff; --fg:#17201c; --muted:#5a6660; --line:#dde3df;
+  --accent:#0d6b4f; --accent-soft:#e3f2eb; --warn:#9a4a07; --warn-soft:#fdf1e2; --crit:#b42318; --crit-soft:#fdeceb;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --f-app:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  /* product palette (mockups always light, like the real app) */
+  --m-bg:#f3f4f3; --m-card:#ffffff; --m-fg:#101828; --m-muted:#667085; --m-line:#e4e7ec; --m-side:#fafbfa;
+  --m-green:#0b6b4b; --m-green-2:#0f8a61; --m-green-soft:#e6f4ed; --m-amber:#b54708; --m-amber-soft:#fef4e6;
+  --m-red:#b42318; --m-red-soft:#fef0ef; --m-blue:#175cd3; --m-blue-soft:#eef4ff; --m-ink-soft:#f2f4f7; --m-purple:#6941c6; --m-purple-soft:#f4f0ff;
+  --pin:#e8590c;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1311; --surface:#151c19; --fg:#e6ece9; --muted:#9aa8a1; --line:#27312c;
+  --accent:#5fd0a5; --accent-soft:#183128; --warn:#f0a24f; --warn-soft:#2e2215; --crit:#f28b82; --crit-soft:#331b1a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1311; --surface:#151c19; --fg:#e6ece9; --muted:#9aa8a1; --line:#27312c;
+  --accent:#5fd0a5; --accent-soft:#183128; --warn:#f0a24f; --warn-soft:#2e2215; --crit:#f28b82; --crit-soft:#331b1a; color-scheme:dark}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.6;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 80px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:64px}
+h1,h2,h3{text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(30px,4vw,42px);font-weight:700;letter-spacing:-.02em}
+h2{font-size:28px;font-weight:700;letter-spacing:-.01em}
+h3{font-size:18px;font-weight:600}
+p{margin:0}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.lede{font-size:18px;color:var(--muted);max-width:70ch}
+.stack{display:flex;flex-direction:column;gap:14px}
+.stack-lg{display:flex;flex-direction:column;gap:40px}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+a{color:var(--accent)}
+
+.index{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-left,0px))}
+.index-in{max-width:1240px;margin:0 auto;display:flex;gap:6px;overflow-x:auto;scrollbar-width:thin}
+.index a{flex:none;font-family:var(--f-mono);font-size:12.5px;text-decoration:none;color:var(--fg);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 11px;white-space:nowrap}
+.index a:hover,.index a:focus-visible{border-color:var(--accent);color:var(--accent);outline:none}
+header.top{padding-top:40px}
+
+.section-head{display:flex;flex-direction:column;gap:8px;border-top:2px solid var(--fg);padding-top:16px}
+.toc{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.toc a{display:flex;gap:10px;align-items:baseline;text-decoration:none;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px}
+.toc a b{font-family:var(--f-mono);font-size:12px;color:var(--accent);flex:none}
+
+.mock-block{display:flex;flex-direction:column;gap:14px;scroll-margin-top:70px}
+.mock-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.mock-head .id{font-family:var(--f-mono);font-size:13px;font-weight:500;color:#fff;background:var(--accent);border-radius:5px;padding:1px 7px}
+.mock-head .tag{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.why{color:var(--muted);font-size:15px;max-width:80ch}
+.frame{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--m-bg)}
+.frame.center{display:flex;justify-content:center;gap:28px;flex-wrap:wrap;padding:24px}
+.legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 28px;font-size:14.5px;margin:0;padding:0;list-style:none}
+.legend li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;align-items:start}
+.legend .pin{margin-top:2px}
+.note{font-size:13.5px;color:var(--muted)}
+@media (max-width:760px){.legend{grid-template-columns:minmax(0,1fr)}}
+
+/* ============ PRODUCT UI (light) ============ */
+.app{font-family:var(--f-app);color:var(--m-fg);background:var(--m-bg);font-size:13px;line-height:1.45;padding:22px 24px;min-width:1080px}
+.app.wide{min-width:1240px;padding:0}
+.app.narrow{min-width:0;width:100%;max-width:760px;margin:0 auto}
+.app.mobile{min-width:0;width:375px;flex:none;padding:0;border-radius:30px;overflow:hidden;border:8px solid #1d2420;background:var(--m-bg)}
+.app *{box-sizing:border-box}
+.app h4{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+.app h5{margin:0;font-size:14.5px;font-weight:700;line-height:1.3}
+.app h6{margin:0;font-size:13px;font-weight:700}
+.app .sub{color:var(--m-muted);font-size:12.5px}
+.app .xs{font-size:11px}
+.app .muted{color:var(--m-muted)}
+.app .row{display:flex;align-items:center;gap:8px}
+.app .row.wrap{flex-wrap:wrap}
+.app .between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.app .col{display:flex;flex-direction:column;gap:10px}
+.app .col.s{gap:4px}.app .col.l{gap:16px}.app .col.xl{gap:22px}
+.app .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.app .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.app .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.app .g5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.app .grow{flex:1;min-width:0}
+.app .card{background:var(--m-card);border:1px solid var(--m-line);border-radius:12px}
+.app .pad{padding:18px 20px}
+.app .pad-s{padding:12px 14px}
+.app .btn{font:inherit;font-weight:600;font-size:12.5px;border-radius:8px;padding:8px 13px;border:1px solid var(--m-line);background:var(--m-card);color:var(--m-fg);display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.app .btn.pri{background:var(--m-green);border-color:var(--m-green);color:#fff}
+.app .btn.ghost{border-color:transparent;background:transparent;color:var(--m-green);padding-inline:4px}
+.app .btn.lg{padding:12px 18px;font-size:14px;border-radius:10px}
+.app .btn.sm{padding:5px 9px;font-size:11.5px}
+.app .btn.danger{color:var(--m-red)}
+.app .btn.dangerfill{background:var(--m-red);border-color:var(--m-red);color:#fff}
+.app .btn.dis{background:var(--m-ink-soft);border-color:var(--m-line);color:#98a2b3}
+.app .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--m-ink-soft);color:#344054;white-space:nowrap}
+.app .chip.g{background:var(--m-green-soft);color:var(--m-green)}
+.app .chip.a{background:var(--m-amber-soft);color:var(--m-amber)}
+.app .chip.b{background:var(--m-blue-soft);color:var(--m-blue)}
+.app .chip.r{background:var(--m-red-soft);color:var(--m-red)}
+.app .chip.p{background:var(--m-purple-soft);color:var(--m-purple)}
+.app .chip.o{background:transparent;border:1px solid var(--m-line)}
+.app .chip.sel{background:var(--m-fg);color:#fff}
+.app .dot{width:7px;height:7px;border-radius:50%;display:inline-block;background:currentColor;flex:none}
+.app .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex:none}
+.app .av.s{width:20px;height:20px;font-size:8px}
+.app .av.l{width:48px;height:48px;font-size:15px}
+.app .avs{display:flex}.app .avs .av{border:2px solid #fff;margin-left:-7px}.app .avs .av:first-child{margin-left:0}
+.c1{background:#c2410c}.c2{background:#7c3aed}.c3{background:#db2777}.c4{background:#0891b2}.c5{background:#4d7c0f}.c6{background:#475467}
+.app .label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--m-muted)}
+.app .flabel{font-size:12px;font-weight:600;color:#344054}
+.app .input{border:1px solid var(--m-line);border-radius:8px;background:#fff;padding:8px 10px;font-size:12.5px;color:var(--m-fg);display:flex;align-items:center;gap:6px;min-height:36px}
+.app .input.ph{color:#98a2b3}
+.app .input.focus{border-color:#7cc4a3;box-shadow:0 0 0 3px #e6f4ed}
+.app .input.err{border-color:#f04438;box-shadow:0 0 0 3px #fee4e2}
+.app .inl{display:inline-flex;padding:2px 8px;font-weight:700;color:var(--m-green);background:var(--m-green-soft);border:1px solid #bfe3d2;border-radius:6px}
+.app .ta{border:1px solid var(--m-line);border-radius:10px;padding:12px 14px;min-height:88px;background:#fff;font-size:13px;color:var(--m-fg)}
+.app .ta.focus{border-color:#7cc4a3;box-shadow:0 0 0 3px #e6f4ed}
+.app .hr{height:1px;background:var(--m-line);flex:none}
+.app .vr{width:1px;align-self:stretch;background:var(--m-line)}
+.app .step{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px}
+.app .num{width:26px;height:26px;border-radius:50%;background:var(--m-green);color:#fff;font-weight:700;font-size:12px;display:grid;place-items:center}
+.app .num.done{background:var(--m-green-soft);color:var(--m-green)}
+.app .num.off{background:var(--m-ink-soft);color:#98a2b3}
+.app .seg{display:inline-flex;padding:3px;border-radius:10px;background:var(--m-ink-soft);gap:3px}
+.app .seg span{padding:6px 12px;border-radius:8px;font-weight:600;font-size:12.5px;color:var(--m-muted);white-space:nowrap}
+.app .seg span.on{background:#fff;color:var(--m-fg);box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.app .tabs{display:flex;gap:20px;border-bottom:1px solid var(--m-line)}
+.app .tabs span{padding:10px 0;font-weight:600;color:var(--m-muted);font-size:13px;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.app .tabs span.on{color:var(--m-fg);box-shadow:inset 0 -2px 0 var(--m-green)}
+.app .tabs b{font-size:11px;background:var(--m-ink-soft);border-radius:99px;padding:1px 7px;color:#344054}
+.app .tabs .on b{background:var(--m-green);color:#fff}
+.app .thumb{border-radius:8px;position:relative;overflow:hidden;flex:none}
+.t1{background:linear-gradient(135deg,#f7d9d4,#e9a8a0)}.t2{background:linear-gradient(135deg,#efe3d0,#c9a77c)}.t3{background:linear-gradient(135deg,#dde7f3,#9fb6d6)}
+.t4{background:linear-gradient(135deg,#e8dff1,#b49bd0)}.t5{background:linear-gradient(135deg,#dff0e6,#93c9a9)}.t6{background:linear-gradient(135deg,#f6ecd2,#e2c26b)}
+.tplan{background:repeating-linear-gradient(45deg,#f2f4f7 0 8px,#e9ecf0 8px 16px)}
+.tfail{background:var(--m-red-soft)}
+.app .badge-n{position:absolute;right:4px;top:4px;background:rgba(16,24,40,.72);color:#fff;font-size:9.5px;font-weight:700;border-radius:4px;padding:1px 4px}
+.app .bar{height:8px;border-radius:99px;background:var(--m-ink-soft);display:flex;overflow:hidden}
+.app .bar i{display:block;height:100%}
+.app .check{width:16px;height:16px;border-radius:4px;border:1.5px solid #98a2b3;background:#fff;flex:none;display:grid;place-items:center;font-size:10px;color:#fff;font-weight:800}
+.app .check.on{background:var(--m-green);border-color:var(--m-green)}
+.app .radio{width:16px;height:16px;border-radius:50%;border:1.5px solid #98a2b3;background:#fff;flex:none}
+.app .radio.on{border:5px solid var(--m-green)}
+.app .tog{width:30px;height:18px;border-radius:99px;background:#d0d5dd;position:relative;flex:none}
+.app .tog::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px}
+.app .tog.on{background:var(--m-green)}.app .tog.on::after{left:14px}
+.app .ok{color:var(--m-green);font-weight:800}.app .wa{color:var(--m-amber);font-weight:800}.app .er{color:var(--m-red);font-weight:800}
+.app .callout{border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;font-size:12.5px}
+.app .callout.a{background:var(--m-amber-soft);border:1px solid #fbd9a7}
+.app .callout.b{background:var(--m-blue-soft);border:1px solid #c7d7fe}
+.app .callout.r{background:var(--m-red-soft);border:1px solid #fecdca}
+.app .callout.g{background:var(--m-green-soft);border:1px solid #bfe3d2}
+.app .kbd{font-family:var(--f-mono);font-size:10.5px;border:1px solid var(--m-line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:#fff;color:#344054}
+.app .mt{width:100%;border-collapse:collapse;font-size:12.5px}
+.app .mt th,.app .mt td{padding:9px 12px;border-bottom:1px solid var(--m-line);text-align:left;font-family:var(--f-app);vertical-align:middle}
+.app .mt th{font-size:10.5px;color:var(--m-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;background:#fafbfc}
+.app .mt tr:last-child td{border-bottom:none}
+.app .num-big{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.app .scrim{background:rgba(16,24,40,.45);padding:40px;display:grid;place-items:center;border-radius:0}
+.app .dlg{background:#fff;border-radius:14px;box-shadow:0 20px 40px rgba(16,24,40,.25);width:480px;max-width:100%;padding:22px;display:flex;flex-direction:column;gap:14px}
+.app .drawer-wrap{display:grid;grid-template-columns:minmax(0,1fr) 440px;background:rgba(16,24,40,.35)}
+.app .drawer{background:#fff;border-left:1px solid var(--m-line);padding:20px;display:flex;flex-direction:column;gap:14px;box-shadow:-10px 0 30px rgba(16,24,40,.12)}
+.app .ghostpage{opacity:.5;padding:22px 24px;pointer-events:none}
+.app .toast{background:#101828;color:#fff;border-radius:10px;padding:10px 14px;display:inline-flex;gap:10px;align-items:center;font-weight:600;font-size:12.5px;box-shadow:0 8px 20px rgba(16,24,40,.25)}
+.app .toast u{color:#6ce9a6}
+.app .phone{border:1px solid var(--m-line);border-radius:14px;overflow:hidden;background:#fff}
+.app .ig-h{display:flex;align-items:center;gap:8px;padding:10px 12px;font-weight:700;font-size:12px}
+.app .img{aspect-ratio:4/5;max-width:100%;display:grid;place-items:end center;padding-bottom:10px}
+.app .img.sq{aspect-ratio:1/1}
+.app .dots{display:flex;gap:4px}.app .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.6)}.app .dots i.on{background:#fff}
+.app .bulk{display:flex;align-items:center;gap:10px;background:#101828;color:#fff;border-radius:12px;padding:10px 14px;font-weight:600;font-size:12.5px}
+.app .bulk .btn{background:#1d2939;border-color:#344054;color:#fff}
+.app .bulk .btn.pri{background:var(--m-green-2);border-color:var(--m-green-2)}
+.app .pipe{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.app .pipe div{display:flex;flex-direction:column;gap:6px;font-size:11.5px;font-weight:600;color:var(--m-muted)}
+.app .pipe div i{height:6px;border-radius:99px;background:var(--m-ink-soft);display:block}
+.app .pipe .d,.app .pipe .w{color:var(--m-fg)}
+.app .pipe .d i{background:var(--m-green)}
+.app .pipe .w i{background:linear-gradient(90deg,var(--m-green) 40%,var(--m-ink-soft) 40%)}
+.app .pipe .f i{background:var(--m-red)}
+.app .spark{width:100%;height:46px;display:block}
+
+/* app shell */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:640px}
+.side{background:var(--m-side);border-right:1px solid var(--m-line);padding:16px 12px;display:flex;flex-direction:column;gap:14px}
+.side .logo{font-weight:800;font-size:18px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;padding:0 6px}
+.side .logo i{font-style:normal;color:var(--m-green)}
+.side .grp{display:flex;flex-direction:column;gap:2px}
+.side .grp > .label{padding:0 8px 4px}
+.side .it{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;font-weight:600;color:#344054;font-size:12.5px}
+.side .it.on{background:var(--m-green-soft);color:var(--m-green)}
+.side .it.subit{padding-left:30px;font-weight:500}
+.side .it .cnt{margin-left:auto;font-size:10.5px;font-weight:700;background:var(--m-amber-soft);color:var(--m-amber);border-radius:99px;padding:0 6px}
+.side .it .cnt.g{background:var(--m-green);color:#fff}
+.side .ic{width:16px;height:16px;border-radius:4px;border:1.6px solid currentColor;opacity:.7;flex:none}
+.topbar{display:flex;align-items:center;gap:10px;padding:12px 24px;border-bottom:1px solid var(--m-line);background:#fff}
+.main{padding:22px 24px;display:flex;flex-direction:column;gap:16px}
+
+/* specific */
+.apick{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ap{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px 0 4px;border:1.5px solid var(--m-line);border-radius:999px;background:#fff;font-weight:600;font-size:12.5px;white-space:nowrap;color:#344054}
+.ap.on{border-color:var(--m-green);background:var(--m-green-soft);color:var(--m-green)}
+.ap i{font-style:normal;font-weight:800}
+.ap .wdot{width:8px;height:8px;border-radius:50%;background:#f79009;flex:none}
+.ap.dis{opacity:.5}
+.ap.more{padding:0 12px;border-style:dashed;color:var(--m-muted)}
+.ap.focus{box-shadow:0 0 0 3px #bfe3d2}
+.acc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.acc{border:1.5px solid var(--m-line);border-radius:10px;padding:10px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px;align-items:center;background:#fff}
+.acc.on{border-color:var(--m-green);background:#f5fbf8}
+.acc.off{opacity:.55}
+.acc .h{font-weight:700;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sumrow{display:grid;grid-template-columns:90px minmax(0,1fr) auto;gap:8px;align-items:baseline;font-size:12.5px;padding:7px 0;border-bottom:1px dashed var(--m-line)}
+.sumrow:last-child{border-bottom:none}
+.ck{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;font-size:12.5px;align-items:start}
+.sess{display:grid;grid-template-columns:96px minmax(0,1.5fr) minmax(0,1.3fr) 150px;gap:18px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--m-line)}
+.sess:last-child{border-bottom:none}
+.stackthumb{position:relative;width:96px;height:64px}
+.stackthumb .thumb{position:absolute;width:56px;height:56px;border:2px solid #fff;box-shadow:0 1px 3px rgba(16,24,40,.15)}
+.day{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid var(--m-line)}
+.day:last-child{border-bottom:none}
+.day .dl{font-size:11.5px;font-weight:700;color:var(--m-muted);line-height:1.3}
+.day .dl b{display:block;font-size:20px;color:var(--m-fg);font-weight:800}
+.posts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.post{display:grid;grid-template-columns:auto 64px minmax(0,1fr);gap:10px;align-items:start;padding:8px;border:1.5px solid var(--m-line);border-radius:10px;background:#fff}
+.post.sel{border-color:var(--m-green);box-shadow:0 0 0 3px #e6f4ed}
+.post .cap{font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chapter{border:1px solid var(--m-line);border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:6px}
+.chapter.cur{border-color:var(--m-green);background:#f5fbf8}
+.eps{display:flex;gap:4px}
+.eps i{flex:1;height:6px;border-radius:99px;background:var(--m-ink-soft)}
+.eps i.d{background:var(--m-green)}.eps i.n{background:#9ad5bb}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--m-line);border-left:1px solid var(--m-line)}
+.cal > div{border-right:1px solid var(--m-line);border-bottom:1px solid var(--m-line);min-height:92px;padding:6px;display:flex;flex-direction:column;gap:4px;font-size:11px}
+.cal .dh{min-height:0;font-weight:700;color:var(--m-muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;background:#fafbfc}
+.cal .n{font-weight:700;font-size:12px}
+.cal .o{color:#c0c5cd}
+.cal .today .n{background:var(--m-green);color:#fff;border-radius:99px;width:22px;height:22px;display:grid;place-items:center}
+.ev{border-radius:6px;padding:3px 6px;font-size:10.5px;font-weight:600;display:flex;gap:4px;align-items:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ev.pub{background:var(--m-green-soft);color:var(--m-green)}
+.ev.sch{background:var(--m-blue-soft);color:var(--m-blue)}
+.ev.dr{background:#fff;border:1px dashed #98a2b3;color:#475467}
+.ev.fail{background:var(--m-red-soft);color:var(--m-red)}
+.chat{display:flex;flex-direction:column;gap:8px}
+.bub{max-width:72%;padding:8px 11px;border-radius:14px;font-size:12.5px}
+.bub.in{background:var(--m-ink-soft);align-self:flex-start;border-bottom-left-radius:4px}
+.bub.out{background:var(--m-green);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.lrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--m-line)}
+.lrow.on{background:#f5fbf8;box-shadow:inset 3px 0 0 var(--m-green)}
+.lrow:last-child{border-bottom:none}
+.media-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.media-grid .thumb{aspect-ratio:1/1;width:100%;max-width:100%}
+.mob-top{background:#fff;padding:14px 16px 10px;border-bottom:1px solid var(--m-line);display:flex;flex-direction:column;gap:8px}
+.mob-body{display:flex;flex-direction:column;gap:10px;padding:12px}
+.mob-bar{background:#fff;border-top:1px solid var(--m-line);padding:10px 12px 14px;display:flex;gap:8px}
+.login{display:grid;grid-template-columns:1fr 1fr;min-height:560px}
+.login .l{padding:48px;display:flex;flex-direction:column;gap:18px;justify-content:center;background:#fff}
+.login .r{background:#0e2a20;color:#e6f4ed;padding:48px;display:flex;flex-direction:column;gap:18px;justify-content:center}
+
+.pin{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--pin);color:#fff;font:700 11px/1 var(--f-mono);flex:none;box-shadow:0 0 0 3px rgba(232,89,12,.18);vertical-align:middle}
+.pin.s{width:16px;height:16px;font-size:9px}
+</style>
+
+<nav class="index" aria-label="Mockup index"><div class="index-in">
+  <a href="#shell">Shell</a><a href="#gen">Sosmed Generator</a><a href="#draft">Draft Konten</a><a href="#home">Beranda</a><a href="#compose">Tulis Post</a><a href="#calendar">Kalender</a><a href="#dm">Pesan</a><a href="#comments">Komentar</a><a href="#insights">Insights</a><a href="#accounts">Perusahaan &amp; Akun</a><a href="#brandkit">Brand Kit</a><a href="#media">Media</a><a href="#api">API &amp; AI</a><a href="#team">Tim &amp; Akses</a><a href="#audit">Jejak Audit</a><a href="#settings">Pengaturan</a><a href="#login">Login</a>
+</div></nav>
+
+<div class="wrap">
+<header class="top stack">
+  <span class="eyebrow">LRMsmm redesign · mockup set v2 · 20 Okt 2026</span>
+  <h1>Every menu, redrawn</h1>
+  <p class="lede">34 annotated screens covering every page in the sidebar, with most of the depth on Sosmed Generator and Draft Konten. Each screen has an ID (G1, D3, H1…) that the LLM instruction pack refers to. Orange pins match the numbered notes under each screen. Content is example data unless it says otherwise; accounts, the Manisky story and model names come from your workspace.</p>
+  <div class="toc">
+    <a href="#S1"><b>S1–S3</b>App shell · Dialogs · Account picker</a>
+    <a href="#G1"><b>G1–G10</b>Sosmed Generator</a>
+    <a href="#D1"><b>D1–D10</b>Draft Konten</a>
+    <a href="#H1"><b>H1</b>Beranda</a>
+    <a href="#C1"><b>C1</b>Tulis Post</a>
+    <a href="#K1"><b>K1–K2</b>Kalender</a>
+    <a href="#M1"><b>M1</b>Pesan (DM)</a>
+    <a href="#R1"><b>R1</b>Komentar</a>
+    <a href="#I1"><b>I1</b>Insights</a>
+    <a href="#A1"><b>A1</b>Perusahaan &amp; Akun</a>
+    <a href="#B1"><b>B1–B2</b>Brand Kit &amp; Cerita</a>
+    <a href="#ME1"><b>ME1</b>Pustaka Media</a>
+    <a href="#P1"><b>P1</b>API &amp; AI</a>
+    <a href="#T1"><b>T1</b>Tim &amp; Akses</a>
+    <a href="#J1"><b>J1</b>Jejak Audit</a>
+    <a href="#ST1"><b>ST1</b>Pengaturan pribadi</a>
+    <a href="#L1"><b>L1</b>Login</a>
+  </div>
+</header>
+
+<!-- ======================= SHELL ======================= -->
+<section class="stack-lg" id="shell">
+  <div class="section-head"><span class="eyebrow">Global</span><h2>App shell</h2><p class="why">The sidebar and top bar appear on every page, so fixing them helps everywhere. Today the breadcrumb is cut off at narrow widths ("Perusahaan &amp;.", "Pustaka Me"), the "Tulis Post" chip wraps onto two lines, every page repeats its group as an eyebrow chip ("OPERASIONAL"), and Draft Konten has no badge even when sessions need review.</p></div>
+
+  <div class="mock-block" id="S1">
+    <div class="mock-head"><span class="id">S1</span><h3>Sidebar + top bar</h3><span class="tag">1240px · applies to every page</span></div>
+    <div class="frame"><div class="app wide"><div class="shell">
+      <aside class="side">
+        <div class="logo">LRM<i>smm</i></div>
+        <div class="input ph" style="font-size:12px">⌕ Cari menu, akun, sesi… <span class="kbd" style="margin-left:auto">⌘K</span> <span class="pin s">1</span></div>
+        <div class="grp"><span class="label">Konten</span>
+          <div class="it"><span class="ic"></span>Beranda</div>
+          <div class="it on"><span class="ic"></span>Sosmed Generator</div>
+          <div class="it subit">Draft Konten <span class="cnt">2</span> <span class="pin s">2</span></div>
+          <div class="it"><span class="ic"></span>Tulis Post</div>
+          <div class="it"><span class="ic"></span>Kalender Konten</div>
+        </div>
+        <div class="grp"><span class="label">Interaksi</span>
+          <div class="it"><span class="ic"></span>Pesan (DM) <span class="cnt">3</span></div>
+          <div class="it"><span class="ic"></span>Komentar</div>
+          <div class="it"><span class="ic"></span>Insights</div>
+        </div>
+        <div class="grp"><span class="label">Pengaturan workspace <span class="pin s">3</span></span>
+          <div class="it"><span class="ic"></span>Perusahaan &amp; Akun</div>
+          <div class="it"><span class="ic"></span>Pustaka Media</div>
+          <div class="it"><span class="ic"></span>Tim &amp; Akses</div>
+          <div class="it"><span class="ic"></span>API &amp; AI</div>
+          <div class="it"><span class="ic"></span>Jejak Audit</div>
+        </div>
+        <div style="margin-top:auto" class="card pad-s row"><span class="av c6">RE</span><div class="grow"><b>Reyner</b><div class="sub xs">Owner · Pengaturan pribadi</div></div><span class="muted">⋯</span></div>
+      </aside>
+      <div>
+        <div class="topbar">
+          <span class="sub">Konten</span><span class="sub">/</span><b>Sosmed Generator</b> <span class="pin s">4</span>
+          <span class="grow"></span>
+          <span class="chip g"><span class="dot"></span>22.47 WIB</span>
+          <span class="btn sm">✎ Tulis Post</span>
+          <span class="btn sm">🔔 <span class="chip a" style="padding:0 6px">3</span></span>
+          <span class="av s c6">RE</span>
+        </div>
+        <div class="main">
+          <div class="between"><div class="col s"><h4>Sosmed Generator</h4><span class="sub">Pilih akun, tulis arahan, AI menyiapkan draft untuk Anda tinjau.</span></div><span class="btn">Draft Konten <span class="chip a">2 perlu ditinjau</span></span></div>
+          <div class="card pad" style="height:260px;display:grid;place-items:center;color:#98a2b3">page content</div>
+        </div>
+      </div>
+    </div></div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Global search (⌘K) moves from a small icon in the top bar into the sidebar, where people look for navigation. It searches pages, accounts and sessions.</span></li>
+      <li><span class="pin">2</span><span>Live counts on nav items: Draft Konten shows sessions waiting for review, and Pesan shows overdue DMs. The badge disappears at zero.</span></li>
+      <li><span class="pin">3</span><span>"Administrasi &amp; Integrasi" is renamed "Pengaturan workspace". "Pengaturan pribadi" moves into the user card menu.</span></li>
+      <li><span class="pin">4</span><span>The breadcrumb never truncates (it's shortened to the parent group). The page eyebrow chip is removed. Top bar chips keep a fixed height and never wrap.</span></li>
+    </ul>
+  </div>
+
+  <div class="mock-block" id="S2">
+    <div class="mock-head"><span class="id">S2</span><h3>Confirm dialog (replaces <code>confirm()</code> / <code>prompt()</code>)</h3><span class="tag">component · used by 22 call sites</span></div>
+    <p class="why">The app uses the browser's native <code>confirm()</code> 20 times and <code>prompt()</code> twice: for paid AI runs, deletes, slide revisions and alt text. Native dialogs can't show cost or context, look like system warnings, and are blocked in some embedded views. Use one in-app dialog component with three variants.</p>
+    <div class="frame"><div class="app" style="padding:0"><div class="scrim" style="grid-template-columns:repeat(3,auto);gap:20px;align-items:start">
+      <div class="dlg" style="width:330px">
+        <span class="chip b" style="align-self:flex-start">Biaya API</span>
+        <h5>Buat konsep 12 konten?</h5>
+        <p class="sub">Agen menulis konsep dan caption memakai API key Anda. Gambar baru dibuat setelah Anda menyetujui konsep.</p>
+        <div class="card pad-s col s" style="background:#fafbfc"><div class="between"><span class="sub">Konten</span><b>12</b></div><div class="between"><span class="sub">Tahap sekarang</span><b>Konsep + review</b></div><div class="between"><span class="sub">Model</span><b>GPT-4.1 · Seimbang</b></div></div>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Batal</span><span class="btn pri">Buat konsep</span></div>
+      </div>
+      <div class="dlg" style="width:330px">
+        <span class="chip r" style="align-self:flex-start">Tidak bisa dibatalkan</span>
+        <h5>Hapus 3 draft?</h5>
+        <p class="sub">Gambar yang tidak dipakai konten lain ikut dihapus. Draft yang sudah di kalender tidak terpengaruh.</p>
+        <div class="row"><span class="thumb t1" style="width:40px;height:40px"></span><span class="thumb t4" style="width:40px;height:40px"></span><span class="thumb t2" style="width:40px;height:40px"></span></div>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Batal</span><span class="btn dangerfill">Hapus 3 draft</span></div>
+      </div>
+      <div class="dlg" style="width:330px">
+        <span class="chip p" style="align-self:flex-start">Revisi slide 2</span>
+        <h5>Apa yang perlu diubah?</h5>
+        <div class="ta focus" style="min-height:70px">Pertahankan produk, ubah latar menjadi putih bersih.</div>
+        <div class="row wrap"><span class="chip o">Latar putih</span><span class="chip o">Lebih terang</span><span class="chip o">Tanpa teks</span><span class="chip o">Close-up produk</span></div>
+        <p class="sub xs">Hanya slide 2 dan final review yang dijalankan ulang. Biaya API berlaku.</p>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Batal</span><span class="btn pri">Revisi slide 2</span></div>
+      </div>
+    </div></div></div>
+  </div>
+
+  <div class="mock-block" id="S3">
+    <div class="mock-head"><span class="id">S3</span><h3>Account picker (one component everywhere)</h3><span class="tag">Generator · Tulis Post · filters · replaces stacked tiles and long brand-name pills</span></div>
+    <p class="why">Accounts are picked in one compact row of chips (avatar + @handle), never as a vertical stack of cards or full brand names like "Manisky Nails | your little nails obsession". The same component is used in Sosmed Generator, Tulis Post ("Akun tujuan") and every account filter.</p>
+    <div class="frame"><div class="app col xl">
+      <div class="col s"><span class="label">A · Inline row (≤ 8 akun) · multi-select <span class="pin s">1</span></span>
+        <div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i>✓</i></span><span class="ap on focus"><span class="av s c3">HB</span>@hannabeauty.kr<i>✓</i></span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span><span class="ap"><span class="av s c1">MS</span>@manisky.id</span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka<b class="wdot"></b></span><span class="sub" style="margin-left:6px">2 dipilih · <u>Pilih semua</u></span></div>
+        <div class="row" style="margin-left:150px"><span class="card pad-s xs" style="box-shadow:var(--shadow-pop,0 8px 20px rgba(16,24,40,.15))"><b>Hanna Beauty</b> · 2.769 pengikut · Brand Kit siap</span><span class="sub xs">← tooltip on hover/focus <span class="pin s">2</span></span></div>
+      </div>
+      <div class="hr"></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start">
+        <div class="col s"><span class="label">B · Banyak akun (&gt; 8) · ringkas + popover <span class="pin s">3</span></span>
+          <div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i>✓</i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i>✓</i></span><span class="ap on"><span class="av s c4">HN</span>@hannanails.id<i>✓</i></span><span class="ap more">+ 9 lainnya · ⌕ Cari akun</span></div>
+          <span class="sub xs">Chip terpilih tetap terlihat; sisanya di popover.</span>
+          <div class="col s" style="margin-top:12px"><span class="label">C · Mode cerita · single-select</span>
+            <div class="apick"><span class="ap on"><span class="av s c1">MS</span>@manisky.id · Ep. 13<i>✓</i></span><span class="ap"><span class="av s c2">MJ</span>@moonjasmine.id</span><span class="ap dis"><span class="av s c5">AJ</span>@anekajaya.asemka<b class="wdot"></b></span></div>
+          </div>
+        </div>
+        <div class="card col" style="padding:10px;box-shadow:0 12px 30px rgba(16,24,40,.15)">
+          <div class="input focus">⌕ Cari @handle atau nama brand</div>
+          <div class="between"><span class="label">LRM Corporation · 5</span><span class="btn ghost sm">Pilih semua</span></div>
+          <div class="row"><span class="check on">✓</span><span class="av s c2">MJ</span><b class="grow">@moonjasmine.id</b><span class="sub xs">2.322</span></div>
+          <div class="row"><span class="check on">✓</span><span class="av s c3">HB</span><b class="grow">@hannabeauty.kr</b><span class="sub xs">2.769</span></div>
+          <div class="row"><span class="check on">✓</span><span class="av s c4">HN</span><b class="grow">@hannanails.id</b><span class="sub xs">4.497</span></div>
+          <div class="row"><span class="check"></span><span class="av s c1">MS</span><b class="grow">@manisky.id</b><span class="sub xs">2.510</span></div>
+          <div class="row"><span class="check"></span><span class="av s c5">AJ</span><b class="grow">@anekajaya.asemka</b><span class="chip a xs">Brand Kit</span></div>
+          <div class="between"><span class="label">HR Group · 0</span><span class="sub xs">Belum ada akun</span></div>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div class="col s"><span class="label">D · Mobile · satu baris, geser horizontal <span class="pin s">4</span></span>
+        <div class="apick" style="flex-wrap:nowrap;overflow:hidden;width:343px;mask-image:linear-gradient(90deg,#000 85%,transparent)"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i>✓</i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i>✓</i></span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span></div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Chip = 32px pill with Meta profile photo (initials fallback) and @handle. Selected = green fill + ✓. Amber dot = Brand Kit missing (Generator only). Disabled = 50% opacity with reason in tooltip.</span></li>
+      <li><span class="pin">2</span><span>Full brand name, follower count and readiness live in the tooltip, not in the chip, so the row stays short.</span></li>
+      <li><span class="pin">3</span><span>With more than 8 accounts the row shows only selected chips plus "+ N lainnya · Cari akun", which opens a searchable, company-grouped checklist popover. It closes on outside click; no Selesai button.</span></li>
+      <li><span class="pin">4</span><span>On mobile the row never wraps into a stack: it scrolls horizontally, selected chips first.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= GENERATOR ======================= -->
+<section class="stack-lg" id="gen">
+  <div class="section-head"><span class="eyebrow">Focus page 1</span><h2>Sosmed Generator</h2><p class="why">One composer for both modes, every setting visible as plain language, a summary that does the maths, and a checklist that explains a disabled button. Ten screens cover each state: campaign, storyline, blocked, cost confirmation, running, finished, failed, agent settings, story bible and phone.</p></div>
+
+  <!-- G1 -->
+  <div class="mock-block" id="G1">
+    <div class="mock-head"><span class="id">G1</span><h3>Composer · Campaign baru · ready</h3><span class="tag">default state · 3 accounts selected</span></div>
+    <div class="frame"><div class="app">
+      <div class="between" style="margin-bottom:16px">
+        <div class="col s"><h4>Sosmed Generator</h4><span class="sub">Pilih akun, tulis arahan, AI menyiapkan draft untuk Anda tinjau.</span></div>
+        <span class="btn">Draft Konten <span class="chip a">2 perlu ditinjau</span></span>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start">
+        <div class="card pad col xl">
+          <div class="step"><span class="num done">✓</span><div class="col">
+            <div class="between"><h5>1 · Untuk akun mana? <span class="pin">1</span></h5><span class="sub">3 dari 5 dipilih · <u style="color:var(--m-green);font-weight:600">Pilih semua</u> · Perusahaan: <u>Semua ▾</u></span></div>
+            <div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i>✓</i></span><span class="ap on"><span class="av s c3">HB</span>@hannabeauty.kr<i>✓</i></span><span class="ap on"><span class="av s c4">HN</span>@hannanails.id<i>✓</i></span><span class="ap "><span class="av s c1">MS</span>@manisky.id</span><span class="ap warn"><span class="av s c5">AJ</span>@anekajaya.asemka<b class="wdot" title="Brand Kit belum ada"></b></span><span class="ap more">⌕ Cari akun</span></div>
+            <div class="sub xs"><b class="wdot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f79009"></b> = Brand Kit belum ada. Detail dan cara memperbaiki ada di ringkasan sesi.</div>
+          </div></div>
+          <div class="hr"></div>
+          <div class="step"><span class="num done">✓</span><div class="col">
+            <div class="between"><h5>2 · Mau buat apa? <span class="pin">2</span></h5><div class="seg"><span>✦ Lanjutkan cerita</span><span class="on">✎ Campaign baru</span></div></div>
+            <div class="ta focus">Promo 11.11 untuk lash cluster: fokus ke pemula, tone hangat dan playful, CTA ke link bio. Hindari klaim "tahan 2 minggu".</div>
+            <div class="between"><div class="row"><span class="sub xs">Ide cepat:</span><span class="chip o">Promo</span><span class="chip o">Edukasi produk</span><span class="chip o">Testimoni</span><span class="chip o">Behind the scenes</span></div><span class="sub xs">142 / 10.000</span></div>
+            <div class="row wrap" style="gap:14px"><span class="flabel">Format <span class="pin s">3</span></span><div class="seg"><span>Single</span><span class="on">Carousel</span></div><div class="row"><span class="sub">Slide</span><span class="input" style="min-height:30px;padding:4px 10px">− 3 +</span></div><span class="vr"></span><span class="flabel">Sumber gambar</span><div class="seg"><span class="on">AI membuat</span><span>Foto saya</span></div></div>
+          </div></div>
+          <div class="hr"></div>
+          <div class="step"><span class="num done">✓</span><div class="col">
+            <h5>3 · Kapan tayang? <span class="pin">4</span></h5>
+            <div style="font-size:14px;line-height:2.2">Buat <span class="inl">12 konten ▾</span> per akun, dari <span class="inl">21 Okt ▾</span> sampai <span class="inl">3 Nov ▾</span>, tayang jam <span class="inl">12.15</span> <span class="inl">19.15</span> <span class="inl">+ jam</span> WIB.</div>
+            <div class="row"><span class="tog on"></span><span>Scheduler AI boleh menggeser jam berdasarkan insight akun</span></div>
+          </div></div>
+        </div>
+        <div class="card pad col l" style="position:sticky;top:0">
+          <div class="between"><h5>Ringkasan sesi <span class="pin">5</span></h5><span class="chip b">Campaign</span></div>
+          <div><div class="num-big">36 konten</div><div class="sub">3 akun × 12 konten</div></div>
+          <div>
+            <div class="sumrow"><span class="muted">Format</span><span>Carousel · 3 slide</span><span class="muted">108 gambar</span></div>
+            <div class="sumrow"><span class="muted">Periode</span><span>21 Okt – 3 Nov</span><span class="muted">14 hari</span></div>
+            <div class="sumrow"><span class="muted">Ritme</span><span>±2,6 post/hari/akun</span><span></span></div>
+            <div class="sumrow"><span class="muted">Tim AI</span><span>Seimbang · 6 agen</span><span class="btn ghost">Ubah</span></div>
+          </div>
+          <div class="hr"></div>
+          <div class="col s"><span class="label">Siap generate</span>
+            <div class="ck"><span class="ok">✓</span><span>3 akun, semua Brand Kit siap</span></div>
+            <div class="ck"><span class="ok">✓</span><span>Arahan ditulis</span></div>
+            <div class="ck"><span class="ok">✓</span><span>API key OpenAI tersambung</span></div>
+          </div>
+          <span class="btn pri lg">Generate 36 konten</span>
+          <span class="sub" style="text-align:center">Tahap 1 hanya konsep. Gambar dibuat setelah Anda menyetujui konsep.</span>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px"><span class="btn ghost">⚙ Tim agen &amp; model · Lanjutan</span><span class="sub">· Sesi terakhir: Manisky Chapter 01 (perlu ditinjau)</span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Accounts are one row of compact chips (avatar + @handle) instead of stacked tiles. Click toggles; an amber dot marks a missing Brand Kit; follower counts and full brand names show in the tooltip. More than 8 accounts collapse into "⌕ Cari akun" (pattern S3). No Kosongkan/Selesai buttons.</span></li>
+      <li><span class="pin">2</span><span>The mode switch lives inside step 2, so both modes share steps 1 and 3. A quick-idea chip inserts a starter line; it never overwrites what's typed.</span></li>
+      <li><span class="pin">3</span><span>Format, slide count and image source are structured controls. "Foto saya" maps to today's "Manual: tanggal + upload foto sendiri".</span></li>
+      <li><span class="pin">4</span><span>The schedule is one sentence of editable values (G8 shows the popover). The Scheduler toggle replaces the hidden note about 12.15/19.15.</span></li>
+      <li><span class="pin">5</span><span>The summary recalculates on every change. The button label always shows the total, and the subtext says what happens first (concepts only).</span></li>
+    </ul>
+  </div>
+
+  <!-- G2 -->
+  <div class="mock-block" id="G2">
+    <div class="mock-head"><span class="id">G2</span><h3>Composer · Lanjutkan cerita (Storyline) · @manisky.id</h3><span class="tag">uses your real story state: episode 13, Chapter 1–4 arc</span></div>
+    <p class="why">Today this mode pre-fills the "Arahan storyline" box with the whole Brand Narrative Bible, and shows the story as a wall of text under "Storyline tersimpan dari agen". The direction field should be empty, with the story shown as a compact arc so people can see where the next episodes land.</p>
+    <div class="frame"><div class="app">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start">
+        <div class="card pad col xl">
+          <div class="step"><span class="num done">✓</span><div class="col">
+            <div class="between"><h5>1 · Akun cerita</h5><span class="sub">Mode cerita: satu akun per sesi <span class="pin s">1</span></span></div>
+            <div class="apick"><span class="ap on"><span class="av s c1">MS</span>@manisky.id · Ep. 13<i>✓</i></span><span class="ap "><span class="av s c2">MJ</span>@moonjasmine.id</span><span class="ap "><span class="av s c3">HB</span>@hannabeauty.kr</span><span class="ap "><span class="av s c4">HN</span>@hannanails.id</span><span class="ap dis"><span class="av s c5">AJ</span>@anekajaya.asemka<b class="wdot"></b></span></div>
+          </div></div>
+          <div class="hr"></div>
+          <div class="step"><span class="num done">✓</span><div class="col">
+            <div class="between"><h5>2 · Arah cerita sesi ini <span class="pin">2</span></h5><div class="seg"><span class="on">✦ Lanjutkan cerita</span><span>✎ Campaign baru</span></div></div>
+            <div class="card pad-s col" style="background:#fafbfc">
+              <div class="between"><span class="flabel">Manisky Brand Narrative · posisi cerita</span><span class="btn ghost sm">Lihat Story Bible →</span></div>
+              <div class="g4">
+                <div class="chapter"><b class="xs">CHAPTER 1 · Post 01–03</b><span>A Little Hello</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+                <div class="chapter"><b class="xs">CHAPTER 2 · Post 04–06</b><span>The Pretty Details</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+                <div class="chapter"><b class="xs">CHAPTER 3 · Post 07–09</b><span>Beauty Made Simple</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+                <div class="chapter"><b class="xs">CHAPTER 4 · Post 10–12</b><span>Your Manisky Moment</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+              </div>
+              <div class="callout g"><span class="ok">→</span><span>Arc pertama selesai (12 episode). Sesi ini memulai <b>episode 13–24</b>. Storyteller akan mengusulkan Chapter 5 berdasarkan memori cerita.</span><span></span></div>
+            </div>
+            <div class="ta ph" style="color:#98a2b3">Opsional: fokus sesi ini. Contoh: "Masuk ke koleksi Natal, tetap soft dan elegan, perkenalkan 2 produk baru." Kosongkan untuk melanjutkan cerita apa adanya.</div>
+          </div></div>
+          <div class="hr"></div>
+          <div class="step"><span class="num done">✓</span><div class="col">
+            <h5>3 · Kapan tayang?</h5>
+            <div style="font-size:14px;line-height:2.2">Lanjutkan <span class="inl">12 episode ▾</span> dari <span class="inl">21 Okt ▾</span> sampai <span class="inl">3 Nov ▾</span>, jam <span class="inl">12.15</span> <span class="inl">19.15</span> WIB.</div>
+          </div></div>
+        </div>
+        <div class="card pad col l">
+          <div class="between"><h5>Ringkasan sesi</h5><span class="chip p">Storyline</span></div>
+          <div><div class="num-big">12 episode</div><div class="sub">@manisky.id · episode 13–24</div></div>
+          <div>
+            <div class="sumrow"><span class="muted">Alur agen</span><span>Storyteller → Manager → Scheduler → Konsep</span><span></span></div>
+            <div class="sumrow"><span class="muted">Periode</span><span>21 Okt – 3 Nov</span><span class="muted">14 hari</span></div>
+            <div class="sumrow"><span class="muted">Aset</span><span>1 logo · 5 referensi · 0 produk</span><span class="btn ghost">Kelola</span></div>
+          </div>
+          <div class="callout a"><span class="wa">!</span><span>Belum ada <b>foto produk</b>. Storyteller tidak bisa memilih produk spesifik. <u>Tambah foto produk</u></span><span></span></div>
+          <span class="btn pri lg">Rencanakan 12 episode <span class="pin s">3</span></span>
+          <span class="sub" style="text-align:center">Rencana dan proposal muncul di Draft Konten. Tidak ada biaya gambar sampai Anda menyetujui konsep.</span>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Same chip row, but single-select (picking one deselects the other). The episode number appears inside the chip. Accounts without a Brand Kit are dimmed; clicking one opens the G3 setup drawer.</span></li>
+      <li><span class="pin">2</span><span>The story position is a 4-chapter arc built from the saved bible. The direction field starts empty with an example placeholder, never pre-filled with the bible.</span></li>
+      <li><span class="pin">3</span><span>The button names what this mode actually does first: "Rencanakan" (plan), not "Generate".</span></li>
+    </ul>
+  </div>
+
+  <!-- G3 -->
+  <div class="mock-block" id="G3">
+    <div class="mock-head"><span class="id">G3</span><h3>Blocked: account without Brand Kit → quick setup drawer</h3><span class="tag">replaces "Simpan fondasi brand akun terlebih dahulu"</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="drawer-wrap">
+      <div class="ghostpage col l">
+        <h4>Sosmed Generator</h4>
+        <div class="card pad col">
+          <div class="apick"><span class="ap on"><span class="av s c5">AJ</span>@anekajaya.asemka<i>✓</i><b class="wdot"></b></span></div>
+          <div class="ta" style="min-height:60px"></div>
+        </div>
+        <div class="card pad col s" style="width:320px;align-self:flex-end"><span class="label">Siap generate</span><div class="ck"><span class="wa">!</span><span>@anekajaya.asemka belum punya Brand Kit</span></div><span class="btn dis lg">Generate 12 konten</span></div>
+      </div>
+      <div class="drawer">
+        <div class="between"><div class="col s"><span class="label">Brand Kit cepat · 2 menit</span><h5>@anekajaya.asemka</h5></div><span class="btn sm">✕</span></div>
+        <div class="row"><span class="num">1</span><span class="hr grow"></span><span class="num off">2</span><span class="hr grow"></span><span class="num off">3</span></div>
+        <div class="row" style="justify-content:space-between"><span class="xs"><b>Identitas</b></span><span class="xs muted">Aturan</span><span class="xs muted">Aset</span></div>
+        <div class="col s"><span class="flabel">Brand ini menjual apa, untuk siapa?</span><div class="ta focus" style="min-height:70px">Grosir aksesoris rambut dan fashion di Asemka, Jakarta. Pembeli: reseller online dan pemilik toko kecil.</div></div>
+        <div class="col s"><span class="flabel">Tone bicara</span><div class="row wrap"><span class="chip sel">Ramah</span><span class="chip o">Profesional</span><span class="chip sel">To the point</span><span class="chip o">Playful</span><span class="chip o">Mewah</span></div></div>
+        <div class="col s"><span class="flabel">Bahasa caption</span><div class="seg"><span class="on">Indonesia</span><span>English</span><span>Campur</span></div></div>
+        <div class="callout b"><span>✦</span><span>Belum yakin? <b>Isi otomatis dari bio &amp; 12 post terakhir</b>. Anda bisa mengedit hasilnya. <span class="pin s">1</span></span><span class="btn sm">Isi otomatis</span></div>
+        <div style="margin-top:auto" class="between"><span class="sub">Tersimpan otomatis</span><div class="row"><span class="btn">Nanti</span><span class="btn pri">Lanjut: Aturan →</span></div></div>
+        <span class="sub xs">Bisa dilengkapi kapan saja di Perusahaan &amp; Akun → Brand Kit. <span class="pin s">2</span></span>
+      </div>
+    </div></div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>An optional AI starter fills the Brand Kit from the account's bio and recent posts (this needs a new endpoint; see the instruction pack). It's never required.</span></li>
+      <li><span class="pin">2</span><span>The drawer writes to the same Brand Kit as B1. Closing it returns to the Generator with the selection kept, and the checklist updates live.</span></li>
+    </ul>
+  </div>
+
+  <!-- G4 -->
+  <div class="mock-block" id="G4">
+    <div class="mock-head"><span class="id">G4</span><h3>Pre-flight confirmation before a paid run</h3><span class="tag">replaces <code>confirm()</code> on Generate</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="scrim">
+      <div class="dlg" style="width:520px">
+        <div class="between"><h5>Mulai sesi "Promo 11.11"?</h5><span class="chip b">Campaign</span></div>
+        <table class="mt">
+          <tr><th>Tahap</th><th>Jumlah</th><th>Kapan</th></tr>
+          <tr><td>Konsep + caption + review</td><td>36 konten</td><td><span class="chip g">Sekarang</span></td></tr>
+          <tr><td>Gambar (GPT Image 1)</td><td>108 gambar</td><td><span class="chip">Setelah konsep disetujui</span></td></tr>
+          <tr><td>Terbit</td><td>0</td><td><span class="chip">Hanya setelah Anda setujui</span></td></tr>
+        </table>
+        <div class="callout b"><span>ℹ</span><span>Biaya dibebankan ke API key OpenAI Anda sesuai tarif provider. Anda bisa menjeda sesi kapan saja.</span><span></span></div>
+        <div class="row"><span class="check on">✓</span><span class="sub">Kirim notifikasi saat konsep siap ditinjau</span></div>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Kembali</span><span class="btn pri">Mulai konsep 36 konten</span></div>
+      </div>
+    </div></div></div>
+  </div>
+
+  <!-- G5 -->
+  <div class="mock-block" id="G5">
+    <div class="mock-head"><span class="id">G5</span><h3>Session running (pinned above the composer)</h3><span class="tag">replaces "Antrean &amp; riwayat campaign" at the bottom</span></div>
+    <div class="frame"><div class="app col">
+      <div class="card pad" style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;border-color:#bfe3d2">
+        <div class="col">
+          <div class="row"><span class="chip b"><span class="dot"></span>Sedang dibuat</span><h5>Promo 11.11 · Lash cluster untuk pemula</h5><span class="sub">· 3 akun · 36 konten · dimulai 22.41</span></div>
+          <div class="pipe">
+            <div class="d"><i></i>Konsep ✓ 36/36</div>
+            <div class="d"><i></i>Review konsep ✓</div>
+            <div class="w"><i></i>Visual · 14/36</div>
+            <div><i></i>Gambar</div>
+            <div><i></i>Final review</div>
+          </div>
+          <div class="row sub"><span class="avs"><span class="av s c2">MJ</span><span class="av s c3">HB</span><span class="av s c4">HN</span></span> Konsep siap ditinjau sambil menunggu. <u style="color:var(--m-green);font-weight:700">Tinjau 36 konsep sekarang</u> <span class="pin s">1</span></div>
+        </div>
+        <div class="row"><span class="btn">Jeda</span><span class="btn pri">Buka sesi →</span></div>
+      </div>
+      <div class="card">
+        <div class="between pad" style="padding-bottom:8px"><h5>Sesi terakhir <span class="pin s">2</span></h5><span class="btn ghost">Semua sesi di Draft Konten →</span></div>
+        <div class="hr"></div>
+        <div class="between pad" style="padding-block:10px"><div class="row"><span class="chip a">Perlu ditinjau</span><b>Manisky: Chapter 01, A Little Beauty</b><span class="sub">Storyline · @manisky.id · 12 episode · 20 Okt</span></div><span class="btn">Tinjau</span></div>
+        <div class="hr"></div>
+        <div class="between pad" style="padding-block:10px"><div class="row"><span class="chip r">2 gagal</span><b>Hanna Nails: koleksi musim hujan</b><span class="sub">Campaign · 24 konten · 19 Okt</span></div><span class="btn">Perbaiki</span></div>
+        <div class="hr"></div>
+        <div class="between pad" style="padding-block:10px"><div class="row"><span class="chip g">Selesai</span><b>Hanna Beauty: rutinitas K-beauty</b><span class="sub">Campaign · 24 konten · semua di kalender</span></div><span class="btn">Lihat</span></div>
+      </div>
+      <div class="row" style="justify-content:flex-end"><span class="toast">✓ Konsep "Promo 11.11" siap ditinjau · <u>Buka</u></span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Users can review finished concepts while images are still pending (the <code>concept_review</code> status already exists).</span></li>
+      <li><span class="pin">2</span><span>The last 3 sessions are shown with their state and next action. An empty state says "Belum ada sesi. Sesi pertama Anda muncul di sini."</span></li>
+    </ul>
+  </div>
+
+  <!-- G6 -->
+  <div class="mock-block" id="G6">
+    <div class="mock-head"><span class="id">G6</span><h3>Session failed / needs action</h3><span class="tag">state of the pinned card</span></div>
+    <div class="frame"><div class="app col">
+      <div class="card pad col" style="border-color:#fecdca">
+        <div class="row"><span class="chip r"><span class="dot"></span>Terhenti</span><h5>Hanna Nails: koleksi musim hujan</h5><span class="sub">· 24 konten · 19 Okt 14.02</span></div>
+        <div class="pipe">
+          <div class="d"><i></i>Konsep ✓</div><div class="d"><i></i>Review ✓</div><div class="d"><i></i>Visual ✓</div><div class="f"><i></i>Gambar · 22/24</div><div><i></i>Final review</div>
+        </div>
+        <div class="callout r"><span class="er">!</span><span><b>2 gambar gagal: kuota API OpenAI habis (429).</b> 22 konten lain aman dan bisa ditinjau. Tambah kuota di dashboard OpenAI, lalu coba lagi. <span class="pin s">1</span></span><span class="row"><span class="btn sm">Ganti ke Gemini</span><span class="btn sm pri">Coba lagi 2</span></span></div>
+        <div class="row"><span class="btn">Tinjau 22 yang berhasil</span><span class="btn ghost">Detail teknis</span></div>
+      </div>
+    </div></div>
+    <ul class="legend"><li><span class="pin">1</span><span>Errors are translated into what happened, what's safe and what to do. The raw provider message sits behind "Detail teknis". Retry only touches the failed items (<code>/runs/:id/retry</code>).</span></li></ul>
+  </div>
+
+  <!-- G7 -->
+  <div class="mock-block" id="G7">
+    <div class="mock-head"><span class="id">G7</span><h3>Tim agen &amp; model · presets first</h3><span class="tag">side drawer · canvas becomes optional</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="drawer-wrap" style="grid-template-columns:minmax(0,1fr) 560px">
+      <div class="ghostpage"><h4>Sosmed Generator</h4></div>
+      <div class="drawer">
+        <div class="between"><div class="col s"><h5>Tim agen &amp; model</h5><span class="sub">Berlaku untuk sesi ini · mode Campaign</span></div><span class="btn sm">✕</span></div>
+        <div class="g3">
+          <div class="card pad-s col s"><b>Hemat</b><span class="sub xs">Model ringan semua tahap. Untuk ide &amp; uji coba.</span></div>
+          <div class="card pad-s col s" style="border:1.5px solid var(--m-green);background:#f5fbf8"><div class="between"><b>Seimbang</b><span class="check on">✓</span></div><span class="sub xs">Konsep detail, review ringan. Disarankan.</span></div>
+          <div class="card pad-s col s"><b>Kualitas</b><span class="sub xs">Model terbaik di tiap tahap. Lebih lambat.</span></div>
+        </div>
+        <div class="card" style="overflow:hidden">
+          <table class="mt">
+            <tr><th>Agen</th><th>Model <span class="pin s">1</span></th><th></th></tr>
+            <tr><td><b>Konsep Creator</b><div class="sub xs">Ide, caption, urutan slide</div></td><td><span class="input">GPT-4.1 · Detail ▾</span></td><td><span class="btn ghost sm">Instruksi</span></td></tr>
+            <tr><td><b>Concept Reviewer</b><div class="sub xs">Kritik konsep</div></td><td><span class="input">GPT-4.1 mini · Ringan ▾</span></td><td><span class="btn ghost sm">Instruksi</span></td></tr>
+            <tr><td><b>Visual Conceptor</b><div class="sub xs">Arahan gambar</div></td><td><span class="input">GPT-4.1 mini · Ringan ▾</span></td><td><span class="btn ghost sm">Instruksi</span></td></tr>
+            <tr><td><b>Image Creator</b><div class="sub xs">Gambar tiap slide</div></td><td><span class="input">GPT Image 1 ▾</span></td><td><span class="btn ghost sm">Instruksi</span></td></tr>
+            <tr><td><b>Final Reviewer</b><div class="sub xs">Cek gambar</div></td><td><span class="input">GPT-4o · Multimodal ▾</span></td><td><span class="btn ghost sm">Instruksi</span></td></tr>
+          </table>
+        </div>
+        <div class="card pad-s col s">
+          <span class="label">Contoh dropdown model · Scheduler (Gemini)</span>
+          <div class="col s" style="font-size:12px">
+            <span class="sub xs">DISARANKAN</span><span>✓ Gemini 2.5 Flash · cepat</span><span>Gemini 2.5 Pro · detail</span>
+            <span class="sub xs" style="margin-top:4px">LAINNYA (teks)</span><span>Gemini 3.5 Flash · Gemini Flash Latest · Gemini Pro Latest …</span>
+            <span class="sub xs" style="margin-top:4px">DISEMBUNYIKAN: tidak cocok untuk agen ini <span class="pin s">2</span></span><span class="muted">Transcribe, Computer Use, Nano Banana (gambar), Preview Custom Tools</span>
+          </div>
+        </div>
+        <div class="between" style="margin-top:auto"><span class="btn ghost">Lihat sebagai canvas ↗</span><div class="row"><span class="btn">Simpan sebagai default</span><span class="btn pri">Pakai</span></div></div>
+      </div>
+    </div></div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Only the agents for the active mode are listed (Campaign: 5, Storyline adds Storyteller, Manager and Scheduler). Each model select shows the provider icon.</span></li>
+      <li><span class="pin">2</span><span>The model list is filtered by the agent's capability. Today the Scheduler shows 22 Gemini models, including transcription and computer-use models.</span></li>
+    </ul>
+  </div>
+
+  <!-- G8 -->
+  <div class="mock-block" id="G8">
+    <div class="mock-head"><span class="id">G8</span><h3>Schedule popover (from the sentence in step 3)</h3><span class="tag">editing "12 konten" / dates / times</span></div>
+    <div class="frame"><div class="app">
+      <div style="font-size:14px;line-height:2.2">Buat <span class="inl">12 konten ▾</span> per akun, dari <span class="inl" style="box-shadow:0 0 0 3px #bfe3d2">21 Okt ▾</span> sampai <span class="inl">3 Nov ▾</span>, tayang jam <span class="inl">12.15</span> <span class="inl">19.15</span> WIB.</div>
+      <div class="card pad col" style="width:560px;margin-top:8px;margin-left:150px;box-shadow:0 12px 30px rgba(16,24,40,.15)">
+        <div class="row wrap"><span class="chip sel">2 minggu</span><span class="chip o">1 bulan</span><span class="chip o">Minggu ini</span><span class="chip o">Mulai Senin depan</span></div>
+        <div class="g2">
+          <div class="col s"><span class="flabel">Oktober 2026</span>
+            <div class="cal" style="font-size:10px">
+              <div class="dh">S</div><div class="dh">S</div><div class="dh">R</div><div class="dh">K</div><div class="dh">J</div><div class="dh">S</div><div class="dh">M</div>
+              <div style="min-height:26px" class="o">19</div><div style="min-height:26px" class="today"><span class="n">20</span></div><div style="min-height:26px;background:var(--m-green);color:#fff;font-weight:700">21</div><div style="min-height:26px;background:var(--m-green-soft)">22</div><div style="min-height:26px;background:var(--m-green-soft)">23</div><div style="min-height:26px;background:var(--m-green-soft)">24</div><div style="min-height:26px;background:var(--m-green-soft)">25</div>
+              <div style="min-height:26px;background:var(--m-green-soft)">26</div><div style="min-height:26px;background:var(--m-green-soft)">27</div><div style="min-height:26px;background:var(--m-green-soft)">28</div><div style="min-height:26px;background:var(--m-green-soft)">29</div><div style="min-height:26px;background:var(--m-green-soft)">30</div><div style="min-height:26px;background:var(--m-green-soft)">31</div><div style="min-height:26px;background:var(--m-green-soft)">1</div>
+            </div>
+          </div>
+          <div class="col">
+            <span class="flabel">Distribusi</span>
+            <div class="row"><span class="radio on"></span><span>Merata di rentang tanggal</span></div>
+            <div class="row"><span class="radio"></span><span>Hari tertentu: <span class="chip o">Sen</span><span class="chip sel">Rab</span><span class="chip sel">Jum</span></span></div>
+            <div class="callout b"><span>ℹ</span><span>12 konten × 14 hari ≈ <b>1 post tiap 1–2 hari</b> per akun. 2 slot jam sudah terisi 12 kali.</span><span></span></div>
+            <div class="row" style="justify-content:flex-end"><span class="btn pri sm">Selesai</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- G9 -->
+  <div class="mock-block" id="G9">
+    <div class="mock-head"><span class="id">G9</span><h3>Story Bible view (structured instead of a text wall)</h3><span class="tag">opens from G2 "Lihat Story Bible" and Brand Kit B2 · content from your Manisky bible</span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="col s"><span class="label">Story Bible · @manisky.id</span><h4>Little details. Beautiful feelings.</h4></div><div class="row"><span class="btn">Edit sebagai teks</span><span class="btn">Riwayat versi</span></div></div>
+      <div class="g3">
+        <div class="card pad col s"><span class="label">Kepribadian</span><div class="row wrap"><span class="chip o">Soft but confident</span><span class="chip o">Playful but sophisticated</span><span class="chip o">Feminine, never childish</span><span class="chip o">Premium but approachable</span><span class="chip o">Elegant, not too formal</span></div></div>
+        <div class="card pad col s"><span class="label">Tone of voice</span><span>Warm, subtle, elegant, playful charm, gentle confidence.</span><span class="label" style="margin-top:6px">Janji</span><span class="sub">Emosional: percaya diri sehari-hari lewat kuku yang cantik. Fungsional: press-on premium dengan kit pemasangan praktis.</span></div>
+        <div class="card pad col s"><span class="label">Visual</span><div class="row"><span class="thumb" style="width:28px;height:28px;background:#f2c4c4"></span><span class="thumb" style="width:28px;height:28px;background:#e9d8b4"></span><span class="thumb" style="width:28px;height:28px;background:#f6f1e7;border:1px solid var(--m-line)"></span><span class="thumb" style="width:28px;height:28px;background:#c99a9a"></span></div><span class="sub">Soft blush, champagne, ivory, muted rose · minimal on-image text · editorial, natural light</span></div>
+      </div>
+      <div class="card pad col">
+        <div class="between"><h5>Story arc</h5><span class="sub">12 / 12 episode terbit · arc berikutnya diusulkan Storyteller</span></div>
+        <div class="g5">
+          <div class="chapter"><b class="xs">CH 1 · 01–03</b><b>A Little Hello</b><span class="sub xs">Perkenalkan dunia Manisky sebelum produk.</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+          <div class="chapter"><b class="xs">CH 2 · 04–06</b><b>The Pretty Details</b><span class="sub xs">Detail kuku, mood, everyday luxury.</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+          <div class="chapter"><b class="xs">CH 3 · 07–09</b><b>Beauty Made Simple</b><span class="sub xs">Kemudahan pemasangan, bangun trust.</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+          <div class="chapter"><b class="xs">CH 4 · 10–12</b><b>Your Manisky Moment</b><span class="sub xs">Lifestyle &amp; minat beli.</span><div class="eps"><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+          <div class="chapter cur" style="border-style:dashed"><b class="xs">CH 5 · 13–24</b><b>Usulan berikutnya</b><span class="sub xs">Dibuat saat Anda merencanakan sesi.</span><div class="eps"><i class="n"></i><i></i><i></i></div></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- G10 -->
+  <div class="mock-block" id="G10">
+    <div class="mock-head"><span class="id">G10</span><h3>Generator on a phone</h3><span class="tag">375px · same 3 steps, summary as sticky footer</span></div>
+    <div class="frame center">
+      <div class="app mobile">
+        <div class="mob-top"><div class="between"><b style="font-size:16px">Sosmed Generator</b><span class="chip a">2</span></div><div class="seg" style="align-self:flex-start"><span>✦ Cerita</span><span class="on">✎ Campaign</span></div></div>
+        <div class="mob-body">
+          <div class="card pad-s col"><span class="flabel">1 · Akun</span><div class="row wrap"><span class="chip g">✓ @moonjasmine.id</span><span class="chip g">✓ @hannabeauty.kr</span><span class="chip g">✓ @hannanails.id</span><span class="chip o">+ 2</span></div></div>
+          <div class="card pad-s col"><span class="flabel">2 · Arahan</span><div class="ta" style="min-height:70px;font-size:12px">Promo 11.11 untuk lash cluster: fokus ke pemula, tone hangat…</div><div class="row"><span class="chip o">Carousel · 3</span><span class="chip o">AI membuat</span></div></div>
+          <div class="card pad-s col"><span class="flabel">3 · Jadwal</span><span style="font-size:12.5px">12 konten/akun · 21 Okt – 3 Nov · 12.15, 19.15</span><span class="btn sm" style="align-self:flex-start">Ubah</span></div>
+        </div>
+        <div class="mob-bar" style="flex-direction:column"><div class="between"><span class="sub">36 konten · 108 gambar</span><span class="ok xs">✓ Siap</span></div><span class="btn pri lg">Generate 36 konten</span></div>
+      </div>
+      <div class="app mobile">
+        <div class="mob-top"><b style="font-size:16px">Sesi berjalan</b></div>
+        <div class="mob-body">
+          <div class="card pad-s col"><div class="row"><span class="chip b"><span class="dot"></span>Sedang dibuat</span></div><b>Promo 11.11 · Lash cluster</b>
+            <div class="col s" style="font-size:12px"><span><span class="ok">✓</span> Konsep 36/36</span><span><span class="ok">✓</span> Review konsep</span><span>◐ Visual 14/36</span><span class="muted">○ Gambar</span><span class="muted">○ Final review</span></div>
+            <span class="btn pri">Tinjau 36 konsep</span></div>
+          <div class="card pad-s row"><span class="chip a">Perlu ditinjau</span><span class="grow" style="font-size:12px"><b>Manisky Ch. 01</b></span><span class="muted">›</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= DRAFT KONTEN ======================= -->
+<section class="stack-lg" id="draft">
+  <div class="section-head"><span class="eyebrow">Focus page 2</span><h2>Draft Konten</h2><p class="why">This page becomes a list of sessions (one per Generator run or plan), and each session opens its own review page at <code>#/generator/drafts/&lt;planId&gt;</code>. Inside a session, people move through concepts → images → approval, with every state labelled and one obvious next action. Ten screens: list, empty states, plan-only, concept review, image review, post editor, grid + bulk, approval confirmation, session calendar, phone.</p></div>
+
+  <!-- D1 -->
+  <div class="mock-block" id="D1">
+    <div class="mock-head"><span class="id">D1</span><h3>Session list</h3><span class="tag">#/generator/drafts · Manisky row is your real plan, others are examples</span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="col s"><h4>Draft Konten</h4><span class="sub">Setiap sesi dari Sosmed Generator. Tinjau, lalu setujui ke kalender.</span></div><span class="btn pri">+ Sesi baru</span></div>
+      <div class="between">
+        <div class="tabs"><span class="on">Perlu tindakan <b>3</b></span><span>Sedang dibuat <b>1</b></span><span>Selesai <b>4</b></span><span>Semua <b>8</b></span> <span class="pin" style="align-self:center">1</span></div>
+        <div class="row"><span class="input ph" style="width:200px">⌕ Cari judul sesi…</span><span class="input">Semua akun ▾</span><span class="input">Semua perusahaan ▾</span><span class="input">Terbaru ▾</span></div>
+      </div>
+      <div class="card">
+        <div class="sess">
+          <div class="stackthumb"><div class="thumb tplan" style="left:0;top:4px;width:56px;height:56px"></div><div class="thumb tplan" style="left:20px;top:2px;width:56px;height:56px"></div><div class="thumb tplan" style="left:40px;top:0;width:56px;height:56px"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">Manisky: Chapter 01, A Little Beauty, A Little Manisky <span class="pin s">2</span></b><div class="row sub"><span class="av s c1">MS</span>@manisky.id · <span class="chip p">Storyline</span> · 21 Okt – 3 Nov · dibuat 20 Okt 22.11</div></div>
+          <div class="col s"><div class="row"><span class="chip">Rencana saja</span><span class="sub">12 episode direncanakan · konsep belum dibuat</span></div><div class="bar"><i style="width:100%;background:repeating-linear-gradient(45deg,#d0d5dd 0 4px,#e4e7ec 4px 8px)"></i></div><span class="chip a" style="align-self:flex-start">⏱ Dihapus otomatis 6 hari lagi <span class="pin s">3</span></span></div>
+          <span class="btn pri">Buat konsep 12</span>
+        </div>
+        <div class="sess">
+          <div class="stackthumb"><div class="thumb t1" style="left:0;top:4px;width:56px;height:56px"></div><div class="thumb t2" style="left:20px;top:2px;width:56px;height:56px"></div><div class="thumb t4" style="left:40px;top:0;width:56px;height:56px"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">Promo 11.11: Lash cluster untuk pemula</b><div class="row sub"><span class="avs"><span class="av s c2">MJ</span><span class="av s c3">HB</span><span class="av s c4">HN</span></span> 3 akun · <span class="chip b">Campaign</span> · 1 – 14 Nov</div></div>
+          <div class="col s"><div class="row"><span class="chip a">Tinjau gambar</span><span class="sub">8 disetujui · 24 siap · 2 gagal · 2 dibuat</span></div><div class="bar"><i style="width:22%;background:var(--m-green)"></i><i style="width:67%;background:#f5b45a"></i><i style="width:5.5%;background:var(--m-red)"></i><i style="width:5.5%;background:var(--m-blue)"></i></div><span class="sub">Diubah 2 jam lalu</span></div>
+          <span class="btn pri">Tinjau 24 →</span>
+        </div>
+        <div class="sess">
+          <div class="stackthumb"><div class="thumb t5" style="left:0;top:4px;width:56px;height:56px"></div><div class="thumb t3" style="left:20px;top:2px;width:56px;height:56px"></div><div class="thumb t6" style="left:40px;top:0;width:56px;height:56px"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">Moon &amp; Jasmine: Halloween soft glam</b><div class="row sub"><span class="av s c2">MJ</span>@moonjasmine.id · <span class="chip b">Campaign</span> · 25 – 31 Okt</div></div>
+          <div class="col s"><div class="row"><span class="chip p">Tinjau konsep</span><span class="sub">6 konsep menunggu sebelum gambar dibuat</span></div><div class="bar"><i style="width:100%;background:var(--m-purple)"></i></div><span class="sub">Konsep siap 10 menit lalu</span></div>
+          <span class="btn pri">Tinjau konsep →</span>
+        </div>
+        <div class="sess">
+          <div class="stackthumb"><div class="thumb t3" style="left:0;top:4px;width:56px;height:56px"></div><div class="thumb t5" style="left:20px;top:2px;width:56px;height:56px"></div><div class="thumb tplan" style="left:40px;top:0;width:56px;height:56px"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">Hanna Nails: koleksi musim hujan</b><div class="row sub"><span class="av s c4">HN</span>@hannanails.id · <span class="chip b">Campaign</span> · 4 – 17 Nov</div></div>
+          <div class="col s"><div class="row"><span class="chip b"><span class="dot"></span>Sedang dibuat</span><span class="sub">Gambar 9/24</span></div><div class="bar"><i style="width:38%;background:var(--m-blue)"></i></div><span class="sub">Anda bisa meninjau yang sudah jadi</span></div>
+          <span class="btn">Lihat progres</span>
+        </div>
+        <div class="sess" style="opacity:.75">
+          <div class="stackthumb"><div class="thumb t4" style="left:0;top:4px;width:56px;height:56px"></div><div class="thumb t1" style="left:20px;top:2px;width:56px;height:56px"></div><div class="thumb t2" style="left:40px;top:0;width:56px;height:56px"></div></div>
+          <div class="col s" style="min-width:0"><b style="font-size:14px">Hanna Beauty: rutinitas K-beauty</b><div class="row sub"><span class="av s c3">HB</span>@hannabeauty.kr · <span class="chip b">Campaign</span> · 5 – 18 Okt</div></div>
+          <div class="col s"><div class="row"><span class="chip g">Selesai</span><span class="sub">24 di kalender · 18 sudah terbit</span></div><div class="bar"><i style="width:100%;background:var(--m-green)"></i></div><span class="sub">Tidak kedaluwarsa</span></div>
+          <span class="btn">Lihat</span>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Tabs group sessions by what the user must do. "Perlu tindakan" = any of plan-only, concept review, image review or failed. The tab is remembered per user.</span></li>
+      <li><span class="pin">2</span><span>The title comes from the plan's first heading or the brief, with markdown <code>#</code> stripped. Dates are localised and the creator time is shown.</span></li>
+      <li><span class="pin">3</span><span>Expiry is computed from the earliest <code>expires_at</code> in the session. It turns amber at ≤2 days and red at ≤1 day. Approved items never expire.</span></li>
+      <li><span class="pin">·</span><span>The progress bar is stacked by status: approved (green), ready (amber), failed (red), in progress (blue), concept (purple), plan-only (hatched).</span></li>
+    </ul>
+  </div>
+
+  <!-- D2 -->
+  <div class="mock-block" id="D2">
+    <div class="mock-head"><span class="id">D2</span><h3>Empty states</h3><span class="tag">no sessions · filter has no results · session expired</span></div>
+    <div class="frame"><div class="app g3" style="align-items:stretch">
+      <div class="card pad col" style="align-items:center;text-align:center;padding-block:36px">
+        <div class="stackthumb" style="width:96px"><div class="thumb tplan" style="left:0;top:4px;width:56px;height:56px"></div><div class="thumb tplan" style="left:20px;top:2px;width:56px;height:56px"></div><div class="thumb tplan" style="left:40px;top:0;width:56px;height:56px"></div></div>
+        <h5>Belum ada sesi</h5><span class="sub">Buat sesi di Sosmed Generator. Semua konsep dan gambar yang dihasilkan AI akan muncul di sini untuk Anda tinjau.</span><span class="btn pri">Buka Sosmed Generator</span>
+      </div>
+      <div class="card pad col" style="align-items:center;text-align:center;padding-block:36px">
+        <span style="font-size:28px">⌕</span>
+        <h5>Tidak ada sesi untuk @hannanails.id di tab "Perlu tindakan"</h5><span class="sub">2 sesi lain untuk akun ini ada di tab Selesai.</span><div class="row"><span class="btn">Lihat Selesai</span><span class="btn ghost">Hapus filter</span></div>
+      </div>
+      <div class="card pad col" style="align-items:center;text-align:center;padding-block:36px">
+        <span style="font-size:28px">⏱</span>
+        <h5>Draft sesi ini sudah dihapus otomatis</h5><span class="sub">Tidak ada perubahan selama 7 hari, jadi gambar dan caption dibersihkan. Rencana dan memori cerita tetap tersimpan.</span><span class="btn pri">Buat ulang dari rencana</span>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- D3 -->
+  <div class="mock-block" id="D3">
+    <div class="mock-head"><span class="id">D3</span><h3>Session detail · Rencana saja (plan-only)</h3><span class="tag">#/generator/drafts/&lt;planId&gt; · the current Manisky situation</span></div>
+    <p class="why">Today a 12-item plan shows "0 konten · Belum ada draft pada filter ini". The plan's episodes should be listed so people can see what the AI intends before paying for concepts, choose a subset, and change dates.</p>
+    <div class="frame"><div class="app col l">
+      <div class="sub">Draft Konten / <b style="color:var(--m-fg)">Manisky: Chapter 01</b></div>
+      <div class="between"><div class="col s"><h4>Manisky: Chapter 01, A Little Beauty, A Little Manisky</h4><div class="row sub"><span class="chip p">Storyline</span>@manisky.id · 21 Okt – 3 Nov · 12 episode · <span class="chip a">⏱ 6 hari lagi</span></div></div><div class="row"><span class="btn">Lihat arahan</span><span class="btn">⋯</span></div></div>
+      <div class="callout b"><span>ℹ</span><span><b>Rencana siap, konsep belum dibuat.</b> Tinjau urutan episode di bawah. Pilih semua atau sebagian, lalu buat konsep. Gambar baru dibuat setelah konsep Anda setujui. <span class="pin s">1</span></span><span class="btn pri">Buat konsep 12 episode</span></div>
+      <div class="card" style="overflow:hidden">
+        <table class="mt">
+          <tr><th style="width:30px"><span class="check on">✓</span></th><th>Ep.</th><th>Rencana episode</th><th>Tipe</th><th>Jadwal <span class="pin s">2</span></th><th>Alasan Scheduler</th></tr>
+          <tr><td><span class="check on">✓</span></td><td><b>13</b></td><td><b>A Quiet Morning Ritual</b><div class="sub xs">Pembuka Chapter 5: rutinitas pagi yang tenang, produk belum ditampilkan.</div></td><td><span class="chip o">Carousel 3</span></td><td><span class="input" style="min-height:28px;padding:3px 8px">Rab 21 Okt · 12.15 ▾</span></td><td class="sub xs">Jam makan siang, audiens aktif</td></tr>
+          <tr><td><span class="check on">✓</span></td><td><b>14</b></td><td><b>Shades of Blush</b><div class="sub xs">Eksplorasi palet soft blush &amp; champagne.</div></td><td><span class="chip o">Single</span></td><td><span class="input" style="min-height:28px;padding:3px 8px">Kam 22 Okt · 19.15 ▾</span></td><td class="sub xs">Malam, waktu santai</td></tr>
+          <tr><td><span class="check on">✓</span></td><td><b>15</b></td><td><b>Details That Whisper</b><div class="sub xs">Close-up tekstur dan shimmer.</div></td><td><span class="chip o">Carousel 3</span></td><td><span class="input" style="min-height:28px;padding:3px 8px">Sab 24 Okt · 12.15 ▾</span></td><td class="sub xs">Akhir pekan</td></tr>
+          <tr><td><span class="check"></span></td><td><b>16</b></td><td><b>Press-On in 10 Minutes</b><div class="sub xs">Edukasi pemasangan (Reel dari video unggahan).</div></td><td><span class="chip o">Reel</span> <span class="chip a">butuh video</span></td><td><span class="input" style="min-height:28px;padding:3px 8px">Sen 26 Okt · 19.15 ▾</span></td><td class="sub xs">—</td></tr>
+          <tr><td colspan="6" class="sub" style="text-align:center">+ 8 episode lainnya</td></tr>
+        </table>
+      </div>
+      <div class="bulk"><span>11 dari 12 dipilih</span><span class="grow"></span><span class="btn">Geser semua jadwal…</span><span class="btn">Hapus rencana</span><span class="btn pri">Buat konsep 11 episode</span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>A plain explanation of the state and what happens next, with the single next action on the right. This replaces "Buat konsep semua rencana terpilih" hidden in an accordion.</span></li>
+      <li><span class="pin">2</span><span>Planned runs already have <code>scheduled_at</code>, <code>schedule_reason</code> and <code>content_type</code>, so show them. Dates can be edited before any cost.</span></li>
+    </ul>
+  </div>
+
+  <!-- D4 -->
+  <div class="mock-block" id="D4">
+    <div class="mock-head"><span class="id">D4</span><h3>Concept review (before images)</h3><span class="tag">status <code>concept_review</code> · today shown only inside the preview dialog</span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="col s"><h4>Moon &amp; Jasmine: Halloween soft glam</h4><div class="row sub"><span class="chip b">Campaign</span>@moonjasmine.id · 6 konten · Carousel 3</div></div><div class="row"><span class="btn">Generate ulang semua konsep</span><span class="btn pri">Setujui 5 konsep &amp; buat 15 gambar</span></div></div>
+      <div class="row"><div class="seg"><span class="on">Konsep · 6</span><span>Gambar · 0</span><span>Disetujui · 0</span></div><span class="sub">Tahap 1 dari 2. Setujui konsep → AI membuat gambar → Anda meninjau gambar. <span class="pin s">1</span></span></div>
+      <div style="display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start">
+        <div class="card" style="overflow:hidden">
+          <div class="lrow on"><span class="check on">✓</span><div style="min-width:0"><b>1 · Soft Glam, Not Spooky</b><div class="sub xs">Sab 25 Okt · 12.15</div></div><span class="chip g xs">OK</span></div>
+          <div class="lrow"><span class="check on">✓</span><div style="min-width:0"><b>2 · Pumpkin Spice Lids</b><div class="sub xs">Sab 25 Okt · 19.15</div></div><span class="chip g xs">OK</span></div>
+          <div class="lrow"><span class="check on">✓</span><div style="min-width:0"><b>3 · 3 Looks, 1 Palette</b><div class="sub xs">Min 26 Okt · 12.15</div></div><span class="chip a xs">Catatan</span></div>
+          <div class="lrow"><span class="check"></span><div style="min-width:0"><b>4 · Trick or Treat Giveaway</b><div class="sub xs">Sen 27 Okt · 19.15</div></div><span class="chip r xs">Klaim</span></div>
+          <div class="lrow"><span class="check on">✓</span><div style="min-width:0"><b>5 · Night Out Routine</b><div class="sub xs">Rab 29 Okt · 19.15</div></div><span class="chip g xs">OK</span></div>
+          <div class="lrow"><span class="check on">✓</span><div style="min-width:0"><b>6 · Halloween Recap</b><div class="sub xs">Jum 31 Okt · 12.15</div></div><span class="chip g xs">OK</span></div>
+        </div>
+        <div class="card pad col l">
+          <div class="between"><div class="col s"><span class="label">Konsep 1 dari 6</span><span class="input" style="font-weight:700;font-size:15px">Soft Glam, Not Spooky</span></div><div class="row"><span class="btn sm">‹</span><span class="btn sm">›</span></div></div>
+          <div class="callout g"><span class="ok">✓</span><span><b>Concept Reviewer:</b> Sesuai Brand Kit (tone hangat, tanpa klaim berlebihan). Disarankan CTA lebih spesifik. <span class="pin s">2</span></span><span class="btn ghost sm">Terapkan saran</span></div>
+          <div class="col s"><div class="between"><span class="flabel">Caption</span><span class="sub xs">186 / 2.200</span></div><div class="ta" style="min-height:70px">Halloween nggak harus seram 🎃 Coba soft glam: shimmer champagne + liner tipis. Simpan post ini buat inspirasi malam minggu! #moonjasmine #softglam</div></div>
+          <div class="col s"><span class="flabel">Arahan visual per slide <span class="pin s">3</span></span>
+            <div class="g3">
+              <div class="card pad-s col s"><span class="label">Slide 1 · Cover</span><span class="xs">Close-up mata dengan shimmer champagne, latar krem, cahaya hangat, teks "Soft Glam, Not Spooky".</span></div>
+              <div class="card pad-s col s"><span class="label">Slide 2</span><span class="xs">Flatlay palet + 2 produk Moon &amp; Jasmine, aksen labu kecil.</span></div>
+              <div class="card pad-s col s"><span class="label">Slide 3 · CTA</span><span class="xs">Before/after singkat, teks "Simpan untuk Sabtu malam".</span></div>
+            </div>
+          </div>
+          <div class="input ph">✨ Minta revisi konsep ini: "buat lebih playful"…</div>
+          <div class="row" style="justify-content:flex-end"><span class="btn">Lewati konsep ini</span><span class="btn pri">Setujui &amp; lanjut ke konsep 2</span></div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>The two-stage flow is explained in one line and reflected in the segmented counts. Bulk "approve concepts" calls <code>approve-concept</code> per selected run.</span></li>
+      <li><span class="pin">2</span><span>The reviewer's output is shown up front as a verdict chip (OK / Catatan / Klaim) instead of a hidden "Catatan reviewer" accordion.</span></li>
+      <li><span class="pin">3</span><span>Slide prompts are editable cards in a row, mirroring the final carousel order.</span></li>
+    </ul>
+  </div>
+
+  <!-- D5 -->
+  <div class="mock-block" id="D5">
+    <div class="mock-head"><span class="id">D5</span><h3>Image review · by date with live preview</h3><span class="tag">main review screen · statuses review / approved / failed</span></div>
+    <div class="frame"><div class="app col">
+      <div class="sub">Draft Konten / <b style="color:var(--m-fg)">Promo 11.11: Lash cluster untuk pemula</b></div>
+      <div class="between">
+        <div class="col s"><h4>Promo 11.11: Lash cluster untuk pemula</h4><div class="row sub"><span class="chip b">Campaign</span>3 akun · 1 – 14 Nov · Carousel 3 · <span class="row" style="gap:4px;color:var(--m-green);font-weight:600">● Tersimpan otomatis</span></div></div>
+        <div class="row"><span class="btn">Lihat arahan</span><span class="btn">Coba lagi yang gagal (2)</span><span class="btn pri">Setujui 24 yang siap</span></div>
+      </div>
+      <div class="between"><div class="row"><span class="chip sel">Semua 36</span><span class="chip a">Siap 24</span><span class="chip g">Disetujui 8</span><span class="chip r">Gagal 2</span><span class="chip b">Dibuat 2</span></div><div class="row"><span class="input">Semua akun ▾</span><div class="seg"><span class="on">Per tanggal</span><span>Grid</span><span>Kalender</span></div></div></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start">
+        <div class="card" style="padding:4px 16px">
+          <div class="day"><div class="dl">Sab<b>1</b>Nov</div><div class="posts">
+            <div class="post sel"><span class="check on">✓</span><div class="thumb t1" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c2">MJ</span><b class="xs">12.15</b><span class="chip a xs">Siap</span></div><div class="cap">Baru kenal lash cluster? Ini 3 langkah pasang tanpa ribet, cukup 10 menit.</div></div></div>
+            <div class="post"><span class="check on">✓</span><div class="thumb t4" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c3">HB</span><b class="xs">12.15</b><span class="chip a xs">Siap</span></div><div class="cap">11.11 is coming. Lash cluster favorit kami turun harga…</div></div></div>
+            <div class="post"><span class="check on">✓</span><div class="thumb t2" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c4">HN</span><b class="xs">19.15</b><span class="chip a xs">Siap</span></div><div class="cap">Kuku press-on + lash cluster: combo 11.11 yang hemat waktu.</div></div></div>
+            <div class="post"><span class="check"></span><div class="thumb t3" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c3">HB</span><b class="xs">19.15</b><span class="chip g xs">Disetujui</span></div><div class="cap">Behind the scenes: cara tim kami memilih bulu yang ringan.</div></div></div>
+          </div></div>
+          <div class="day"><div class="dl">Min<b>2</b>Nov</div><div class="posts">
+            <div class="post"><span class="check"></span><div class="thumb t5" style="width:64px;height:64px"><span class="badge-n">3</span></div><div class="col s" style="min-width:0"><div class="row"><span class="av s c2">MJ</span><b class="xs">12.15</b><span class="chip g xs">Disetujui</span></div><div class="cap">Kesalahan paling umum saat pertama pakai lash cluster.</div></div></div>
+            <div class="post" style="border-color:#fecdca"><span class="check"></span><div class="thumb tfail" style="width:64px;height:64px;display:grid;place-items:center;color:var(--m-red);font-weight:800">!</div><div class="col s" style="min-width:0"><div class="row"><span class="av s c3">HB</span><b class="xs">12.15</b><span class="chip r xs">Gagal</span></div><div class="cap">Slide 2 gagal: kuota API habis. <u style="color:var(--m-green);font-weight:700">Coba lagi</u></div></div></div>
+            <div class="post"><span class="check"></span><div class="thumb tplan" style="width:64px;height:64px;display:grid;place-items:center;font-size:10px;color:var(--m-blue);font-weight:700">2/3</div><div class="col s" style="min-width:0"><div class="row"><span class="av s c4">HN</span><b class="xs">19.15</b><span class="chip b xs">Dibuat</span></div><div class="cap">Gambar sedang dibuat…</div></div></div>
+          </div></div>
+        </div>
+        <div class="card pad col" style="position:sticky;top:0">
+          <div class="between"><h5>Preview</h5><div class="seg"><span class="on">Instagram</span><span>Threads</span></div></div>
+          <div class="phone">
+            <div class="ig-h"><span class="av s c2" style="width:24px;height:24px">MJ</span>moonjasmine.id<span class="muted xs" style="margin-left:auto;font-weight:500">Sab 1 Nov · 12.15</span></div>
+            <div class="img t1"><div class="dots"><i class="on"></i><i></i><i></i></div></div>
+            <div style="padding:10px 12px;font-size:12px"><b>moonjasmine.id</b> Baru kenal lash cluster? Ini 3 langkah pasang tanpa ribet, cukup 10 menit sebelum berangkat. ✨ Cek link bio untuk promo 11.11. <span style="color:var(--m-blue)">#lashcluster #moonjasmine</span></div>
+          </div>
+          <div class="row"><span class="thumb t1" style="width:44px;height:44px;outline:2px solid var(--m-green)"></span><span class="thumb t6" style="width:44px;height:44px"></span><span class="thumb t2" style="width:44px;height:44px"></span><span class="sub">3 slide</span></div>
+          <div class="input ph">✨ Minta revisi: "caption lebih singkat"…</div>
+          <div class="row"><span class="btn sm">✎ Edit lengkap</span><span class="btn sm">↻ Revisi slide</span><span class="btn sm">🗓 1 Nov · 12.15 ▾</span></div>
+          <span class="btn pri lg">Setujui ke kalender</span>
+          <div class="row sub xs" style="justify-content:center"><span class="kbd">←</span><span class="kbd">→</span> pindah · <span class="kbd">A</span> setujui · <span class="kbd">E</span> edit</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- D6 -->
+  <div class="mock-block" id="D6">
+    <div class="mock-head"><span class="id">D6</span><h3>Post editor (full edit drawer)</h3><span class="tag">replaces the modal "Preview konten" dialog</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="drawer-wrap" style="grid-template-columns:minmax(0,1fr) 720px">
+      <div class="ghostpage"><h4>Promo 11.11</h4></div>
+      <div class="drawer">
+        <div class="between"><div class="row"><span class="av c2">MJ</span><div class="col s"><b>@moonjasmine.id · Sab 1 Nov 12.15</b><span class="sub xs">Konten 1 dari 36 · <span class="chip a xs">Siap ditinjau</span></span></div></div><div class="row"><span class="btn sm">‹</span><span class="btn sm">›</span><span class="btn sm">✕</span></div></div>
+        <div style="display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px">
+          <div class="col">
+            <div class="thumb t1" style="width:100%;aspect-ratio:4/5;max-width:100%"><span class="badge-n">1/3</span></div>
+            <div class="row"><span class="thumb t1" style="width:52px;height:52px;outline:2px solid var(--m-green)"></span><span class="thumb t6" style="width:52px;height:52px"></span><span class="thumb t2" style="width:52px;height:52px"></span><span class="thumb" style="width:52px;height:52px;border:1.5px dashed #98a2b3;display:grid;place-items:center;color:#667085">+</span></div>
+            <div class="card pad-s col s"><span class="label">Slide 1 <span class="pin s">1</span></span><div class="row wrap"><span class="btn sm">↻ Revisi slide ini</span><span class="btn sm">⇪ Ganti dengan foto</span><span class="btn sm">⇅ Urutkan</span></div></div>
+            <div class="card pad-s col s"><span class="label">Versi sebelumnya · slide 1</span><div class="row"><span class="thumb t3" style="width:40px;height:40px;opacity:.7"></span><span class="thumb t4" style="width:40px;height:40px;opacity:.7"></span><span class="sub xs">"latar lebih terang" · 19.02</span></div></div>
+          </div>
+          <div class="col l">
+            <div class="col s"><div class="between"><span class="flabel">Caption</span><span class="row"><span class="sub xs">186 / 2.200 · 2 hashtag</span><span class="btn ghost sm">✨ Perbaiki dengan AI</span></span></div><div class="ta focus" style="min-height:120px">Baru kenal lash cluster? Ini 3 langkah pasang tanpa ribet, cukup 10 menit sebelum berangkat. ✨<br><br>Cek link bio untuk promo 11.11.<br><br>#lashcluster #moonjasmine</div></div>
+            <div class="g2">
+              <div class="col s"><span class="flabel">Jadwal (WIB)</span><span class="input">Sab, 1 Nov 2026 · 12.15 ▾</span><span class="sub xs">Scheduler: jam makan siang, audiens paling aktif.</span></div>
+              <div class="col s"><span class="flabel">Terbit juga di</span><div class="row"><span class="check on">✓</span>Instagram<span class="check"></span>Threads</div></div>
+            </div>
+            <div class="callout a"><span class="wa">!</span><span><b>Final Reviewer:</b> Slide 3 teks terlalu kecil untuk feed. Pertimbangkan revisi slide 3. <span class="pin s">2</span></span><span class="btn sm">Revisi slide 3</span></div>
+            <details class="card pad-s"><summary class="flabel">Prompt &amp; arahan konten ini</summary></details>
+            <div class="between" style="margin-top:auto"><div class="row"><span class="btn danger">Hapus</span><span class="btn">Kirim ke Tulis Post</span></div><div class="row"><span class="sub xs">✓ Tersimpan 19.04 <span class="pin s">3</span></span><span class="btn pri">Setujui ke kalender</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div></div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Per-slide actions sit next to the slide. "Revisi slide ini" opens the S2 dialog, replacing <code>window.prompt</code>.</span></li>
+      <li><span class="pin">2</span><span>Reviewer findings are actionable callouts instead of a collapsed "Catatan reviewer".</span></li>
+      <li><span class="pin">3</span><span>Autosave (debounced PATCH <code>/runs/:id</code>) replaces "Simpan draft" and the "Klik Simpan draft setelah mengedit" warning.</span></li>
+    </ul>
+  </div>
+
+  <!-- D7 -->
+  <div class="mock-block" id="D7">
+    <div class="mock-head"><span class="id">D7</span><h3>Grid view + bulk actions</h3><span class="tag">for scanning visuals quickly</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><span class="chip sel">Siap 24</span><span class="chip o">Semua 36</span></div><div class="seg"><span>Per tanggal</span><span class="on">Grid</span><span>Kalender</span></div></div>
+      <div class="g6" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px">
+        <div class="col s"><div class="thumb t1" style="width:100%;aspect-ratio:4/5;max-width:100%;outline:3px solid var(--m-green)"><span class="badge-n">3</span><span class="check on" style="position:absolute;left:6px;top:6px">✓</span></div><span class="xs"><b>MJ</b> · 1 Nov 12.15</span></div>
+        <div class="col s"><div class="thumb t4" style="width:100%;aspect-ratio:4/5;max-width:100%;outline:3px solid var(--m-green)"><span class="badge-n">3</span><span class="check on" style="position:absolute;left:6px;top:6px">✓</span></div><span class="xs"><b>HB</b> · 1 Nov 12.15</span></div>
+        <div class="col s"><div class="thumb t2" style="width:100%;aspect-ratio:4/5;max-width:100%;outline:3px solid var(--m-green)"><span class="badge-n">3</span><span class="check on" style="position:absolute;left:6px;top:6px">✓</span></div><span class="xs"><b>HN</b> · 1 Nov 19.15</span></div>
+        <div class="col s"><div class="thumb t6" style="width:100%;aspect-ratio:4/5;max-width:100%"><span class="badge-n">3</span><span class="check" style="position:absolute;left:6px;top:6px"></span></div><span class="xs"><b>MJ</b> · 3 Nov 12.15</span></div>
+        <div class="col s"><div class="thumb t3" style="width:100%;aspect-ratio:4/5;max-width:100%"><span class="badge-n">3</span><span class="check" style="position:absolute;left:6px;top:6px"></span></div><span class="xs"><b>HB</b> · 3 Nov 19.15</span></div>
+        <div class="col s"><div class="thumb t5" style="width:100%;aspect-ratio:4/5;max-width:100%"><span class="badge-n">3</span><span class="check" style="position:absolute;left:6px;top:6px"></span></div><span class="xs"><b>HN</b> · 4 Nov 12.15</span></div>
+      </div>
+      <div class="bulk"><span class="pin s">1</span>3 dipilih <span class="grow"></span><span class="btn">Geser jadwal…</span><span class="btn">Revisi dengan AI…</span><span class="btn" style="color:#fda29b">Hapus</span><span class="btn pri">Setujui 3 ke kalender</span></div>
+    </div></div>
+    <ul class="legend"><li><span class="pin">1</span><span>Bulk actions lead with approval. Today selection can only delete (<code>deletable()</code>). Approval loops over <code>/runs/:id/approve</code> with each run's own <code>scheduled_at</code>.</span></li></ul>
+  </div>
+
+  <!-- D8 -->
+  <div class="mock-block" id="D8">
+    <div class="mock-head"><span class="id">D8</span><h3>Bulk approve confirmation → result</h3><span class="tag">replaces <code>confirm('Setujui konten ini…')</code></span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="scrim" style="grid-template-columns:auto auto;gap:24px;align-items:start">
+      <div class="dlg">
+        <h5>Setujui 24 konten ke kalender?</h5>
+        <p class="sub">Konten akan terbit otomatis sesuai jadwal. Anda masih bisa mengubah atau membatalkan dari Kalender sebelum jam terbit.</p>
+        <table class="mt"><tr><th>Akun</th><th>Konten</th><th>Pertama</th><th>Terakhir</th></tr>
+          <tr><td>@moonjasmine.id</td><td>8</td><td>1 Nov 12.15</td><td>14 Nov 19.15</td></tr>
+          <tr><td>@hannabeauty.kr</td><td>8</td><td>1 Nov 12.15</td><td>14 Nov 12.15</td></tr>
+          <tr><td>@hannanails.id</td><td>8</td><td>1 Nov 19.15</td><td>13 Nov 19.15</td></tr></table>
+        <div class="callout a"><span class="wa">!</span><span>2 konten bentrok dengan post yang sudah terjadwal di jam sama. <u>Geser 15 menit</u></span><span></span></div>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Batal</span><span class="btn pri">Setujui 24 konten</span></div>
+      </div>
+      <div class="dlg" style="align-items:center;text-align:center">
+        <span style="font-size:30px" class="ok">✓</span>
+        <h5>24 konten masuk kalender</h5>
+        <p class="sub">Terbit pertama Sab 1 Nov 12.15 WIB. 12 konten di sesi ini masih menunggu.</p>
+        <div class="row"><span class="btn">Tetap di sesi</span><span class="btn pri">Lihat di Kalender</span></div>
+      </div>
+    </div></div></div>
+  </div>
+
+  <!-- D9 -->
+  <div class="mock-block" id="D9">
+    <div class="mock-head"><span class="id">D9</span><h3>Session calendar view (drag to reschedule)</h3><span class="tag">third view mode in the session</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h5>1 – 14 Nov · 36 konten</h5><div class="seg"><span>Per tanggal</span><span>Grid</span><span class="on">Kalender</span></div></div>
+      <div class="cal">
+        <div class="dh">Sen</div><div class="dh">Sel</div><div class="dh">Rab</div><div class="dh">Kam</div><div class="dh">Jum</div><div class="dh">Sab</div><div class="dh">Min</div>
+        <div><span class="n o">27</span><div class="ev pub">● Terbit · Test</div></div><div><span class="n o">28</span></div><div><span class="n o">29</span></div><div><span class="n o">30</span></div><div><span class="n o">31</span></div>
+        <div><span class="n">1</span><div class="ev dr">12.15 MJ · Siap</div><div class="ev dr">12.15 HB · Siap</div><div class="ev sch">19.15 HB · ✓</div></div>
+        <div><span class="n">2</span><div class="ev sch">12.15 MJ · ✓</div><div class="ev fail">12.15 HB · Gagal</div><div class="ev dr">19.15 HN · Dibuat</div></div>
+        <div><span class="n">3</span><div class="ev dr">12.15 MJ · Siap</div><div class="ev dr" style="box-shadow:0 6px 14px rgba(16,24,40,.2);transform:rotate(-2deg)">19.15 HB · Siap ✥</div></div>
+        <div><span class="n">4</span><div class="ev dr">12.15 HN · Siap</div></div><div><span class="n">5</span><div class="ev dr">19.15 MJ · Siap</div></div><div><span class="n">6</span></div><div><span class="n">7</span><div class="ev dr">12.15 HB · Siap</div></div><div><span class="n">8</span><div class="ev dr">12.15 MJ · Siap</div></div><div><span class="n">9</span><div class="ev dr">19.15 HN · Siap</div></div>
+      </div>
+      <div class="row sub xs"><span class="ev dr">Draft</span><span class="ev sch">Disetujui</span><span class="ev pub">Sudah terbit (sesi lain)</span><span class="ev fail">Gagal</span> · Seret untuk mengubah jadwal (tersimpan otomatis).</div>
+    </div></div>
+  </div>
+
+  <!-- D10 -->
+  <div class="mock-block" id="D10">
+    <div class="mock-head"><span class="id">D10</span><h3>Draft Konten on a phone</h3><span class="tag">session list · one-at-a-time review</span></div>
+    <div class="frame center">
+      <div class="app mobile">
+        <div class="mob-top"><b style="font-size:16px">Draft Konten</b><div class="seg" style="align-self:flex-start"><span class="on">Perlu tindakan 3</span><span>Semua</span></div></div>
+        <div class="mob-body">
+          <div class="card pad-s col s"><div class="row"><span class="chip">Rencana saja</span><span class="chip a xs">⏱ 6 hari</span></div><b>Manisky: Chapter 01</b><span class="sub xs">@manisky.id · 12 episode · 21 Okt – 3 Nov</span><span class="btn pri sm" style="align-self:flex-start">Buat konsep 12</span></div>
+          <div class="card pad-s col s"><div class="row"><span class="chip a">Tinjau gambar</span></div><b>Promo 11.11: Lash cluster</b><div class="bar"><i style="width:22%;background:var(--m-green)"></i><i style="width:67%;background:#f5b45a"></i><i style="width:5%;background:var(--m-red)"></i></div><span class="sub xs">8 disetujui · 24 siap · 2 gagal</span></div>
+          <div class="card pad-s col s"><div class="row"><span class="chip p">Tinjau konsep</span></div><b>Moon &amp; Jasmine: Halloween</b><span class="sub xs">6 konsep menunggu</span></div>
+        </div>
+      </div>
+      <div class="app mobile">
+        <div class="mob-top" style="flex-direction:row;justify-content:space-between;align-items:center"><span class="sub">← 3 / 24</span><b style="font-size:13px">Sab 1 Nov · 12.15</b><span class="sub">Edit</span></div>
+        <div class="phone" style="border:none;border-radius:0">
+          <div class="ig-h"><span class="av s c2" style="width:24px;height:24px">MJ</span>moonjasmine.id</div>
+          <div class="img t1"><div class="dots"><i class="on"></i><i></i><i></i></div></div>
+          <div style="padding:10px 12px;font-size:12px"><b>moonjasmine.id</b> Baru kenal lash cluster? Ini 3 langkah pasang tanpa ribet ✨</div>
+        </div>
+        <div style="padding:0 12px 10px"><div class="input ph">✨ Minta revisi AI…</div></div>
+        <div class="mob-bar"><span class="btn" style="flex:1">Lewati</span><span class="btn pri" style="flex:2">Setujui · berikutnya →</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= BERANDA ======================= -->
+<section class="stack-lg" id="home">
+  <div class="section-head"><span class="eyebrow">Konten</span><h2>Beranda</h2><p class="why">Today the dashboard opens with four equal stat cards, then six quick-action tiles that repeat the sidebar. On first load it showed "5 · 0 Instagram · 0 Threads" because <code>pageHome</code> reads <code>state.accounts</code> before they're loaded. It can also show "Sambungkan akun pertama" next to 5 connected accounts. The home page should answer one question: what needs me today?</p></div>
+  <div class="mock-block" id="H1">
+    <div class="mock-head"><span class="id">H1</span><h3>Beranda · "Hari ini"</h3><span class="tag">task-first dashboard</span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="col s"><span class="sub">Selasa, 20 Oktober 2026</span><h4>Halo, Reyner</h4></div><div class="row"><span class="btn">✦ Sesi Generator</span><span class="btn pri">✎ Tulis Post</span></div></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:start">
+        <div class="card">
+          <div class="between pad" style="padding-bottom:10px"><h5>Perlu tindakan · 4 <span class="pin s">1</span></h5><span class="sub">diurutkan dari yang paling mendesak</span></div>
+          <div class="hr"></div>
+          <div class="lrow"><span class="chip r">Gagal</span><div><b>1 post gagal terbit di @hannabeauty.kr</b><div class="sub xs">Token kedaluwarsa · 2 jam lalu</div></div><span class="btn sm">Perbaiki</span></div>
+          <div class="lrow"><span class="chip a">Draft</span><div><b>Manisky: Chapter 01, rencana belum dibuat konsepnya</b><div class="sub xs">Dihapus otomatis 6 hari lagi</div></div><span class="btn sm pri">Buka sesi</span></div>
+          <div class="lrow"><span class="chip p">Konsep</span><div><b>6 konsep Halloween menunggu persetujuan</b><div class="sub xs">@moonjasmine.id · siap 10 menit lalu</div></div><span class="btn sm">Tinjau</span></div>
+          <div class="lrow"><span class="chip b">DM</span><div><b>3 pesan lewat 5 menit</b><div class="sub xs">Jendela balas 24 jam berakhir 21.10 untuk 1 pesan</div></div><span class="btn sm">Balas</span></div>
+        </div>
+        <div class="card pad col">
+          <div class="between"><h5>Jadwal hari ini</h5><span class="btn ghost sm">Kalender →</span></div>
+          <div class="col s" style="border-left:2px solid var(--m-line);padding-left:12px">
+            <div class="row"><b class="xs" style="width:38px">12.15</b><span class="av s c2">MJ</span><span class="grow xs">Baru kenal lash cluster?…</span><span class="chip g xs">Terbit</span></div>
+            <div class="row"><b class="xs" style="width:38px">19.15</b><span class="av s c3">HB</span><span class="grow xs">11.11 is coming…</span><span class="chip b xs">Terjadwal</span></div>
+            <div class="row"><b class="xs" style="width:38px">19.15</b><span class="av s c4">HN</span><span class="grow xs">Combo press-on + lash…</span><span class="chip b xs">Terjadwal</span></div>
+          </div>
+          <div class="hr"></div>
+          <div class="between"><h6>Akun</h6><span class="sub xs">5 Instagram · 0 Threads <span class="pin s">2</span></span></div>
+          <div class="row wrap"><span class="chip g"><span class="av s c2">MJ</span> aktif</span><span class="chip r"><span class="av s c3">HB</span> token</span><span class="chip g"><span class="av s c4">HN</span> aktif</span><span class="chip g"><span class="av s c1">MS</span> aktif</span><span class="chip g"><span class="av s c5">AJ</span> aktif</span></div>
+        </div>
+      </div>
+      <div class="g4">
+        <div class="card pad-s col s"><span class="label">Terjadwal 7 hari</span><div class="num-big">18</div><span class="sub xs">di 4 akun</span></div>
+        <div class="card pad-s col s"><span class="label">Terbit 7 hari</span><div class="num-big">11</div><span class="sub xs">0 gagal</span></div>
+        <div class="card pad-s col s"><span class="label">Komentar belum dibalas</span><div class="num-big">0</div><span class="sub xs">semua beres</span></div>
+        <div class="card pad-s col s"><span class="label">Pengikut (total)</span><div class="num-big">14.663</div><span class="sub xs"><span class="er">−41</span> 30 hari · @anekajaya.asemka</span></div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>One prioritised task list merges failed posts, sessions waiting for review, concept approvals, overdue DMs and expiring tokens. When it's empty: "Semua beres untuk hari ini."</span></li>
+      <li><span class="pin">2</span><span>Counts render only after accounts load (fix the race in <code>pageHome</code>). The "Sambungkan akun pertama" card only shows when <code>stats.accounts === 0</code>.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= TULIS POST ======================= -->
+<section class="stack-lg" id="compose">
+  <div class="section-head"><span class="eyebrow">Konten</span><h2>Tulis Post</h2><p class="why">The page opens with "Koneksi AI pribadi", an integration panel, above the actual task. The account picker lists long brand names in pill rows. The literal text <code>null</code> renders below "+ Foto / video". The preview sits at the bottom, so you can't see it while typing.</p></div>
+  <div class="mock-block" id="C1">
+    <div class="mock-head"><span class="id">C1</span><h3>Composer with live preview</h3><span class="tag">two columns · preview always visible</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h4>Tulis Post</h4><span class="chip b">✦ 2 draf dari AI / agen menunggu · <u>Buka</u> <span class="pin s">1</span></span></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start">
+        <div class="card pad col l">
+          <div class="col s"><span class="flabel">Akun tujuan</span><div class="apick"><span class="ap on"><span class="av s c2">MJ</span>@moonjasmine.id<i>✓</i></span><span class="ap"><span class="av s c3">HB</span>@hannabeauty.kr</span><span class="ap"><span class="av s c4">HN</span>@hannanails.id</span><span class="ap"><span class="av s c1">MS</span>@manisky.id</span><span class="ap"><span class="av s c5">AJ</span>@anekajaya.asemka</span></div><span class="sub xs">Satu baris chip, bukan daftar nama brand bertumpuk (pola S3). Nama brand lengkap muncul saat hover. <span class="pin s">2</span></span></div>
+          <div class="col s"><span class="flabel">Media</span><div class="row"><span class="thumb t1" style="width:72px;height:90px"><span class="badge-n">1</span></span><span class="thumb t6" style="width:72px;height:90px"><span class="badge-n">2</span></span><span class="thumb" style="width:72px;height:90px;border:1.5px dashed #98a2b3;display:grid;place-items:center;color:#667085;text-align:center;font-size:11px">+ Foto / video<br>atau dari Pustaka</span></div><span class="sub xs">Carousel 2/10 · rasio 4:5 ✓ <span class="pin s">3</span></span></div>
+          <div class="col s"><div class="between"><span class="flabel">Caption</span><div class="seg"><span class="on">Sama untuk semua</span><span>Per platform</span></div></div><div class="ta focus">Weekend glow ✨ Dua shade baru untuk tampilan soft glam yang tetap natural.</div><div class="between"><span class="row"><span class="btn ghost sm">✨ Perbaiki dengan AI</span><span class="btn ghost sm"># Hashtag</span></span><span class="sub xs">78 / 2.200</span></div></div>
+          <div class="col s"><span class="flabel">Kapan</span><div class="row"><div class="seg"><span>Sekarang</span><span class="on">Jadwalkan</span></div><span class="input">Sab, 24 Okt · 12.15 WIB ▾</span><span class="sub xs">Slot populer: 12.15 · 19.15</span></div></div>
+          <div class="between"><span class="sub xs">Media dihapus dari server setelah terbit. Simpan file asli Anda.</span><div class="row"><span class="btn">Simpan draft</span><span class="btn pri">Jadwalkan</span></div></div>
+        </div>
+        <div class="card pad col" style="position:sticky;top:0">
+          <div class="between"><h5>Preview</h5><div class="seg"><span class="on">Instagram</span><span>Threads</span></div></div>
+          <div class="phone"><div class="ig-h"><span class="av s c2" style="width:24px;height:24px">MJ</span>moonjasmine.id</div><div class="img t1"><div class="dots"><i class="on"></i><i></i></div></div><div style="padding:10px 12px;font-size:12px"><b>moonjasmine.id</b> Weekend glow ✨ Dua shade baru untuk tampilan soft glam yang tetap natural.</div></div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>"Koneksi AI pribadi" moves to API &amp; AI and Pengaturan. Only a chip remains here, and only when AI drafts are waiting.</span></li>
+      <li><span class="pin">2</span><span>"Akun tujuan" uses the S3 picker: one row of @handle chips instead of long brand names wrapping into several lines. Same component as the Generator.</span></li>
+      <li><span class="pin">3</span><span>Media validation is shown inline (ratio, count). Fix the stray <code>null</code> text node rendered after the upload button.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= KALENDER ======================= -->
+<section class="stack-lg" id="calendar">
+  <div class="section-head"><span class="eyebrow">Konten</span><h2>Kalender Konten</h2><p class="why">The month view works, but the filters take a full row of large selects, events show only a time and a few letters ("A little lash…"), there's no account colour, and Draft Konten items waiting for approval don't appear, so people can't see gaps.</p></div>
+  <div class="mock-block" id="K1">
+    <div class="mock-head"><span class="id">K1</span><h3>Month view with account colours and drafts</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>Oktober 2026</h4><span class="btn sm">‹</span><span class="btn sm">Hari ini</span><span class="btn sm">›</span></div><div class="row"><div class="seg"><span class="on">Bulan</span><span>Minggu</span><span>Daftar</span></div><span class="btn pri">+ Tulis post</span></div></div>
+      <div class="between"><div class="row wrap"><span class="chip sel">Semua akun</span><span class="chip o"><span class="av s c2">MJ</span></span><span class="chip o"><span class="av s c3">HB</span></span><span class="chip o"><span class="av s c4">HN</span></span><span class="chip o"><span class="av s c1">MS</span></span><span class="chip o"><span class="av s c5">AJ</span></span> <span class="pin s">1</span></div><div class="row"><span class="tog on"></span><span class="sub">Tampilkan draft dari Draft Konten <span class="pin s">2</span></span></div></div>
+      <div class="cal">
+        <div class="dh">Sen</div><div class="dh">Sel</div><div class="dh">Rab</div><div class="dh">Kam</div><div class="dh">Jum</div><div class="dh">Sab</div><div class="dh">Min</div>
+        <div><span class="n">12</span></div><div><span class="n">13</span></div><div><span class="n">14</span></div><div><span class="n">15</span></div>
+        <div><span class="n">16</span><div class="ev pub"><span class="av s c3" style="width:14px;height:14px;font-size:6px">HB</span>13.55 Test</div></div>
+        <div><span class="n">17</span><div class="ev pub"><span class="av s c2" style="width:14px;height:14px;font-size:6px">MJ</span>17.48 A little lash knowledge</div></div>
+        <div><span class="n">18</span></div>
+        <div><span class="n">19</span></div>
+        <div class="today"><span class="n">20</span></div>
+        <div><span class="n">21</span><div class="ev dr"><span class="av s c1" style="width:14px;height:14px;font-size:6px">MS</span>12.15 Ep.13 · rencana</div></div>
+        <div><span class="n">22</span><div class="ev dr"><span class="av s c1" style="width:14px;height:14px;font-size:6px">MS</span>19.15 Ep.14 · rencana</div></div>
+        <div><span class="n">23</span></div>
+        <div><span class="n">24</span><div class="ev sch"><span class="av s c2" style="width:14px;height:14px;font-size:6px">MJ</span>12.15 Weekend glow</div><div class="ev dr"><span class="av s c1" style="width:14px;height:14px;font-size:6px">MS</span>12.15 Ep.15</div></div>
+        <div><span class="n">25</span><div class="ev fail"><span class="av s c3" style="width:14px;height:14px;font-size:6px">HB</span>19.15 Gagal terbit</div></div>
+      </div>
+      <div class="row sub xs"><span class="ev pub">Terbit</span><span class="ev sch">Terjadwal</span><span class="ev dr">Draft / rencana (belum disetujui)</span><span class="ev fail">Gagal</span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Account filter chips with avatars replace two full-width selects. Company filtering moves into the "Semua akun" menu.</span></li>
+      <li><span class="pin">2</span><span>Draft and planned items from sessions appear as dashed events and link to D5. Turning the toggle off shows only what will really be published.</span></li>
+    </ul>
+  </div>
+  <div class="mock-block" id="K2">
+    <div class="mock-head"><span class="id">K2</span><h3>Event side panel</h3><span class="tag">click an event · no page change</span></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="drawer-wrap" style="grid-template-columns:minmax(0,1fr) 380px">
+      <div class="ghostpage"><h4>Oktober 2026</h4></div>
+      <div class="drawer">
+        <div class="between"><span class="chip b">Terjadwal</span><span class="btn sm">✕</span></div>
+        <div class="row"><span class="thumb t1" style="width:84px;height:105px"></span><div class="col s"><b>Weekend glow</b><span class="sub xs">@moonjasmine.id · Instagram</span><span class="sub xs">Sab 24 Okt · 12.15 WIB</span><span class="chip p xs" style="align-self:flex-start">dari sesi Promo 11.11</span></div></div>
+        <span class="sub">Weekend glow ✨ Dua shade baru untuk tampilan soft glam yang tetap natural.</span>
+        <div class="row wrap"><span class="btn">✎ Edit</span><span class="btn">🗓 Ubah jadwal</span><span class="btn">⧉ Duplikat</span><span class="btn danger">Batalkan jadwal</span></div>
+      </div>
+    </div></div></div>
+  </div>
+</section>
+
+<!-- ======================= PESAN ======================= -->
+<section class="stack-lg" id="dm">
+  <div class="section-head"><span class="eyebrow">Interaksi</span><h2>Pesan (DM)</h2><p class="why">With no conversations, the page shows five identical grey diagnostic paragraphs (one per account) and an empty box. The diagnostics are useful once, not as the page body. The inbox needs a proper three-pane layout and a visible 24-hour reply window.</p></div>
+  <div class="mock-block" id="M1">
+    <div class="mock-head"><span class="id">M1</span><h3>Three-pane inbox</h3></div>
+    <div class="frame"><div class="app" style="padding:0">
+      <div class="between" style="padding:16px 20px;border-bottom:1px solid var(--m-line);background:#fff"><div class="row"><h4>Pesan</h4><div class="seg"><span class="on">Perlu dibalas 3</span><span>Semua</span><span>Selesai</span></div></div><div class="row"><span class="input">Semua akun ▾</span><span class="chip a">⚠ 5 akun: Meta belum mengirim DM · <u>Cek izin</u> <span class="pin s">1</span></span><span class="btn sm">↻ Muat terbaru</span></div></div>
+      <div style="display:grid;grid-template-columns:300px minmax(0,1fr) 260px;min-height:420px">
+        <div style="border-right:1px solid var(--m-line);background:#fff">
+          <div class="lrow on"><span class="av" style="background:#98a2b3">SR</span><div style="min-width:0"><b>sari.rahma</b><div class="sub xs" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Kak, lash cluster yang natural ready?</div></div><div class="col s" style="align-items:flex-end"><span class="sub xs">7 mnt</span><span class="chip r xs">lewat 5 mnt</span></div></div>
+          <div class="lrow"><span class="av" style="background:#98a2b3">DN</span><div style="min-width:0"><b>dina.nails</b><div class="sub xs">Bisa COD Jakarta Barat?</div></div><div class="col s" style="align-items:flex-end"><span class="sub xs">22 mnt</span><span class="av s c4">HN</span></div></div>
+          <div class="lrow"><span class="av" style="background:#98a2b3">AY</span><div style="min-width:0"><b>ayu_p</b><div class="sub xs">Terima kasih kak 🙏</div></div><div class="col s" style="align-items:flex-end"><span class="sub xs">1 jam</span><span class="av s c3">HB</span></div></div>
+        </div>
+        <div class="col" style="padding:16px;background:var(--m-bg)">
+          <div class="between"><div class="row"><b>sari.rahma</b><span class="sub xs">via <span class="av s c2" style="display:inline-grid">MJ</span> @moonjasmine.id</span></div><span class="chip a">⏱ Bisa dibalas 23 jam 53 mnt lagi <span class="pin s">2</span></span></div>
+          <div class="chat grow">
+            <div class="bub in">Halo kak, mau tanya</div>
+            <div class="bub in">Kak, lash cluster yang natural ready? Buat pemula yang mana ya?</div>
+          </div>
+          <div class="row wrap"><span class="chip o">✦ Ready kak! Untuk pemula kami sarankan…</span><span class="chip o">✦ Kirim link katalog</span> <span class="pin s">3</span></div>
+          <div class="row"><div class="input grow ph">Tulis balasan…</div><span class="btn pri">Kirim</span></div>
+        </div>
+        <div style="border-left:1px solid var(--m-line);background:#fff;padding:16px" class="col">
+          <span class="label">Pelanggan</span><b>sari.rahma</b><span class="sub xs">Pertama kirim pesan 3 bulan lalu · 4 percakapan</span>
+          <div class="hr"></div><span class="label">Post terkait</span><div class="row"><span class="thumb t1" style="width:40px;height:40px"></span><span class="xs">A little lash knowledge…</span></div>
+          <div class="hr"></div><span class="btn sm">Tandai selesai</span>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>Per-account sync diagnostics collapse into one warning chip that opens a popover with the 5 lines and a "Cara memperbaiki" link.</span></li>
+      <li><span class="pin">2</span><span>The 24-hour Meta reply window is a live countdown per conversation. The composer locks with an explanation after it expires.</span></li>
+      <li><span class="pin">3</span><span>Optional AI reply suggestions using the account's Brand Kit tone. The user always sends.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= KOMENTAR ======================= -->
+<section class="stack-lg" id="comments">
+  <div class="section-head"><span class="eyebrow">Interaksi</span><h2>Komentar</h2><p class="why">Filters are spread across a select and two segmented controls on separate lines, plus a "Muat terbaru" button. The empty state ("Semua komentar sudah dibalas.") is good. Group comments by post so replies have context, and put reply and hide inline.</p></div>
+  <div class="mock-block" id="R1">
+    <div class="mock-head"><span class="id">R1</span><h3>Comments grouped by post</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>Komentar</h4><div class="seg"><span class="on">Perlu dibalas 4</span><span>Semua</span><span>Disembunyikan</span></div></div><div class="row"><span class="input">Semua akun ▾</span><span class="sub xs">Sinkron 2 mnt lalu ↻</span></div></div>
+      <div class="card">
+        <div class="row pad-s" style="background:#fafbfc;border-bottom:1px solid var(--m-line)"><span class="thumb t1" style="width:44px;height:44px"></span><div class="grow"><b>A little lash knowledge, a lovely place to start…</b><div class="sub xs">@moonjasmine.id · terbit 17 Okt · 3 komentar perlu dibalas</div></div><span class="btn sm">Buka post ↗</span></div>
+        <div class="lrow" style="grid-template-columns:auto minmax(0,1fr) auto"><span class="av" style="background:#98a2b3">RN</span><div><b>rina.nv</b> <span class="sub xs">· 1 jam</span><div>Ini bisa dipakai berapa kali kak?</div><div class="row" style="margin-top:6px"><div class="input grow" style="min-height:30px">✦ Bisa 3–5 kali pemakaian dengan perawatan yang benar 💕</div><span class="btn sm pri">Balas</span></div></div><span class="btn ghost sm">Sembunyikan</span></div>
+        <div class="lrow" style="grid-template-columns:auto minmax(0,1fr) auto"><span class="av" style="background:#98a2b3">TT</span><div><b>tiara.t</b> <span class="sub xs">· 3 jam</span><div>Spill harga dong 😍</div><div class="row" style="margin-top:6px"><span class="btn sm">Balas</span><span class="btn sm">Balas via DM</span></div></div><span class="btn ghost sm">Sembunyikan</span></div>
+        <div class="lrow" style="grid-template-columns:auto minmax(0,1fr) auto"><span class="av" style="background:#98a2b3">XX</span><div><b>promo_follower99</b> <span class="sub xs">· 5 jam</span> <span class="chip r xs">kemungkinan spam</span><div>Mau 10k followers? DM kami!</div></div><span class="btn sm danger">Sembunyikan</span></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= INSIGHTS ======================= -->
+<section class="stack-lg" id="insights">
+  <div class="section-head"><span class="eyebrow">Interaksi</span><h2>Insights</h2><p class="why">Nine equal cards, each with a sparkline that has no y-axis, so a fall from 2.606 to 2.565 looks like a crash. The account select shows "Aneka Jaya – Grosir Aksesoris Jakarta · @anekajaya.asemka (Instagram)", and there's no comparison or link to which posts drove the numbers.</p></div>
+  <div class="mock-block" id="I1">
+    <div class="mock-head"><span class="id">I1</span><h3>Insights · headline numbers, one real chart, top posts</h3></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="row"><h4>Insights</h4><span class="chip o"><span class="av s c5">AJ</span>@anekajaya.asemka ▾</span></div><div class="row"><div class="seg"><span>7 hari</span><span class="on">30 hari</span><span>90 hari</span></div><span class="sub xs">Diperbarui 2 jam lalu · Meta bisa telat 48 jam</span></div></div>
+      <div class="g4">
+        <div class="card pad-s col s"><span class="label">Pengikut</span><div class="row"><span class="num-big">2.565</span><span class="chip r">−41 · −1,6%</span></div><span class="sub xs">vs 30 hari sebelumnya</span></div>
+        <div class="card pad-s col s"><span class="label">Jangkauan</span><div class="row"><span class="num-big">28</span><span class="chip g">+12</span></div><span class="sub xs">akun unik</span></div>
+        <div class="card pad-s col s"><span class="label">Tayangan</span><div class="row"><span class="num-big">123</span><span class="chip g">+64</span></div><span class="sub xs">semua konten</span></div>
+        <div class="card pad-s col s"><span class="label">Interaksi</span><div class="row"><span class="num-big">2</span><span class="chip">±0</span></div><span class="sub xs">1 suka · 1 simpan · 0 komentar</span></div>
+      </div>
+      <div class="card pad col">
+        <div class="between"><h5>Pengikut, 30 hari</h5><div class="seg"><span class="on">Pengikut</span><span>Jangkauan</span><span>Tayangan</span></div></div>
+        <svg viewBox="0 0 900 180" class="spark" style="height:180px" role="img" aria-label="Pengikut turun dari 2.606 ke 2.565">
+          <g font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#667085">
+            <text x="0" y="16">2.610</text><text x="0" y="86">2.585</text><text x="0" y="156">2.560</text>
+            <text x="50" y="176">21 Sep</text><text x="440" y="176">5 Okt</text><text x="840" y="176">20 Okt</text>
+          </g>
+          <g stroke="#eaecf0"><line x1="44" y1="12" x2="900" y2="12"/><line x1="44" y1="82" x2="900" y2="82"/><line x1="44" y1="152" x2="900" y2="152"/></g>
+          <path d="M50 24 L180 22 L300 26 L420 24 L540 30 L660 34 L760 40 L800 90 L840 132 L880 140" fill="none" stroke="#0b6b4b" stroke-width="2.5"/>
+          <path d="M50 24 L180 22 L300 26 L420 24 L540 30 L660 34 L760 40 L800 90 L840 132 L880 140 L880 152 L50 152Z" fill="#e6f4ed" opacity=".6"/>
+          <circle cx="880" cy="140" r="4" fill="#0b6b4b"/>
+          <line x1="790" y1="12" x2="790" y2="152" stroke="#b54708" stroke-dasharray="3 3"/><text x="700" y="64" font-size="11" fill="#b54708" font-family="Plus Jakarta Sans, sans-serif">14 Okt: −28 dalam 3 hari</text>
+        </svg>
+      </div>
+      <div class="card">
+        <div class="pad-s"><h5>Post teratas di periode ini</h5></div>
+        <table class="mt"><tr><th>Post</th><th>Terbit</th><th>Jangkauan</th><th>Simpan</th><th>Suka</th></tr>
+          <tr><td><div class="row"><span class="thumb t2" style="width:32px;height:32px"></span>Restock jepit rambut mutiara</div></td><td>14 Okt</td><td>21</td><td>1</td><td>1</td></tr>
+          <tr><td><div class="row"><span class="thumb t3" style="width:32px;height:32px"></span>Grosir mulai 1 lusin</div></td><td>9 Okt</td><td>7</td><td>0</td><td>0</td></tr></table>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= ACCOUNTS ======================= -->
+<section class="stack-lg" id="accounts">
+  <div class="section-head"><span class="eyebrow">Pengaturan workspace</span><h2>Perusahaan &amp; Akun</h2><p class="why">Each account card has an always-visible company select, so one mis-click moves a brand to another company. Three equally weighted buttons lead the page, with "Tambah perusahaan" as primary even though connecting accounts is the common task. Brand Kit status, which the Generator depends on, isn't shown.</p></div>
+  <div class="mock-block" id="A1">
+    <div class="mock-head"><span class="id">A1</span><h3>Accounts table grouped by company</h3><span class="tag">real accounts and follower counts</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h4>Perusahaan &amp; Akun</h4><div class="row"><span class="btn">+ Perusahaan</span><span class="btn pri">+ Sambungkan akun ▾</span></div></div>
+      <div class="card" style="overflow:hidden">
+        <div class="between pad-s" style="background:#fafbfc;border-bottom:1px solid var(--m-line)"><div class="row"><b>LRM Corporation</b><span class="sub">5 akun</span></div><span class="btn ghost sm">Ubah nama</span></div>
+        <table class="mt">
+          <tr><th>Akun</th><th>Pengikut</th><th>Brand Kit <span class="pin s">1</span></th><th>Koneksi</th><th></th></tr>
+          <tr><td><div class="row"><span class="av c5">AJ</span><div><b>Aneka Jaya: Grosir Aksesoris Jakarta</b><div class="sub xs">@anekajaya.asemka · Instagram</div></div></div></td><td>2.565</td><td><span class="chip a">Belum ada · Atur</span></td><td><span class="chip g">Aktif s/d 15 Des</span></td><td><span class="btn sm">⋯ <span class="pin s">2</span></span></td></tr>
+          <tr><td><div class="row"><span class="av c3">HB</span><div><b>@hannabeauty.kr</b><div class="sub xs">Instagram</div></div></div></td><td>2.769</td><td><span class="chip g">Lengkap</span></td><td><span class="chip g">Aktif s/d 14 Des</span></td><td><span class="btn sm">⋯</span></td></tr>
+          <tr><td><div class="row"><span class="av c4">HN</span><div><b>Hanna Nails: Premium Press-On Nails</b><div class="sub xs">@hannanails.id · Instagram</div></div></div></td><td>4.497</td><td><span class="chip g">Lengkap</span></td><td><span class="chip g">Aktif s/d 15 Des</span></td><td><span class="btn sm">⋯</span></td></tr>
+          <tr><td><div class="row"><span class="av c1">MS</span><div><b>Manisky Nails</b><div class="sub xs">@manisky.id · Instagram</div></div></div></td><td>2.510</td><td><span class="chip a">3/4 · produk kosong</span></td><td><span class="chip g">Aktif s/d 15 Des</span></td><td><span class="btn sm">⋯</span></td></tr>
+          <tr><td><div class="row"><span class="av c2">MJ</span><div><b>Moon and Jasmine Beauty</b><div class="sub xs">@moonjasmine.id · Instagram</div></div></div></td><td>2.322</td><td><span class="chip g">Lengkap</span></td><td><span class="chip g">Aktif s/d 15 Des</span></td><td><span class="btn sm">⋯</span></td></tr>
+        </table>
+      </div>
+      <div class="card pad-s between"><div class="row"><b>HR Group</b><span class="sub">0 akun</span></div><span class="sub xs">Pindahkan akun lewat menu ⋯ → "Pindah perusahaan"</span></div>
+      <div class="card pad-s col s" style="width:260px;margin-left:auto;box-shadow:0 10px 24px rgba(16,24,40,.12)"><span class="xs">Brand Kit &amp; Cerita</span><span class="xs">Detail integrasi</span><span class="xs">Pindah perusahaan…</span><span class="xs">Perbarui nama &amp; foto</span><span class="xs">Sambungkan ulang</span><div class="hr"></div><span class="xs er">Putuskan akun…</span></div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>The Brand Kit completeness column is the same data the Generator's readiness check uses.</span></li>
+      <li><span class="pin">2</span><span>Rare and destructive actions move into a row menu. "Pindah perusahaan" opens a confirm dialog instead of an inline select that saves on change.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= BRAND KIT ======================= -->
+<section class="stack-lg" id="brandkit">
+  <div class="section-head"><span class="eyebrow">Per akun</span><h2>Brand Kit &amp; Cerita</h2><p class="why">The foundation is one big textarea of raw markdown (<code># MANISKY — CHAPTER 01…</code>). The note says changes save automatically, yet there's a manual "Simpan fondasi cerita" button. Assets are listed by file name ("WhatsApp Image 2026-10-19 at 13.23.15 (1).jpeg") without useful labels, and there's no sign of what's missing for good generations.</p></div>
+  <div class="mock-block" id="B1">
+    <div class="mock-head"><span class="id">B1</span><h3>Brand Kit overview with completeness</h3><span class="tag">@manisky.id · real asset counts</span></div>
+    <div class="frame"><div class="app col l">
+      <div class="between"><div class="row"><span class="av l c1">MS</span><div class="col s"><h4>Manisky Nails</h4><span class="sub">@manisky.id · LRM Corporation · Instagram · <span class="chip g xs">Aktif</span></span></div></div><div class="row"><span class="btn">Detail integrasi</span><span class="btn pri">✦ Rencanakan sesi</span></div></div>
+      <div class="tabs"><span class="on">Brand Kit</span><span>Story Bible</span><span>Memori cerita · 12</span><span>Integrasi</span></div>
+      <div class="card pad-s between"><div class="row"><b>Kelengkapan 75%</b><div class="bar" style="width:220px"><i style="width:75%;background:var(--m-green)"></i></div></div><span class="sub">Tambah foto produk agar Storyteller bisa memilih produk spesifik. <span class="pin s">1</span></span></div>
+      <div class="g2">
+        <div class="card pad col">
+          <div class="between"><h5>Identitas &amp; tone <span class="ok">✓</span></h5><span class="sub xs">Tersimpan otomatis 22.48 <span class="pin s">2</span></span></div>
+          <div class="g2"><div class="col s"><span class="label">Esensi</span><span>Little details. Beautiful feelings.</span></div><div class="col s"><span class="label">Bahasa</span><span>English + Indonesia</span></div></div>
+          <div class="col s"><span class="label">Tone</span><div class="row wrap"><span class="chip o">Warm</span><span class="chip o">Subtle</span><span class="chip o">Elegant</span><span class="chip o">Playful charm</span></div></div>
+          <span class="btn ghost sm" style="align-self:flex-start">Edit prompt lengkap (markdown) →</span>
+        </div>
+        <div class="card pad col">
+          <div class="between"><h5>Aturan brand <span class="ok">✓</span></h5></div>
+          <div class="col s"><span class="label">Boleh</span><span class="xs">Soft blush, champagne, ivory · teks minimal di gambar · cahaya natural</span></div>
+          <div class="col s"><span class="label">Jangan</span><span class="xs">Klaim tahan lama berlebihan · warna neon · tampilan kekanak-kanakan</span></div>
+        </div>
+      </div>
+      <div class="card pad col">
+        <div class="between"><h5>Aset brand</h5><span class="sub xs">6 / 250 aset</span></div>
+        <div class="g4">
+          <div class="col s"><span class="label">Logo · 1 <span class="ok">✓</span></span><div class="row"><span class="thumb" style="width:64px;height:64px;background:#fff;border:1px solid var(--m-line);display:grid;place-items:center;font-weight:800;color:#c99a9a">M</span></div></div>
+          <div class="col s"><span class="label">Referensi visual · 5 <span class="ok">✓</span></span><div class="row"><span class="thumb t1" style="width:40px;height:40px"></span><span class="thumb t2" style="width:40px;height:40px"></span><span class="thumb t6" style="width:40px;height:40px"></span><span class="chip xs">+2</span></div><span class="sub xs">Label: "Feed mood", "Packaging"</span></div>
+          <div class="col s"><span class="label">Foto produk · 0 <span class="wa">!</span></span><div class="thumb" style="width:100%;height:64px;border:1.5px dashed #f5b45a;display:grid;place-items:center;color:var(--m-amber);font-size:11px;font-weight:600;background:var(--m-amber-soft)">+ Tambah produk</div></div>
+          <div class="col s"><span class="label">Video / Reel · 0</span><div class="thumb" style="width:100%;height:64px;border:1.5px dashed #98a2b3;display:grid;place-items:center;color:#667085;font-size:11px">+ Video</div><span class="sub xs">Opsional. Agen tidak membuat video.</span></div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="legend">
+      <li><span class="pin">1</span><span>The completeness meter uses the same rules as the Generator checklist. Each missing item links to its slot.</span></li>
+      <li><span class="pin">2</span><span>Autosave only (the existing <code>markDirty</code> → <code>save</code> logic). Remove the "Simpan fondasi cerita" button. The full markdown prompt stays available behind "Edit prompt lengkap".</span></li>
+    </ul>
+  </div>
+  <div class="mock-block" id="B2">
+    <div class="mock-head"><span class="id">B2</span><h3>Add product photos (named catalog)</h3><span class="tag">upload → name → describe, so Storyteller can pick correctly</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h5>Foto produk · 3 baru</h5><span class="btn pri">Simpan 3 produk</span></div>
+      <div class="g3">
+        <div class="card pad-s col s"><span class="thumb t1" style="width:100%;height:120px;max-width:100%"></span><span class="input">Blush Petal · Almond M</span><span class="input ph">Deskripsi: pink lembut, finishing glossy</span><div class="row"><span class="chip o">Koleksi: Everyday</span><span class="chip o">+ tag</span></div></div>
+        <div class="card pad-s col s"><span class="thumb t6" style="width:100%;height:120px;max-width:100%"></span><span class="input">Champagne Shimmer · Coffin S</span><span class="input ph">Deskripsi…</span><div class="row"><span class="chip o">Koleksi: Party</span></div></div>
+        <div class="card pad-s col s"><span class="thumb t2" style="width:100%;height:120px;max-width:100%"></span><span class="input err">Nama produk wajib diisi</span><span class="input ph">Deskripsi…</span><div class="row"><span class="chip o">+ koleksi</span></div></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= MEDIA ======================= -->
+<section class="stack-lg" id="media">
+  <div class="section-head"><span class="eyebrow">Pengaturan workspace</span><h2>Pustaka Media</h2><p class="why">The header says "Penyimpanan: 720 KB · 7 file", but the page shows only the upload box and no files. The 7 files are probably Brand Kit assets stored outside the library list. People will assume their files vanished. The library should show everything, with a filter by source.</p></div>
+  <div class="mock-block" id="ME1">
+    <div class="mock-head"><span class="id">ME1</span><h3>Library with sources and usage</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>Pustaka Media</h4><span class="sub">7 file · 720 KB</span></div><span class="btn pri">⇪ Unggah</span></div>
+      <div class="between"><div class="row"><span class="chip sel">Semua 7</span><span class="chip o">Unggahan tim 0</span><span class="chip o">Brand Kit 6</span><span class="chip o">Hasil AI 1</span> <span class="pin s">1</span></div><div class="row"><span class="input">Semua akun ▾</span><div class="seg"><span class="on">Foto</span><span>Video</span></div></div></div>
+      <div class="media-grid">
+        <div class="col s"><span class="thumb" style="background:#fff;border:1px solid var(--m-line);display:grid;place-items:center;font-weight:800;color:#c99a9a;aspect-ratio:1/1;width:100%">M</span><span class="xs"><b>Logo</b> · @manisky.id</span></div>
+        <div class="col s"><span class="thumb t1"></span><span class="xs"><b>Feed mood 1</b> · Brand Kit</span></div>
+        <div class="col s"><span class="thumb t2"></span><span class="xs"><b>Feed mood 2</b> · Brand Kit</span></div>
+        <div class="col s"><span class="thumb t6"></span><span class="xs"><b>Packaging</b> · Brand Kit</span></div>
+        <div class="col s"><span class="thumb t4"></span><span class="xs"><b>Referensi 4</b> · dipakai 3 draft</span></div>
+        <div class="col s"><span class="thumb t3"></span><span class="xs"><b>Hasil AI</b> · Promo 11.11</span></div>
+      </div>
+      <div class="card pad-s row" style="border-style:dashed;justify-content:center"><span class="sub">Tarik foto/video ke sini · JPEG/PNG ≤ 8 MB · MP4/MOV ≤ 300 MB · rasio feed 4:5 – 1.91:1</span></div>
+    </div></div>
+    <ul class="legend"><li><span class="pin">1</span><span>The source filter makes the storage count match what's visible. Each tile shows its label, owner account and where it's used. Alt text is edited inline (no <code>prompt()</code>).</span></li></ul>
+  </div>
+</section>
+
+<!-- ======================= API & AI ======================= -->
+<section class="stack-lg" id="api">
+  <div class="section-head"><span class="eyebrow">Pengaturan workspace</span><h2>API &amp; AI</h2><p class="why">The content is good. It reads as one long document: connector URL, CLI command, REST docs, key creation and connected apps all at the same visual weight. Turn it into three clear cards, and show existing keys as a table with scope and last use.</p></div>
+  <div class="mock-block" id="P1">
+    <div class="mock-head"><span class="id">P1</span><h3>Connect · Keys · Apps</h3></div>
+    <div class="frame"><div class="app col">
+      <h4>API &amp; AI</h4>
+      <div class="g3">
+        <div class="card pad col s"><span class="label">1 · Claude / ChatGPT</span><b>Pasang sebagai connector</b><div class="input" style="font-family:var(--f-mono);font-size:11px">https://lrmsosmed.playgo.id/mcp<span class="btn sm" style="margin-left:auto">Salin</span></div><span class="sub xs">Claude: Settings → Connectors → Add custom connector.</span></div>
+        <div class="card pad col s"><span class="label">2 · Claude Code / Cursor / n8n</span><b>Pakai API key</b><div class="input" style="font-family:var(--f-mono);font-size:10.5px">claude mcp add --transport http lrmsmm …<span class="btn sm" style="margin-left:auto">Salin</span></div><span class="sub xs">Butuh API key di bawah.</span></div>
+        <div class="card pad col s"><span class="label">3 · REST API</span><b>Kirim post dari sistem lain</b><div class="row"><span class="btn sm">Panduan API</span><span class="btn sm">OpenAPI JSON</span></div><span class="sub xs">Base URL: /v1</span></div>
+      </div>
+      <div class="card">
+        <div class="between pad-s"><h5>API key</h5><span class="btn sm pri">+ Buat API key</span></div>
+        <table class="mt"><tr><th>Nama</th><th>Akses</th><th>Dibuat</th><th>Terakhir dipakai</th><th></th></tr>
+          <tr><td><b>n8n produksi</b><div class="sub xs">lrm_live_…a91f</div></td><td><span class="chip a">Baca &amp; tulis</span></td><td>12 Okt</td><td>2 jam lalu</td><td><span class="btn sm danger">Cabut</span></td></tr>
+          <tr><td colspan="5" class="sub xs">Contoh baris. Saat ini belum ada API key. Key hanya ditampilkan sekali; LRMsmm menyimpan hash-nya.</td></tr></table>
+      </div>
+      <div class="card pad-s between"><div class="col s"><h6>Aplikasi terhubung (OAuth)</h6><span class="sub xs">Belum ada aplikasi AI yang terhubung.</span></div><span class="btn sm">Cara menghubungkan</span></div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= TEAM ======================= -->
+<section class="stack-lg" id="team">
+  <div class="section-head"><span class="eyebrow">Pengaturan workspace</span><h2>Tim &amp; Akses</h2><p class="why">The member list is clear. But the Owner's own "Ganti password" form sits on this team page, a personal setting in a workspace screen. Assigned accounts show as plain text, and there's no invite status or last activity.</p></div>
+  <div class="mock-block" id="T1">
+    <div class="mock-head"><span class="id">T1</span><h3>Members table + role explainer</h3></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><h4>Tim &amp; Akses</h4><span class="btn pri">+ Undang anggota</span></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:16px;align-items:start">
+        <div class="card" style="overflow:hidden"><table class="mt">
+          <tr><th>Anggota</th><th>Peran</th><th>Akses akun</th><th>Aktif terakhir</th><th></th></tr>
+          <tr><td><div class="row"><span class="av c6">RE</span><div><b>Reyner</b> <span class="chip xs">Kamu</span><div class="sub xs">superadmin@gmail.com</div></div></div></td><td><span class="chip g">Owner</span></td><td class="sub">Semua perusahaan &amp; akun</td><td>Sekarang</td><td></td></tr>
+          <tr><td><div class="row"><span class="av c6">DE</span><div><b>Devon Cuaca</b><div class="sub xs">devon@lrmcorporation.com</div></div></div></td><td><span class="chip p">Representative</span></td><td><div class="row"><span class="av s c1">MS</span><span class="av s c2">MJ</span><span class="sub xs">2 akun</span></div></td><td>Kemarin 16.20</td><td><span class="btn sm">⋯</span></td></tr>
+        </table></div>
+        <div class="card pad col s"><span class="label">Peran</span><b>Owner</b><span class="sub xs">Semua akun, pengaturan, API, tim, audit.</span><b style="margin-top:6px">Representative</b><span class="sub xs">Posting, balas komentar &amp; DM, Generator, hanya di akun yang ditugaskan.</span><div class="hr"></div><span class="sub xs">Ganti password ada di <u>Pengaturan pribadi → Keamanan</u>.</span></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= AUDIT ======================= -->
+<section class="stack-lg" id="audit">
+  <div class="section-head"><span class="eyebrow">Pengaturan workspace</span><h2>Jejak Audit</h2><p class="why">The log shows raw event codes ("superadmin@gmail.com brand.save", "story.start", "generator.bulk_delete") repeated line after line, under four stat cards that duplicate the dashboard. An audit log should read like sentences, be grouped by time, and be filterable.</p></div>
+  <div class="mock-block" id="J1">
+    <div class="mock-head"><span class="id">J1</span><h3>Readable audit log</h3><span class="tag">events from your real log, rewritten</span></div>
+    <div class="frame"><div class="app col">
+      <div class="between"><div class="row"><h4>Jejak Audit</h4><span class="chip a">Webhook belum aktif · sinkron berkala <span class="pin s">1</span></span></div><div class="row"><span class="input">Semua anggota ▾</span><span class="input">Semua aktivitas ▾</span><span class="input">20 Okt ▾</span><span class="btn sm">Ekspor CSV</span></div></div>
+      <div class="tabs"><span class="on">Log aktivitas</span><span>Post gagal <b>0</b></span></div>
+      <div class="card">
+        <div class="pad-s label" style="background:#fafbfc;border-bottom:1px solid var(--m-line)">Hari ini · Selasa 20 Okt</div>
+        <div class="lrow"><span class="chip g xs">Brand Kit</span><div><b>Reyner</b> memperbarui Brand Kit <b>@manisky.id</b> <span class="sub xs">· 2 perubahan digabung</span></div><span class="sub xs">22.48 · dashboard</span></div>
+        <div class="lrow"><span class="chip g xs">Aset</span><div><b>Reyner</b> menambah 7 aset brand ke <b>@manisky.id</b> <span class="sub xs">· 22.36–22.44</span></div><span class="sub xs">dashboard</span></div>
+        <div class="lrow"><span class="chip r xs">Hapus</span><div><b>Reyner</b> menghapus draft secara massal di Draft Konten <span class="btn ghost sm">Lihat detail</span></div><span class="sub xs">22.36 · dashboard</span></div>
+        <div class="lrow"><span class="chip p xs">Generator</span><div><b>Reyner</b> memulai sesi cerita <b>@manisky.id</b> <span class="sub xs">· 4 kali hari ini (15.00, 15.12, 15.54, 22.11)</span></div><span class="sub xs">dashboard</span></div>
+      </div>
+    </div></div>
+    <ul class="legend"><li><span class="pin">1</span><span>Health status is a chip with explanation on hover. Stat cards are removed (they live on Beranda). Repeated events collapse ("4 kali hari ini").</span></li></ul>
+  </div>
+</section>
+
+<!-- ======================= SETTINGS ======================= -->
+<section class="stack-lg" id="settings">
+  <div class="section-head"><span class="eyebrow">Pribadi</span><h2>Pengaturan pribadi</h2><p class="why">The breadcrumb says "Akun saya" and the eyebrow says "LRMSMM" while the sidebar says "Pengaturan pribadi". The page only holds AI keys. The Anthropic card is a different height because its input sits in the middle. Password and profile belong here too.</p></div>
+  <div class="mock-block" id="ST1">
+    <div class="mock-head"><span class="id">ST1</span><h3>Profile · Security · AI connections</h3></div>
+    <div class="frame"><div class="app col">
+      <h4>Pengaturan pribadi</h4>
+      <div class="tabs"><span>Profil</span><span>Keamanan</span><span class="on">Koneksi AI <b>2</b></span><span>Notifikasi</span></div>
+      <div class="card" style="overflow:hidden"><table class="mt">
+        <tr><th>Provider</th><th>Status</th><th>Dipakai oleh agen</th><th>Disimpan</th><th></th></tr>
+        <tr><td><b>OpenAI</b><div class="sub xs">ChatGPT models, GPT Image</div></td><td><span class="chip g">✓ Terhubung · tes OK 19 Okt</span></td><td><span class="sub xs">Konsep, Reviewer, Visual, Image, Final</span></td><td class="sub xs">Sen 19 Okt 14.02</td><td><div class="row"><span class="btn sm">Tes</span><span class="btn sm">Ganti</span><span class="btn sm danger">Hapus</span></div></td></tr>
+        <tr><td><b>Google Gemini</b></td><td><span class="chip g">✓ Terhubung · 22 model</span></td><td><span class="sub xs">Scheduler</span></td><td class="sub xs">Sel 20 Okt 13.42</td><td><div class="row"><span class="btn sm">Tes</span><span class="btn sm">Ganti</span><span class="btn sm danger">Hapus</span></div></td></tr>
+        <tr><td><b>Anthropic</b><div class="sub xs">Claude</div></td><td><span class="chip">Belum ada key</span></td><td class="sub xs">—</td><td></td><td><div class="row"><span class="input ph" style="min-height:30px;width:200px">sk-ant-…</span><span class="btn sm pri">Simpan</span></div></td></tr>
+      </table></div>
+      <span class="sub xs">Key disimpan terenkripsi dan tidak ditampilkan lagi. Biaya mengikuti tarif provider. Model per agen diatur di Sosmed Generator → Tim agen.</span>
+    </div></div>
+  </div>
+</section>
+
+<!-- ======================= LOGIN ======================= -->
+<section class="stack-lg" id="login">
+  <div class="section-head"><span class="eyebrow">Publik</span><h2>Login</h2><p class="why">On the first load, <code>app.css</code> failed with a connection reset and the page rendered unstyled with a full-width icon. After a successful sign-in, the "Email atau password salah" toast was still on screen. Errors belong under the field, and the page needs inline critical CSS.</p></div>
+  <div class="mock-block" id="L1">
+    <div class="mock-head"><span class="id">L1</span><h3>Login with inline error and loading state</h3></div>
+    <div class="frame"><div class="app" style="padding:0"><div class="login">
+      <div class="l">
+        <div style="font-weight:800;font-size:20px">LRM<span style="color:var(--m-green)">smm</span></div>
+        <div class="col s"><h4>Selamat datang kembali</h4><span class="sub">Masuk untuk mengelola konten Instagram &amp; Threads seluruh brand.</span></div>
+        <div class="col s"><span class="flabel">Email</span><div class="input">superadmin@gmail.com</div></div>
+        <div class="col s"><span class="flabel">Kata sandi</span><div class="input err">••••••••<span class="sub xs" style="margin-left:auto">Tampilkan</span></div><span class="xs er" style="font-weight:600">Email atau kata sandi salah. Sisa 4 percobaan. <span class="pin s">1</span></span></div>
+        <span class="btn pri lg">Masuk</span>
+        <span class="sub xs">🔒 Koneksi terenkripsi · token Meta disimpan dengan AES-256</span>
+      </div>
+      <div class="r">
+        <b style="font-size:20px;color:#fff">Satu tempat untuk semua akun sosial</b>
+        <div class="col s"><b style="color:#fff">✦ Sosmed Generator</b><span style="font-size:12.5px;opacity:.8">Dari brief ke 36 draft siap tinjau, sesuai Brand Kit tiap akun.</span></div>
+        <div class="col s"><b style="color:#fff">🗓 Kalender &amp; jadwal</b><span style="font-size:12.5px;opacity:.8">Tulis sekali, terbit di Instagram dan Threads.</span></div>
+        <div class="col s"><b style="color:#fff">💬 Inbox terpusat</b><span style="font-size:12.5px;opacity:.8">Komentar dan DM semua akun, dengan pengingat 5 menit.</span></div>
+      </div>
+    </div></div></div>
+    <ul class="legend"><li><span class="pin">1</span><span>Auth errors render under the field and clear on input and on success. They are never toasts that outlive the page.</span></li></ul>
+  </div>
+</section>
+
+<p class="note">Built from a walkthrough on 20 Okt 2026 as Owner, plus a read of the public front-end bundle (app.js, generator-studio.js, story-workspace.js, workflow-canvas.js). Nothing was generated, approved or deleted during review.</p>
+</div>

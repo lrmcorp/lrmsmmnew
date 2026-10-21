@@ -57,7 +57,7 @@ async function publishTarget(t) {
     }
     run(`UPDATE post_targets SET status='published', platform_post_id=?, permalink=?, extra_post_ids=?, published_at=?, error_code=NULL, error_message=NULL, locked_at=NULL WHERE id=?`,
       result.id, result.permalink, result.extra?.length ? JSON.stringify(result.extra) : null, now(), t.id);
-    console.log(`[publish] ${acc.platform} @${acc.username} ✓ ${result.permalink || result.id}`);
+    console.log(`[publish] ${acc.platform} @${acc.username} OK ${result.permalink || result.id}`);
   } catch (e) {
     const pe = e instanceof PlatformError ? e : new PlatformError(e.code || 'internal_error', e.message, { transient: false });
     if (e.partial) {
@@ -71,7 +71,7 @@ async function publishTarget(t) {
       console.warn(`[publish] transient ${pe.code} on ${t.id}, retry in ${wait / 60000}m`);
     } else {
       fail(pe.code, pe.message);
-      console.warn(`[publish] ${acc?.platform} @${acc?.username} ✗ ${pe.code}: ${pe.message}`);
+      console.warn(`[publish] ${acc?.platform} @${acc?.username} ERROR ${pe.code}: ${pe.message}`);
       if (pe.code === 'account_expired' && acc) {
         markExpired(acc.id, pe.message);
         notify('account_expired', { account: acc });
