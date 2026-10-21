@@ -259,6 +259,12 @@ function modal(title, body, actions = []) {
     class: 'df'
   }, actions) : null);
   const trigger = document.activeElement;
+  const nativeClose = d.close.bind(d);
+  d.close = (...args) => {
+    nativeClose(...args);
+    // Remove immediately: the native close event is queued and may run after navigation.
+    d.remove();
+  };
   d.addEventListener('close', () => {
     d.remove();
     if (trigger?.isConnected) trigger.focus();
