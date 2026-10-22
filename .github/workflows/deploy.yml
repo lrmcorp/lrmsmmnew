@@ -25,9 +25,11 @@ jobs:
           cache: npm
       - name: Install video test prerequisite
         run: |
-          if ! command -v ffmpeg >/dev/null 2>&1; then
-            npm install --prefix "$RUNNER_TEMP/lrmsmm-video-tools" --no-save --ignore-scripts @ffmpeg-installer/linux-x64@4.1.0
+          if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
+            npm install --prefix "$RUNNER_TEMP/lrmsmm-video-tools" --no-save --ignore-scripts @ffmpeg-installer/linux-x64@4.1.0 @ffprobe-installer/linux-x64@5.2.0
+            chmod +x "$RUNNER_TEMP/lrmsmm-video-tools/node_modules/@ffprobe-installer/linux-x64/ffprobe"
             echo "$RUNNER_TEMP/lrmsmm-video-tools/node_modules/@ffmpeg-installer/linux-x64" >> "$GITHUB_PATH"
+            echo "$RUNNER_TEMP/lrmsmm-video-tools/node_modules/@ffprobe-installer/linux-x64" >> "$GITHUB_PATH"
           fi
       - run: npm ci
       - name: English UI and SVG-only icons
