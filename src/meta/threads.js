@@ -42,10 +42,10 @@ async function waitContainer(token, cid, { timeoutMs = 5 * 60_000 } = {}) {
   while (Date.now() - start < timeoutMs) {
     const r = await gget(G(`/${cid}`), { fields: 'status,error_message', access_token: token });
     if (r.status === 'FINISHED' || r.status === 'PUBLISHED') return;
-    if (r.status === 'ERROR' || r.status === 'EXPIRED') throw new PlatformError('media_invalid_format', `Threads gagal memproses media: ${r.error_message || r.status}`);
+    if (r.status === 'ERROR' || r.status === 'EXPIRED') throw new PlatformError('media_invalid_format', `Threads could not process the media: ${r.error_message || r.status}`);
     await sleep(delay); delay = Math.min(delay * 1.5, 15000);
   }
-  throw new PlatformError('platform_error', 'Threads masih memproses media terlalu lama', { transient: true });
+  throw new PlatformError('platform_error', "Threads media processing timed out.", { transient: true });
 }
 
 function mediaParams(m) {

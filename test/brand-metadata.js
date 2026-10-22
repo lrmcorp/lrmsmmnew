@@ -43,7 +43,7 @@ try{
   p=story.saveProfile(user,'brand-account',{seed:p.seed,brand_notes:legacyNotes,identity:p.identity});
   assert.ok(p.brand_notes.startsWith(legacyNotes),'full legacy notes remain intact when structured identity is added');
   assert.match(p.brand_notes,/\[LRM BRAND IDENTITY\]/);
-  assert.throws(()=>story.saveProfile(user,'brand-account',{seed:p.seed,brand_notes:legacyNotes+'x',identity:p.identity}),/6\.000/);
+  assert.throws(()=>story.saveProfile(user,'brand-account',{seed:p.seed,brand_notes:legacyNotes+'x',identity:p.identity}),/6,000/);
   assert.throws(()=>story.profile(rep,'brand-account'),'unassigned Representative cannot read Brand Kit');
   assert.throws(()=>deleteCompany(company.id),'nonempty company cannot be deleted');const empty=saveCompany(null,'Empty company');deleteCompany(empty.id);assert.equal(one('SELECT id FROM companies WHERE id=?',empty.id),undefined);
   db.close();const restart=spawnSync(process.execPath,[fileURLToPath(import.meta.url)],{env:{...process.env,BRAND_METADATA_READ:'1'},encoding:'utf8'});assert.equal(restart.status,0,restart.stderr||restart.stdout);assert.match(restart.stdout,/PASS restart persistence/);console.log('PASS Brand metadata: lazy migration, legacy narrative, structured identity, language/emoji rules, collections/tags, recommended completeness, validation, account scope, company delete and process restart');

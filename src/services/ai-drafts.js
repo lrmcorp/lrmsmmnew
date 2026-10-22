@@ -7,12 +7,12 @@ import { config } from '../config.js';
 import { downloadImage } from './ai-images.js';
 
 function requireOAuth(auth) {
-  if (auth?.via !== 'oauth' || auth.scope !== 'write') throw err(403, 'oauth_required', 'Hubungkan aplikasi AI dengan OAuth pribadi dan izin tulis. API key tidak dapat mengirim draf AI.');
+  if (auth?.via !== 'oauth' || auth.scope !== 'write') throw err(403, 'oauth_required', "Connect your AI app using personal OAuth with write permission. API keys cannot submit AI drafts.");
 }
 export function getDraft(user, draftId) {
-  if (typeof draftId !== 'string' || draftId.length > 100) throw err(400, 'validation_failed', 'ID draf tidak valid.');
+  if (typeof draftId !== 'string' || draftId.length > 100) throw err(400, 'validation_failed', "Invalid draft ID.");
   const draft = one('SELECT * FROM ai_drafts WHERE id=? AND user_id=?', draftId, user.id);
-  if (!draft) throw err(404, 'not_found', 'Draf AI tidak ditemukan.');
+  if (!draft) throw err(404, 'not_found', "AI draft not found.");
   const targets = parseJSON(draft.targets, []);
   for (const target of targets) assertAccount(user, target.account_id);
   return { id: draft.id, content: draft.content, targets, media_ids: parseJSON(draft.media_ids, []),
@@ -26,44 +26,44 @@ export function listDrafts(user) {
 }
 export async function receiveDraft(auth, body, { allowApiKey = false, trustedMediaIds = [] } = {}) {
   if (!(allowApiKey && auth?.via === 'api_key' && auth.scope === 'write')) requireOAuth(auth);
-  if (!Array.isArray(body.targets) || !body.targets.length || body.targets.length > 20) throw err(400, 'validation_failed', 'Pilih 1–20 akun tujuan.');
-  if (body.targets.some(t => !t || typeof t.account_id !== 'string')) throw err(400, 'validation_failed', 'ID akun tujuan tidak valid.');
+  if (!Array.isArray(body.targets) || !body.targets.length || body.targets.length > 20) throw err(400, 'validation_failed', "Select 1–20 destination accounts.");
+  if (body.targets.some(t => !t || typeof t.account_id !== 'string')) throw err(400, 'validation_failed', "Invalid destination account ID.");
   for (const target of body.targets) assertAccount(auth.user, target.account_id);
-  if (body.targets.some(t => t.media_ids !== undefined)) throw err(400, 'validation_failed', 'Kirim gambar bersama melalui images/media_ids pada draf.');
-  for (const target of body.targets) if (target.options?.cover_media_id && media.getMedia(target.options.cover_media_id).user_id !== auth.user.id) throw err(404, 'not_found', 'Cover pribadi tidak ditemukan.');
-  if (body.scheduled_at && (typeof body.scheduled_at !== 'string' || !Number.isFinite(Date.parse(body.scheduled_at)))) throw err(400, 'validation_failed', 'Waktu usulan harus berupa ISO 8601.');
-  if (typeof body.content !== 'string' || body.content.length > 10000) throw err(400, 'validation_failed', 'Caption wajib berupa teks, maksimal 10.000 karakter.');
+  if (body.targets.some(t => t.media_ids !== undefined)) throw err(400, 'validation_failed', "Send images together using images/media_ids in the draft.");
+  for (const target of body.targets) if (target.options?.cover_media_id && media.getMedia(target.options.cover_media_id).user_id !== auth.user.id) throw err(404, 'not_found', "Private cover image not found.");
+  if (body.scheduled_at && (typeof body.scheduled_at !== 'string' || !Number.isFinite(Date.parse(body.scheduled_at)))) throw err(400, 'validation_failed', "Proposed time must use ISO 8601.");
+  if (typeof body.content !== 'string' || body.content.length > 10000) throw err(400, 'validation_failed', "Caption must be text and must not exceed 10,000 characters.");
   const images = body.images || [], existing = body.media_ids || [];
-  if (!Array.isArray(images) || !Array.isArray(existing) || images.length + existing.length > 10) throw err(400, 'validation_failed', 'Maksimal 10 gambar/media.');
+  if (!Array.isArray(images) || !Array.isArray(existing) || images.length + existing.length > 10) throw err(400, 'validation_failed', "A maximum of 10 images or media items is allowed.");
   for (const mid of existing) {
-    if (typeof mid !== 'string') throw err(400, 'validation_failed', 'ID media tidak valid.');
-    if (media.getMedia(mid).user_id !== auth.user.id&&!trustedMediaIds.includes(mid)) throw err(404, 'not_found', 'Gunakan media milik pengguna yang tersambung.');
+    if (typeof mid !== 'string') throw err(400, 'validation_failed', "Invalid media ID.");
+    if (media.getMedia(mid).user_id !== auth.user.id&&!trustedMediaIds.includes(mid)) throw err(404, 'not_found', "Use media owned by the connected user.");
   }
   const requestId = body.request_id;
-  if (typeof requestId !== 'string' || !requestId.trim() || requestId.length > 100) throw err(400, 'validation_failed', 'request_id wajib diisi (maksimal 100 karakter).');
+  if (typeof requestId !== 'string' || !requestId.trim() || requestId.length > 100) throw err(400, 'validation_failed', "request_id is required and must not exceed 100 characters.");
   const hash = sha256(JSON.stringify({ content: body.content, targets: body.targets, images, existing, scheduled_at: body.scheduled_at || null }));
   const previous = one('SELECT * FROM ai_drafts WHERE user_id=? AND request_id=?', auth.user.id, requestId);
   if (previous) {
-    if (previous.request_hash !== hash) throw err(409, 'idempotency_conflict', 'request_id sudah dipakai untuk draf berbeda.');
+    if (previous.request_hash !== hash) throw err(409, 'idempotency_conflict', "request_id has already been used for a different draft.");
     return { ...getDraft(auth.user, previous.id), replayed: true };
   }
   let total = 0;
   const decoded = [];
   for (const image of images) {
     if (image?.url) {
-      if (image.base64) throw err(400, 'validation_failed', 'Pilih url atau base64 untuk setiap gambar.');
+      if (image.base64) throw err(400, 'validation_failed', "Choose either url or base64 for each image.");
       const buffer = await downloadImage(image.url);
       total += buffer.length;
-      if (total > 20 * 1024 * 1024 || media.sniff(buffer)?.kind !== 'image') throw err(400, 'validation_failed', 'Hanya JPEG/PNG dengan total maksimal 20 MB.');
+      if (total > 20 * 1024 * 1024 || media.sniff(buffer)?.kind !== 'image') throw err(400, 'validation_failed', "Only JPEG/PNG images are supported, up to 20 MB in total.");
       decoded.push(buffer);
       continue;
     }
-    if (typeof image?.base64 !== 'string' || image.base64.length > 12 * 1024 * 1024) throw err(400, 'validation_failed', 'Gambar harus base64 JPEG/PNG, maksimal 8 MB.');
+    if (typeof image?.base64 !== 'string' || image.base64.length > 12 * 1024 * 1024) throw err(400, 'validation_failed', "Image must be base64-encoded JPEG/PNG, up to 8 MB.");
     const data = image.base64.replace(/^data:image\/(?:png|jpeg);base64,/, '');
-    if (!data || !/^[A-Za-z0-9+/]*={0,2}$/.test(data) || data.length % 4) throw err(400, 'validation_failed', 'Base64 gambar tidak valid.');
+    if (!data || !/^[A-Za-z0-9+/]*={0,2}$/.test(data) || data.length % 4) throw err(400, 'validation_failed', "Invalid image base64.");
     const buffer = Buffer.from(data, 'base64');
     total += buffer.length;
-    if (buffer.length > media.LIMITS.image || total > 20 * 1024 * 1024 || media.sniff(buffer)?.kind !== 'image') throw err(400, 'validation_failed', 'Hanya JPEG/PNG, maksimal 8 MB per gambar dan 20 MB total.');
+    if (buffer.length > media.LIMITS.image || total > 20 * 1024 * 1024 || media.sniff(buffer)?.kind !== 'image') throw err(400, 'validation_failed', "Only JPEG/PNG images are supported, up to 8 MB per image and 20 MB in total.");
     decoded.push(buffer);
   }
   const created = [];

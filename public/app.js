@@ -1,3 +1,4 @@
+import {storySessionPage} from './story-session-page.js';
 import { workspacePages } from './workspace-pages.js';
 import { contentWorkspace } from './content-workspace.js';
 import { generatorWorkspace } from './generator-workspace.js';
@@ -187,11 +188,10 @@ async function api(method, path, body, opts = {}) {
     init.headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
-  let r;
-  try { r = await fetch(path, init); }
-  catch { throw uiError(t('error.network')); }
+  let r;try{r=await fetch(path,init);}catch(cause){const error=new Error('Cannot reach the server. Check your connection and try again.');error.ui=true;error.code='network_unavailable';throw error;}
   if (r.status === 204) return null;
-  const j = await r.json().catch(() => ({}));
+  const j=await r.json().catch(()=>null);
+  if(!j){const error=new Error(`The server returned HTTP ${r.status} without a valid JSON response. Please retry; if this continues, check application and proxy health.`);error.ui=true;error.code='invalid_response';error.status=r.status;throw error;}
   if (!r.ok) {
     if (r.status === 401 && !path.startsWith('/auth')) {
       state.user = null;
@@ -226,15 +226,22 @@ function toast(msg, bad = false, action = null) {
   document.getElementById('toast').append(el);
   setTimeout(() => el.remove(), action ? 6000 : bad ? 10000 : 4500);
 }
-const errMsg = e => e.ui ? e.message : e.code && ERR[e.code] ? ERR[e.code] : e.code === 'invalid_credentials' ? t('login.error.generic') : e.code === 'provider_key_missing' ? t('gen.ready.key.missing', {
-  provider: /(?:OpenAI|Anthropic|Gemini)/i.exec(e.message || '')?.[0] || 'AI'
-}) : e.code === 'provider_model_unavailable' ? 'That model is unavailable for this API key. Choose another model in AI team & models, then retry.' : e.code === 'provider_error' ? 'The AI provider rejected this request. Check the API key, model access, and quota in Personal settings.' : e.code === 'provider_unavailable' ? 'The AI provider could not be reached. Please retry in a few minutes.' : e.code === 'rate_limited' ? t('error.429', {
-  provider: 'API'
-}) : e.code === 'schedule_capacity' ? 'There are not enough available dates and times for this session. Extend the date range or add posting times.' : e.code === 'story_busy' ? 'This Instagram account already has a story session in progress. Open its draft session or wait for it to finish.' : e.code === 'story_seed_required' ? 'Save this Instagram account’s Story foundation before planning episodes.' : e.code === 'idempotency_conflict' ? 'This request ID was used for different content. Please start a new session.' : e.code ? `Request failed (${e.code}). Open technical details for more information.` : e.status ? `Request failed (HTTP ${e.status}). Please try again.` : t('common.error');
+const errMsg=e=>{
+  if(typeof e==='string')return e;
+  if(e.ui)return e.message;
+  if(e.code==='schedule_capacity'&&e.details)return `Only ${e.details.available_slots} posting slots are available for ${e.details.required_slots} items. Add posting times or extend the date range. Existing drafts and scheduled posts also reserve slots.`;
+  if(e.code==='invalid_credentials')return t('login.error.generic');
+  if(e.code&&/^(provider_|story_|generator_)/.test(e.code)&&e.message)return e.message;
+  if(e.status&&e.status<500&&e.code&&e.message)return e.message;
+  if(e.code&&ERR[e.code])return ERR[e.code];
+  if(e.code==='provider_key_missing')return t('gen.ready.key.missing',{provider:'AI'});
+  if(e.status>=500)return `The server could not complete the request (HTTP ${e.status}). Please retry or check application health.`;
+  return t('common.error');
+};
 function technicalError(message, code) {
   return h('div', {
     class: 'err-box'
-  }, h('p', {}, code && ERR[code] ? ERR[code] : t('common.error')), h('details', {}, h('summary', {}, t('error.technical')), h('pre', {}, String(message || ''))));
+  }, h('p', {}, code && ERR[code] ? ERR[code] : String(message || t('common.error'))), h('details', {}, h('summary', {}, t('error.technical')), h('pre', {}, String(message || ''))));
 }
 const uiError = message => Object.assign(new Error(message), {
   ui: true
@@ -310,7 +317,7 @@ async function costDetails(agents) {
 async function askCost(title, agents) {
   return confirmDialog({
     title,
-    body: agents?.connection ? 'Satu panggilan teks uji akan memakai API key pribadi. Tidak membuat gambar atau memublikasikan post.' : 'Konsep dibuat lebih dulu. Gambar dibuat setelah persetujuan konsep, dan publikasi setelah persetujuan akhir. Menggunakan API key pribadi sesuai tarif provider.',
+    body: agents?.connection ? 'One text test call uses your personal API key. It does not create images or publish posts.' : 'Concepts are created first. Images are created after concept approval, and publishing requires final approval. Your personal API key is charged at provider rates.',
     tone: 'cost',
     details: await costDetails(agents),
     confirmLabel: t('dialog.confirm')
@@ -1078,7 +1085,7 @@ async function pageCompose(editId) {
       }, `Threads ${c}/${thMax}`) : null].filter(Boolean));
     };
     updateMeter();
-    return [h('h3', {}, t('compose.to')), h('label',{class:'rd-field'},'Perusahaan',h('select',{'aria-label':'Perusahaan tujuan',onchange:e=>{composeCompany=e.target.value;s.selected=new Set([...s.selected].filter(id=>state.accounts.some(a=>a.id===id&&(!composeCompany||a.company_id===composeCompany))));render();}},h('option',{value:''},'Semua perusahaan'),state.companies.map(c=>h('option',{value:c.id,selected:c.id===composeCompany},c.name)))), ui.accountPicker({
+    return [h('h3', {}, t('compose.to')), h('label',{class:'rd-field'},'Company',h('select',{'aria-label':'Destination company',onchange:e=>{composeCompany=e.target.value;s.selected=new Set([...s.selected].filter(id=>state.accounts.some(a=>a.id===id&&(!composeCompany||a.company_id===composeCompany))));render();}},h('option',{value:''},'All companies'),state.companies.map(c=>h('option',{value:c.id,selected:c.id===composeCompany},c.name)))), ui.accountPicker({
       accounts: state.accounts.filter(a=>!composeCompany || (composeCompany==='none'?!a.company_id:a.company_id===composeCompany)).map(a => ({
         ...a,
         disabled: a.status !== 'active',
@@ -1541,9 +1548,9 @@ async function pageCompose(editId) {
   }, fmtDT(draft.created_at)))))) : h('p', {
     class: 'faint small'
   }, t("ui.copy.0107")));
-  return shell('/compose', h('div', {}, pagehead(editing ? t("ui.copy.0108") : t("compose.title"), t("ui.copy.0109")), inbox.data.length ? h('button',{class:'btn sm',onclick:()=>modal('Draft menunggu persetujuan',h('div',{class:'list'},inbox.data.map(d=>h('a',{class:'item',href:'#/compose?ai_draft='+d.id,onclick:e=>e.currentTarget.closest('dialog').close()},d.content?.slice(0,140)||'Draft tanpa caption'))))},inbox.data.length+' draft menunggu · Buka') : null, h('div',{class:'rd-compose-tabs'},h('button',{class:'btn',onclick:()=>root.classList.remove('show-preview')},'Editor'),h('button',{class:'btn',onclick:()=>root.classList.add('show-preview')},'Pratinjau')), aiDraft ? h('div', {
+  return shell('/compose', h('div', {}, pagehead(editing ? t("ui.copy.0108") : t("compose.title"), t("ui.copy.0109")), inbox.data.length ? h('button',{class:'btn sm',onclick:()=>modal('Drafts awaiting approval',h('div',{class:'list'},inbox.data.map(d=>h('a',{class:'item',href:'#/compose?ai_draft='+d.id,onclick:e=>e.currentTarget.closest('dialog').close()},d.content?.slice(0,140)||'Draft without a caption'))))},inbox.data.length+' drafts awaiting approval · Open') : null, h('div',{class:'rd-compose-tabs'},h('button',{class:'btn',onclick:()=>root.classList.remove('show-preview')},'Editor'),h('button',{class:'btn',onclick:()=>root.classList.add('show-preview')},'Preview')), aiDraft ? h('div', {
     class: 'banner'
-  }, aiDraft.source==='Calendar'?'Salinan dari Kalender. Tinjau caption, media dan jadwal sebelum menyetujui.':t("ui.copy.0110")) : null, root));
+  }, aiDraft.source==='Calendar'?'Copied from Calendar. Review the caption, media and schedule before approving.':t("ui.copy.0110")) : null, root));
 }
 function toLocalInput(iso) { return iso ? new Date(Date.parse(iso)+7*3600000).toISOString().slice(0,16) : ''; }
 
@@ -1788,7 +1795,7 @@ async function pagePost(id) {
         whiteSpace: 'pre-wrap'
       }
     }, t("ui.sweep.17", {
-      "0": _targetValue9.content || '(kosong)'
+      "0": _targetValue9.content || '(empty)'
     })) : null)))), p.status !== 'scheduled' && !['publishing', 'cancelled'].includes(p.status) ? h('div', {
       class: 'row',
       style: {
@@ -1943,7 +1950,7 @@ async function redesigned(page, id) {
   const ctx = redesignContext(),
     workspace = contentWorkspace(ctx);
   const pages = workspacePages(ctx, workspace);
-  const result = page === 'generator' ? await generatorWorkspace(ctx, workspace) : ['home', 'accounts', 'brand', 'media', 'calendar', 'insights', 'team', 'audit'].includes(page) ? await pages[page](id) : await workspace[page](id);
+  const result = page==='session'&&id?.startsWith('story_') ? (await loadAccounts(),await storySessionPage(ctx,id)) : page === 'generator' ? await generatorWorkspace(ctx, workspace) : ['home', 'accounts', 'brand', 'media', 'calendar', 'insights', 'team', 'audit'].includes(page) ? await pages[page](id) : await workspace[page](id);
   return shell({
     home: '/',
     accounts: '/accounts',
@@ -2631,7 +2638,7 @@ async function pageSettings() {
   }, 'Change password'));
   return shell('/settings', h('div', {
     class: 'personal-settings rd-page'
-  }, pagehead('Personal settings', 'Profile, security, and your AI connections.'), h('div', {
+  }, pagehead('Personal settings', 'Profile, security and personal AI connections.'), h('div', {
     class: 'rd-tabs',
     style: {
       marginBottom: '20px'
@@ -2648,9 +2655,9 @@ async function pageSettings() {
     class: 'panel'
   }, h('h2', {}, state.user.name), h('p', {}, state.user.email), h('p', {}, 'Role: ' + ROLE[state.user.role])) : h('section', {
     class: 'panel'
-  }, h('h2', {}, 'Your AI connections', keySummary), h('p', {
+  }, h('h2', {}, 'Personal AI connections', keySummary), h('p', {
     class: 'muted small'
-  }, 'Add or replace your Claude, Gemini, or OpenAI key at any time. An OpenAI key also powers Codex models. New requests use the latest saved key automatically. Claude can plan and review text; image generation needs OpenAI or Gemini. Keys are encrypted and cannot be viewed again. Provider charges apply. Choose each agent’s model in Content Generator.'), keys)));
+  }, 'Add or replace your OpenAI, Claude or Gemini key here. New requests use the latest saved key. OpenAI keys also support available Codex models. Claude can plan and review text; images require OpenAI or Gemini. Keys are encrypted and never displayed again. Provider rates apply. Configure each agent’s model in Content Generator.'), keys)));
 }
 
 // ---------------- Sosmed Generator ----------------
@@ -3054,7 +3061,7 @@ async function pageGenerator() {
         class: `gen-stage ${step?.status || ''}`
       }, h('b', {}, name), h('span', {
         class: 'small muted'
-      }, r.agents?.[role] ? `${r.agents[role].provider} · ${r.agents[role].model}` : t("ui.copy.0261")), h('span', {}, step?.status === 'done' ? t("draft.state.done") : step?.status === 'running' ? r.status === 'failed' ? 'Terhenti' : t("ui.copy.0135") : t("ui.copy.0004")), role === 'image' && step ? h('small', {}, `${step.completed_slides || 0}/${r.slide_count} slide`) : null, output ? h('details', {}, h('summary', {}, t("ui.copy.0262")), h('pre', {}, typeof output === 'string' ? output : JSON.stringify(output, null, 2)), step.usage ? h('pre', {
+      }, r.agents?.[role] ? `${r.agents[role].provider} · ${r.agents[role].model}` : t("ui.copy.0261")), h('span', {}, step?.status === 'done' ? t("draft.state.done") : step?.status === 'running' ? r.status === 'failed' ? 'Stopped' : t("ui.copy.0135") : t("ui.copy.0004")), role === 'image' && step ? h('small', {}, `${step.completed_slides || 0}/${r.slide_count} slide`) : null, output ? h('details', {}, h('summary', {}, t("ui.copy.0262")), h('pre', {}, typeof output === 'string' ? output : JSON.stringify(output, null, 2)), step.usage ? h('pre', {
         class: 'faint small'
       }, JSON.stringify(step.usage, null, 2)) : null) : null);
     })), conceptReviewPanel(r, async concept => {
@@ -3389,7 +3396,6 @@ async function pageGenerator() {
     accounts: state.accounts.filter(a => a.platform === 'instagram' && a.status === 'active'),
     mode: 'production',
     agents: collectAgents,
-    canGenerateImages: config.keys.some(k => config.providers[k.provider]?.image),
     dates: {
       count: totalContents,
       slides: count,
@@ -3407,8 +3413,7 @@ async function pageGenerator() {
       }
       studio?.setStoryContext(value);
     },
-    onJob: showStoryWorkflow,
-    onStarted: job => go('/generator/drafts/' + encodeURIComponent(job.id))
+    onJob: showStoryWorkflow
   });
   studio = generatorStudio({
     h,
@@ -3703,7 +3708,7 @@ async function pageInbox() {
       label: 'Terbaru'
     }, {
       id: 'account',
-      label: 'Per akun'
+      label: 'By account'
     }],
     onChange: () => route()
   });
@@ -3965,7 +3970,7 @@ async function pageMessages(convId) {
       } = await api('GET', '/v1/messages/sync-status');
       syncPanel.replaceChildren(h('details', {
         class: 'rd-sync-details'
-      }, h('summary', {}, 'Status sinkronisasi · ' + data.filter(a => scope.inScope(a) && ['error', 'empty'].includes(a.status)).length + ' akun perlu diperiksa'), h('div', {
+      }, h('summary', {}, 'Sync status · ' + data.filter(a => scope.inScope(a) && ['error', 'empty'].includes(a.status)).length + ' accounts need attention'), h('div', {
         class: 'rd-diagnostics'
       }, ...data.filter(a => scope.inScope(a) && (!acc || a.account_id === acc)).map(a => h('div', {
         class: a.status === 'error' ? 'err-box' : 'faint small',
@@ -4000,7 +4005,7 @@ async function pageMessages(convId) {
       class: 'body'
     }, h('div', {
       class: 'who'
-    }, `@${c.participant.username || 'pengguna'}`), h('div', {
+    }, `@${c.participant.username || 'user'}`), h('div', {
       class: 'prev'
     }, c.last_message.direction === 'out' ? t("ui.copy.0318") : '', c.last_message.text || ''), h('div', {
       class: 'faint small'
@@ -4035,7 +4040,7 @@ async function pageMessages(convId) {
     if (!scope.inScope(c)) {
       threadEl.replaceChildren(h('div', {
         class: 'dm-empty'
-      }, 'Percakapan di luar pilihan akun. Ubah filter untuk melihatnya.'));
+      }, 'This conversation is outside the selected accounts. Change the filter to view it.'));
       return;
     }
     const box = h('div', {
@@ -4142,7 +4147,7 @@ async function pageMessages(convId) {
       class: 'small muted'
     }, 'Melalui @' + c.account_username), h('p', {
       class: 'small muted'
-    }, 'Pesan pelanggan ditampilkan apa adanya. Balasan hanya dalam 24 jam sejak pesan masuk terakhir.'));
+    }, 'Customer messages are shown as written. Replies are available for 24 hours after the latest incoming message.'));
     threadEl.querySelector('.dm-head')?.append(countdown);
     box.scrollTop = box.scrollHeight;
     if (c.can_reply && document.activeElement?.tagName !== 'TEXTAREA') ta.focus({
@@ -4206,17 +4211,17 @@ async function pageMessages(convId) {
 // ---------------- insights ----------------
 const METRIC = {
   followers_count: t("ui.copy.0078"),
-  views: 'Tayangan',
-  reach: 'Jangkauan',
+  views: 'Views',
+  reach: 'Reach',
   accounts_engaged: t("ui.copy.0333"),
   total_interactions: t("ui.copy.0334"),
-  likes: 'Suka',
+  likes: 'Likes',
   comments: t("comments.title"),
-  saves: 'Disimpan',
-  shares: 'Dibagikan',
+  saves: 'Saves',
+  shares: 'Shares',
   replies: t("comments.reply"),
   reposts: 'Repost',
-  quotes: 'Kutipan',
+  quotes: 'Quotes',
   clicks: t("ui.sweep.40")
 };
 const fmtNum = n => n == null ? '–' : Number(n).toLocaleString('en-GB');
@@ -5356,7 +5361,7 @@ async function pageAdmin() {
     style: {
       margin: '-10px 0 18px'
     }
-  }, ov.webhooks.last_at ? 'Webhook terakhir: ' + ago(ov.webhooks.last_at) : 'Belum ada webhook masuk. Pesan dan komentar disinkron berkala.'), h('div', {
+  }, ov.webhooks.last_at ? 'Latest webhook: ' + ago(ov.webhooks.last_at) : 'No incoming webhooks yet. Messages and comments sync periodically.'), h('div', {
     class: 'seg',
     style: {
       marginBottom: '14px'
@@ -5392,7 +5397,7 @@ async function route() {
       cleanupInFlight = null;
       pageCleanup = cleanup;
       history.replaceState(null, '', location.pathname + location.search + mountedHash);
-      toast('Perubahan belum tersimpan. Halaman tetap terbuka agar data tidak hilang.', true, {label:'Coba simpan lagi',fn:()=>{history.replaceState(null,'',location.pathname+location.search+destination);route();}});
+      toast('Changes have not been saved. This page remains open to protect your work.', true, {label:'Try saving again',fn:()=>{history.replaceState(null,'',location.pathname+location.search+destination);route();}});
       return;
     }
     if (cleanupInFlight === pending) cleanupInFlight = null;

@@ -15,7 +15,7 @@ Current user instructions take precedence over historical redesign briefs.
 
 - Keep vanilla JavaScript, ES modules, existing `h()`, `api()`, `modal()` and shared
   UI helpers. Do not introduce a framework or replace the stack incidentally.
-- UI defaults to Bahasa Indonesia, dates/times to WIB. Use SVG icons, not emoji
+- UI defaults to English, dates/times to WIB. Use SVG icons, not emoji
   for interface decorations. Generated captions may contain emoji.
 - Preserve existing REST/MCP contracts, idempotency, account scope and approval
   boundaries. Add migrations compatible with existing SQLite data.

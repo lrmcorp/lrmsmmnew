@@ -17,7 +17,7 @@ export function canAccount(user, accountId) {
   return s === null || s.includes(accountId);
 }
 export function assertAccount(user, accountId) {
-  if (!canAccount(user, accountId)) throw err(404, 'not_found', `Akun ${accountId} tidak ditemukan atau tidak ditugaskan ke kamu`, { account_id: accountId });
+  if (!canAccount(user, accountId)) throw err(404, 'not_found', `Account ${accountId} was not found or is not assigned to you`, { account_id: accountId });
 }
 /** SQL fragment restricting a column to the user's accounts. */
 export function scopeSql(user, col = 'account_id') {
@@ -37,20 +37,20 @@ export function postAccess(user, postId) {
   return { view: inScope > 0 || createdByMe, edit: ids.length > 0 && inScope === ids.length };
 }
 export function assertPostView(user, postId) {
-  if (!postAccess(user, postId).view) throw err(404, 'not_found', `Post ${postId} tidak ditemukan`);
+  if (!postAccess(user, postId).view) throw err(404, 'not_found', `Post ${postId} not found`);
 }
 export function assertPostEdit(user, postId) {
   const a = postAccess(user, postId);
-  if (!a.view) throw err(404, 'not_found', `Post ${postId} tidak ditemukan`);
-  if (!a.edit) throw err(403, 'forbidden', 'Post ini juga menuju akun yang tidak ditugaskan ke kamu. Minta Owner untuk mengubahnya.');
+  if (!a.view) throw err(404, 'not_found', `Post ${postId} not found`);
+  if (!a.edit) throw err(403, 'forbidden', "This post also targets an account not assigned to you. Ask an Owner to edit it.");
 }
 
 export function assignedAccounts(userId) {
   return all('SELECT account_id FROM user_accounts WHERE user_id=?', userId).map((r) => r.account_id);
 }
 export function setAssignments(userId, accountIds) {
-  if (!Array.isArray(accountIds)) throw err(400, 'validation_failed', 'account_ids harus array');
-  for (const a of accountIds) if (!one('SELECT 1 FROM accounts WHERE id=?', a)) throw err(400, 'validation_failed', `Akun ${a} tidak ada`, { account_id: a });
+  if (!Array.isArray(accountIds)) throw err(400, 'validation_failed', "account_ids must be an array.");
+  for (const a of accountIds) if (!one('SELECT 1 FROM accounts WHERE id=?', a)) throw err(400, 'validation_failed', `Account ${a} does not exist`, { account_id: a });
   tx(() => {
     run('DELETE FROM user_accounts WHERE user_id=?', userId);
     for (const a of new Set(accountIds)) run('INSERT INTO user_accounts(user_id,account_id) VALUES(?,?)', userId, a);
@@ -64,7 +64,7 @@ export function assignedCompanies(userId) {
   return all('SELECT company_id FROM user_companies WHERE user_id=?', userId).map(r => r.company_id);
 }
 export function setCompanyAssignments(userId, companyIds) {
-  if (!Array.isArray(companyIds) || companyIds.some(c => typeof c !== 'string' || !one('SELECT 1 FROM companies WHERE id=?', c))) throw err(400, 'validation_failed', 'company_ids harus daftar perusahaan yang valid.');
+  if (!Array.isArray(companyIds) || companyIds.some(c => typeof c !== 'string' || !one('SELECT 1 FROM companies WHERE id=?', c))) throw err(400, 'validation_failed', "company_ids must be a list of valid companies.");
   tx(() => {
     run('DELETE FROM user_companies WHERE user_id=?', userId);
     for (const companyId of new Set(companyIds)) run('INSERT INTO user_companies(user_id,company_id) VALUES(?,?)', userId, companyId);

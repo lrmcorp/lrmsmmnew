@@ -3,29 +3,29 @@ import { createHash } from 'node:crypto';
 import { err } from '../util.js';
 
 export const PROVIDERS = {
-  openai: { name: 'OpenAI (ChatGPT & Codex)', textModel: 'gpt-4.1-mini', imageModel: 'gpt-image-1', image: true, textModels: [{id:'gpt-4.1-mini',name:'GPT-4.1 mini · Fast'}, {id:'gpt-4.1',name:'GPT-4.1 · Detailed'}, {id:'gpt-4o',name:'GPT-4o · Multimodal'}, {id:'gpt-5.1-codex-mini',name:'GPT-5.1 Codex mini · Responses API'}], imageModels: [{id:'gpt-image-1',name:'GPT Image 1'}] },
-  anthropic: { name: 'Anthropic (Claude)', textModel: 'claude-sonnet-4-5', image: false, textModels: [{id:'claude-sonnet-4-5',name:'Claude Sonnet 4.5'}, {id:'claude-haiku-4-5',name:'Claude Haiku 4.5 · Fast'}, {id:'claude-opus-4-1',name:'Claude Opus 4.1 · Detailed'}], imageModels: [] },
-  gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detailed'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Fast'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
+  openai: { name: 'OpenAI (ChatGPT & Codex)', textModel: 'gpt-4.1-mini', imageModel: 'gpt-image-1', image: true, textModels: [{id:'gpt-4.1-mini',name:'GPT-4.1 mini · Lightweight'}, {id:'gpt-4.1',name:'GPT-4.1 · Detailed'}, {id:'gpt-4o',name:'GPT-4o · Multimodal'}, {id:'gpt-5.1-codex-mini',name:'GPT-5.1 Codex mini · Responses API'}], imageModels: [{id:'gpt-image-1',name:'GPT Image 1'}] },
+  anthropic: { name: 'Anthropic (Claude)', textModel: 'claude-sonnet-4-5', image: false, textModels: [{id:'claude-sonnet-4-5',name:'Claude Sonnet 4.5'}, {id:'claude-haiku-4-5',name:'Claude Haiku 4.5 · Lightweight'}, {id:'claude-opus-4-1',name:'Claude Opus 4.1 · Detailed'}], imageModels: [] },
+  gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detailed'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Lightweight'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
 };
 
 async function jsonRequest(url, headers, body, method = 'POST') {
   let res;
   try { res = await fetch(url, { method, headers: { ...(method==='GET'||body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...headers }, body: method==='GET'?undefined:body instanceof FormData ? body : JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(method==='GET'?10000:180000) }); }
-  catch { throw err(502, 'provider_unavailable', 'Provider tidak merespons. Periksa koneksi lalu coba ulang tahap ini.'); }
+  catch { throw err(502, 'provider_unavailable', "Provider did not respond. Check your connection and retry this stage."); }
   // Do not expose raw provider responses, prompts or secrets in error messages.
   if (!res.ok) {
     await res.body?.cancel();
-    const text = res.status === 404 ? 'Model tidak tersedia pada endpoint atau API key ini (HTTP 404). Perbarui daftar model dan pilih model yang tersedia.' : res.status === 401 || res.status === 403 ? 'API key atau akses model ditolak provider.' : res.status === 429 ? 'Kuota atau batas permintaan provider tercapai.' : `Permintaan provider gagal (HTTP ${res.status}). Periksa model dan akun provider.`;
+    const text = res.status === 404 ? "Model is unavailable for this endpoint or API key (HTTP 404). Refresh the model list and select an available model." : res.status === 401 || res.status === 403 ? "The provider rejected the API key or model access." : res.status === 429 ? "Provider quota or request limit reached." : `Provider request failed (HTTP ${res.status}). Check the model and provider account.`;
     throw err(502, res.status===404?'provider_model_unavailable':'provider_error', text);
   }
   const chunks = []; let size = 0;
   for await (const chunk of res.body) {
     size += chunk.length;
-    if (size > 24 * 1024 * 1024) throw err(502, 'provider_response_large', 'Respons provider terlalu besar.');
+    if (size > 24 * 1024 * 1024) throw err(502, 'provider_response_large', "Provider response is too large.");
     chunks.push(chunk);
   }
   try { return JSON.parse(Buffer.concat(chunks).toString()); }
-  catch { throw err(502, 'provider_response_invalid', 'Respons provider bukan JSON yang valid.'); }
+  catch { throw err(502, 'provider_response_invalid', 'The provider response is not valid JSON.'); }
 }
 
 // Catalog requests do not generate content. Cache only metadata, indexed by a key digest.
@@ -37,18 +37,18 @@ export async function geminiModels(key,{refresh=false}={}) {
  for(let page=0;page<8;page++){
   const query=new URLSearchParams({pageSize:'100'});if(token)query.set('pageToken',token);
   const data=await jsonRequest('https://generativelanguage.googleapis.com/v1beta/models?'+query,{'x-goog-api-key':key},undefined,'GET');
-  if(!Array.isArray(data.models))throw err(502,'provider_catalog_invalid','Daftar model Gemini belum dapat dibaca.');
+  if(!Array.isArray(data.models))throw err(502,'provider_catalog_invalid',"The Gemini model list could not be read.");
   for(const item of data.models){
    const id=typeof item.name==='string'?item.name.replace(/^models\//,''):'';
    if(!/^gemini-[A-Za-z0-9._-]{1,90}$/.test(id)||!item.supportedGenerationMethods?.includes('generateContent')||/tts|audio|robotics|deep-research/i.test(id))continue;
    models.push({id,name:typeof item.displayName==='string'?item.displayName.slice(0,120):id});
   }
   token=typeof data.nextPageToken==='string'?data.nextPageToken:'';if(!token)break;
-  if(page===7)throw err(502,'provider_catalog_large','Daftar model Gemini terlalu besar.');
+  if(page===7)throw err(502,'provider_catalog_large',"The Gemini model list is too large.");
  }
  const unique=[...new Map(models.map(m=>[m.id,m])).values()];
  const textModels=unique.filter(m=>!m.id.includes('image')),imageModels=unique.filter(m=>m.id.includes('image'));
- if(!textModels.length)throw err(502,'provider_catalog_empty','API key ini tidak mengembalikan model teks Gemini yang tersedia.');
+ if(!textModels.length)throw err(502,'provider_catalog_empty',"This API key returned no available Gemini text models.");
  // Prefer stable lightweight models over preview or reasoning-heavy presets.
  const score=m=>(/preview|exp(?:erimental)?/.test(m.id)?0:100)+(/flash/.test(m.id)?20:0)+(/lite/.test(m.id)?5:0);
  textModels.sort((a,b)=>score(b)-score(a)||b.id.localeCompare(a.id,undefined,{numeric:true}));
@@ -74,8 +74,8 @@ export async function generateText({ provider, model, key, system, prompt, image
   } else if (provider === 'gemini') {
     result = await jsonRequest(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { 'x-goog-api-key': key }, { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }, ...images.map(x => ({ inlineData: { mimeType: x.mime, data: x.data } }))] }], generationConfig: { maxOutputTokens: Math.max(4096, maxTokens), ...(jsonSchema?{responseMimeType:'application/json',responseJsonSchema:jsonSchema}:{}) } });
     text = result.candidates?.[0]?.content?.parts?.filter(p => p.text).map(p => p.text).join('\n');
-  } else throw err(400, 'provider_invalid', 'Provider tidak didukung.');
-  if (typeof text !== 'string' || !text.trim() || text.length > 40000) throw err(502, 'provider_response_invalid', 'Provider tidak mengembalikan teks yang dapat dipakai.');
+  } else throw err(400, 'provider_invalid', "Unsupported provider.");
+  if (typeof text !== 'string' || !text.trim() || text.length > 40000) throw err(502, 'provider_response_invalid', "Provider did not return usable text.");
   return { text, usage: result.usage || result.usageMetadata || null };
 }
 
@@ -94,7 +94,7 @@ export async function generateImage({ provider, model, key, prompt, references =
   } else if (provider === 'gemini') {
     result = await jsonRequest(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { 'x-goog-api-key': key }, { contents: [{ role: 'user', parts: [...references.map(ref=>({inlineData:{mimeType:ref.mime,data:ref.buffer.toString('base64')}})),{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } });
     base64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.mimeType?.startsWith('image/'))?.inlineData?.data;
-  } else throw err(400, 'image_provider_invalid', 'Pilih OpenAI atau Gemini untuk pembuatan gambar. Claude tidak menghasilkan gambar.');
-  if (typeof base64 !== 'string' || base64.length > 12 * 1024 * 1024) throw err(502, 'provider_image_invalid', 'Provider tidak mengembalikan gambar yang valid (maksimal 8 MB).');
+  } else throw err(400, 'image_provider_invalid', "Choose OpenAI or Gemini for image generation. Claude does not generate images.");
+  if (typeof base64 !== 'string' || base64.length > 12 * 1024 * 1024) throw err(502, 'provider_image_invalid', "Provider did not return a valid image, up to 8 MB.");
   return { buffer: Buffer.from(base64, 'base64'), usage: result.usage || result.usageMetadata || null };
 }

@@ -17,6 +17,15 @@
 - These are historical observations, not a present-time uptime guarantee. Tests
   simulated AI/Meta and did not demonstrate a real paid generation or live post.
 
+## Current implementation update: 2026-10-23
+
+The current fix adds English UI/error messages, per-account agent context, direct
+Drafts session navigation, capacity guidance and bounded malformed-story repair.
+See [account-agent sessions](ACCOUNT_AGENT_SESSIONS.md). The earlier deployment
+record above remains historical until the new release passes the actual receiver.
+Preserve main’s Brand Kit raw-length fix, personal AI settings entry, available-key
+provider defaults, Codex Responses adapter and ffmpeg/ffprobe CI setup.
+
 ## Recent implemented releases
 
 | Release | Changes | Evidence |

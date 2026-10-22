@@ -39,5 +39,5 @@ export async function instagramVisualContext(user,targets) {
   for(const [k,v] of cache)if(v.expires<=Date.now())cache.delete(k);if(cache.size>=40)cache.delete(cache.keys().next().value);
   cache.set(key,{expires:Date.now()+5*60000,entry:{...entry,posts:entry.posts.map(p=>({...p,image_index:p.image_index-offset}))},images:images.slice(offset)});
  }
- return {accounts,images,note:accounts.some(a=>a.status==='available')?'Visual profil Instagram tersedia sebagai referensi gaya.':'Visual profil Instagram belum tersedia. Menggunakan Brand Kit dan referensi unggahan; jangan mengklaim telah melihat feed.'};
+ return {accounts,images,note:accounts.some(a=>a.status==='available')?"Instagram profile visuals are available as style references.":"Instagram profile visuals are unavailable. Using the Brand Kit and uploaded references; do not claim to have seen the feed."};
 }

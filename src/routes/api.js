@@ -37,19 +37,19 @@ api.use(authenticate, (req, res, next) => {
   res.set('RateLimit-Limit', String(LIMIT));
   res.set('RateLimit-Remaining', String(Math.max(0, LIMIT - b.n)));
   res.set('RateLimit-Reset', String(Math.ceil((b.start + WINDOW - t) / 1000)));
-  if (b.n > LIMIT) return next(err(429, 'rate_limited', 'Terlalu banyak request, coba lagi sebentar'));
+  if (b.n > LIMIT) return next(err(429, 'rate_limited', "Too many requests. Try again shortly."));
   next();
 });
-const sessionOnly = (req, _res, next) => (req.auth.via === 'session' ? next() : next(err(403, 'forbidden', 'Endpoint ini hanya untuk dashboard')));
+const sessionOnly = (req, _res, next) => (req.auth.via === 'session' ? next() : next(err(403, 'forbidden', "This endpoint is only available from the dashboard.")));
 const W = requireWrite;
 const U = (req) => req.auth.user;
 const privateMedia = (req) => {
   const record = media.getMedia(req.params.id);
-  if (!record.in_library && record.user_id !== U(req).id) throw err(404, 'not_found', 'Media pribadi tidak ditemukan.');
+  if (!record.in_library && record.user_id !== U(req).id) throw err(404, 'not_found', "Private media not found.");
   return record;
 };
 api.use((req, _res, next) => {
-  if (req.auth.via === 'oauth' && req.method !== 'GET' && /^\/posts(?:\/|$)/.test(req.path)) return next(err(403, 'dashboard_approval_required', 'AI hanya mengirim draf. Setujui dan terbitkan lewat Tulis Post di dashboard.'));
+  if (req.auth.via === 'oauth' && req.method !== 'GET' && /^\/posts(?:\/|$)/.test(req.path)) return next(err(403, 'dashboard_approval_required', "AI only submits drafts. Approve and publish using New Post in the dashboard."));
   next();
 });
 api.get('/ai/connection', sessionOnly, (req, res) => {
@@ -85,7 +85,7 @@ api.get('/generator/accounts/:id/story-jobs',sessionOnly,(req,res)=>res.json({da
 api.get('/generator/story-jobs/:id',sessionOnly,(req,res)=>res.json(storytelling.job(U(req),req.params.id)));
 api.post('/generator/story-jobs',sessionOnly,(req,res)=>{const result=generator.queueStory(U(req),req.body||{});audit(req.auth,'story.start','story_job',result.id);setImmediate(()=>generator.runGeneratorTick());res.status(result.replayed?200:201).json(result);});
 api.delete('/generator/story-jobs/:id',sessionOnly,(req,res)=>{const result=storytelling.cancel(U(req),req.params.id);audit(req.auth,'story.cancel','story_job',result.id);res.json(result);});
-api.post('/generator/story-jobs/:id/retry',sessionOnly,(req,res)=>{if(req.body?.confirm_cost!==true)throw err(400,'cost_confirmation_required','Konfirmasi biaya percobaan ulang.');const result=generator.retryStory(U(req),req.params.id,req.body||{});audit(req.auth,'story.retry','story_job',result.id);setImmediate(()=>generator.runGeneratorTick());res.json(result);});
+api.post('/generator/story-jobs/:id/retry',sessionOnly,(req,res)=>{if(req.body?.confirm_cost!==true)throw err(400,'cost_confirmation_required',"Confirm the retry cost.");const result=generator.retryStory(U(req),req.params.id,req.body||{});audit(req.auth,'story.retry','story_job',result.id);setImmediate(()=>generator.runGeneratorTick());res.json(result);});
 api.get('/generator/providers/gemini/models',sessionOnly,async(req,res)=>res.json(await generator.availableGeminiModels(U(req),req.query.refresh==='true')));
 api.post('/generator/quick-idea',sessionOnly,async(req,res)=>{const result=await generator.quickIdea(U(req),req.body||{});audit(req.auth,'generator.quick_idea','generator',null,{account_ids:req.body.account_ids,kind:req.body.kind});res.json(result);});
 api.get('/generator/settings', sessionOnly, (req, res) => res.json(generator.settings(U(req))));
@@ -110,12 +110,12 @@ api.post('/generator/plans', sessionOnly, async (req,res) => {
   setImmediate(()=>generator.runGeneratorTick());res.status(plan.replayed ? 200 : 201).json(plan);
 });
 api.post('/generator/plans/:id/start', sessionOnly, (req,res) => {
-  if (req.body?.confirm_cost !== true) throw err(400,'cost_confirmation_required','Konfirmasi biaya pembuatan seluruh konten.');
+  if (req.body?.confirm_cost !== true) throw err(400,'cost_confirmation_required',"Confirm the cost of generating all content.");
   const result=generator.startPlan(U(req),req.params.id); audit(req.auth,'generator.plan.start','generator_plan',req.params.id,result);
   setImmediate(()=>generator.runGeneratorTick());res.json(result);
 });
 api.post('/generator/runs/:id/start', sessionOnly, (req,res) => {
-  if (req.body?.confirm_cost !== true) throw err(400,'cost_confirmation_required','Konfirmasi biaya pembuatan konten.');
+  if (req.body?.confirm_cost !== true) throw err(400,'cost_confirmation_required',"Confirm the cost of generating this content.");
   const result=generator.startPlanned(U(req),req.params.id);setImmediate(()=>generator.runGeneratorTick());res.json(result);
 });
 api.patch('/generator/runs/:id', sessionOnly, (req,res) => {
@@ -194,7 +194,7 @@ api.post('/accounts/:id/profile', W, async (req, res) => {
   assertAccount(U(req), req.params.id);
   let profile;
   try { profile = await accounts.refreshAccountProfile(req.params.id); }
-  catch (error) { throw err(422, 'profile_refresh_failed', 'Profil belum bisa diperbarui dari Meta. Periksa koneksi atau sambungkan ulang akun.'); }
+  catch (error) { throw err(422, 'profile_refresh_failed', "Profile could not be refreshed from Meta. Check the connection or reconnect the account."); }
   assertAccount(U(req), req.params.id);
   res.json(profile);
 });
@@ -214,12 +214,12 @@ api.get('/platform-rules', (_req, res) => res.json(RULES));
 api.post('/posts', W, (req, res) => {
   const draftId = req.body?.ai_draft_id;
   if (draftId) {
-    if (req.auth.via !== 'session') throw err(403, 'dashboard_approval_required', 'Persetujuan draf hanya dari dashboard.');
+    if (req.auth.via !== 'session') throw err(403, 'dashboard_approval_required', "Drafts can only be approved from the dashboard.");
     const previous = aiDrafts.approvedPost(U(req), draftId);
     if (previous) return res.json(posts.publicPost(posts.getPost(previous)));
   }
   const key = req.get('Idempotency-Key') || null;
-  if (key && key.length > 200) throw err(400, 'validation_failed', 'Idempotency-Key terlalu panjang');
+  if (key && key.length > 200) throw err(400, 'validation_failed', "Idempotency-Key is too long.");
   const { post, replayed } = posts.createPost(U(req), req.body || {}, { idempotencyKey: key, source: draftId ? 'mcp' : source(req) });
   if (draftId) { aiDrafts.markApproved(U(req), draftId, post.id); audit(req.auth, 'ai.draft.approve', 'ai_draft', draftId, { post_id: post.id }); }
   if (!replayed) {
@@ -234,7 +234,7 @@ api.post('/posts/:id/duplicate',sessionOnly,(req,res)=>{const result=duplicateCa
 api.get('/dashboard/summary',sessionOnly,(req,res)=>res.json(dashboardSummary(U(req),req.query)));
 api.post('/dashboard/reconnect-request',sessionOnly,(req,res)=>{const result=requestReconnect(U(req),req.body?.account_id);if(!result.replayed)audit(req.auth,'account.reconnect_request','account',req.body.account_id);res.json(result);});
 api.get('/calendar', (req, res) => {
-  if (!req.query.from || !req.query.to) throw err(400, 'validation_failed', 'from dan to wajib (ISO 8601)');
+  if (!req.query.from || !req.query.to) throw err(400, 'validation_failed', "from and to are required in ISO 8601 format.");
   res.json({ data: posts.calendar(new Date(req.query.from).toISOString(), new Date(req.query.to).toISOString(), U(req)) });
 });
 api.get('/posts/:id', (req, res) => { assertPostView(U(req), req.params.id); res.json(posts.publicPost(posts.getPost(req.params.id))); });
@@ -254,7 +254,7 @@ api.get('/posts/:id/insights', (req, res) => { assertPostView(U(req), req.params
 const raw = express.raw({ type: () => true, limit: '101mb' });
 const rawPart = express.raw({ type: () => true, limit: '9mb' });
 const ownUpload = (req, _res, next) => {
-  if (!one('SELECT 1 FROM media WHERE id=? AND user_id=?', req.params.id, U(req).id)) throw err(404, 'not_found', 'Upload tidak ditemukan.');
+  if (!one('SELECT 1 FROM media WHERE id=? AND user_id=?', req.params.id, U(req).id)) throw err(404, 'not_found', "Upload not found.");
   next();
 };
 api.post('/media/from-url', W, async (req, res) => res.status(201).json(await media.fromUrl(U(req).id, req.body?.url, req.body || {})));
@@ -313,7 +313,7 @@ api.get('/messages/unreplied', (req, res) => res.json(msgs.unrepliedSummary(U(re
 // ---- insights ----
 api.post('/insights/sync', W, async (_req, res) => {
   const last = Number(kvGet('insights:manual') || 0);
-  if (Date.now() - last < 5 * 60_000) throw err(429, 'rate_limited', 'Sinkron statistik maksimal 1 kali per 5 menit');
+  if (Date.now() - last < 5 * 60_000) throw err(429, 'rate_limited', "Statistics can only be synchronized once every 5 minutes.");
   kvSet('insights:manual', Date.now());
   await eng.syncInsights();
   res.json({ ok: true, synced_at: now() });
@@ -361,7 +361,7 @@ api.post('/api-keys', sessionOnly, (req, res) => {
   res.status(201).json(k);
 });
 api.delete('/api-keys/:id', sessionOnly, (req, res) => {
-  if (!revokeApiKey(U(req).id, req.params.id)) throw err(404, 'not_found', 'Key tidak ditemukan');
+  if (!revokeApiKey(U(req).id, req.params.id)) throw err(404, 'not_found', "Key not found.");
   audit(req.auth, 'api_key.revoke', 'api_key', req.params.id);
   res.status(204).end();
 });
@@ -384,17 +384,17 @@ api.post('/users', sessionOnly, requireOwner, (req, res) => {
 });
 api.patch('/users/:id', sessionOnly, requireOwner, (req, res) => {
   const u = one('SELECT * FROM users WHERE id=?', req.params.id);
-  if (!u) throw err(404, 'not_found', 'User tidak ditemukan');
+  if (!u) throw err(404, 'not_found', "User not found.");
   const b = req.body || {};
   if (b.role !== undefined) {
-    if (!ROLES.includes(b.role)) throw err(400, 'validation_failed', 'role harus owner atau rep');
-    if (u.id === U(req).id && b.role !== 'owner') throw err(400, 'validation_failed', 'Tidak bisa menurunkan peran diri sendiri');
-    if (u.role === 'owner' && b.role !== 'owner' && one("SELECT COUNT(*) n FROM users WHERE role='owner'").n <= 1) throw err(400, 'validation_failed', 'Minimal harus ada satu Owner');
+    if (!ROLES.includes(b.role)) throw err(400, 'validation_failed', "role must be owner or rep.");
+    if (u.id === U(req).id && b.role !== 'owner') throw err(400, 'validation_failed', "You cannot downgrade your own role.");
+    if (u.role === 'owner' && b.role !== 'owner' && one("SELECT COUNT(*) n FROM users WHERE role='owner'").n <= 1) throw err(400, 'validation_failed', "At least one Owner is required.");
     run('UPDATE users SET role=? WHERE id=?', b.role, u.id);
   }
   if (b.name !== undefined) run('UPDATE users SET name=? WHERE id=?', String(b.name).slice(0, 100) || null, u.id);
   if (b.password) {
-    if (b.password.length < 8) throw err(400, 'validation_failed', 'Password minimal 8 karakter');
+    if (b.password.length < 8) throw err(400, 'validation_failed', "Password must contain at least 8 characters.");
     run('UPDATE users SET password_hash=? WHERE id=?', hashPassword(b.password), u.id);
     run('DELETE FROM sessions WHERE user_id=?', u.id);
     revokeAllMachineAccess(u.id);
@@ -406,13 +406,13 @@ api.patch('/users/:id', sessionOnly, requireOwner, (req, res) => {
 });
 api.put('/users/:id/accounts', sessionOnly, requireOwner, (req, res) => {
   const u = one('SELECT * FROM users WHERE id=?', req.params.id);
-  if (!u) throw err(404, 'not_found', 'User tidak ditemukan');
+  if (!u) throw err(404, 'not_found', "User not found.");
   setAssignments(u.id, req.body?.account_ids);
   audit(req.auth, 'user.assign', 'user', u.id, { email: u.email, account_ids: req.body?.account_ids });
   res.json(publicMember(u));
 });
 api.delete('/users/:id', sessionOnly, requireOwner, (req, res) => {
-  if (req.params.id === U(req).id) throw err(400, 'validation_failed', 'Tidak bisa menghapus diri sendiri');
+  if (req.params.id === U(req).id) throw err(400, 'validation_failed', "You cannot delete yourself.");
   const u = one('SELECT email FROM users WHERE id=?', req.params.id);
   run('DELETE FROM users WHERE id=?', req.params.id);
   audit(req.auth, 'user.delete', 'user', req.params.id, { email: u?.email });
@@ -434,6 +434,6 @@ api.get('/admin/overview', requireOwner, (_req, res) => res.json({
   failed_24h: one("SELECT COUNT(*) n FROM post_targets t JOIN posts p ON p.id=t.post_id WHERE t.status='failed' AND p.updated_at > ?", new Date(Date.now() - 864e5).toISOString()).n,
   storage: media.usage(),
   webhooks: webhookStats,
-  realtime_hint: webhookStats.received ? 'Webhook Meta aktif' : 'Belum ada webhook masuk — komentar & pesan disinkron berkala (polling)',
+  realtime_hint: webhookStats.received ? 'Meta webhook active' : 'No webhook received yet — comments and messages sync periodically (polling)',
 }));
 export { isOwner, config };

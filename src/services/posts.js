@@ -45,34 +45,34 @@ export function refreshPostStatus(postId) {
 
 function normalizeTargets(body, user) {
   const targets = body.targets;
-  if (!Array.isArray(targets) || !targets.length) throw err(400, 'validation_failed', 'targets wajib berisi minimal 1 akun', { field: 'targets' });
+  if (!Array.isArray(targets) || !targets.length) throw err(400, 'validation_failed', "targets must contain at least one account.", { field: 'targets' });
   const seen = new Set();
   const sharedContent = typeof body.content === 'string' ? body.content : '';
   const sharedMedia = Array.isArray(body.media_ids) ? body.media_ids : [];
   return targets.map((t) => {
-    if (!t?.account_id) throw err(400, 'validation_failed', 'Setiap target wajib punya account_id');
+    if (!t?.account_id) throw err(400, 'validation_failed', "Each target must have an account_id.");
     if (seen.has(t.account_id)) throw err(400, 'validation_failed', 'account_id duplikat di targets', { account_id: t.account_id });
     seen.add(t.account_id);
     if (user) assertAccount(user, t.account_id);
     const acc = getAccount(t.account_id);
-    if (acc.status === 'expired') throw err(422, 'account_expired', `Akun @${acc.username} perlu disambungkan ulang`, { account_id: acc.id });
+    if (acc.status === 'expired') throw err(422, 'account_expired', `Account @${acc.username} needs to be reconnected`, { account_id: acc.id });
     const content = typeof t.content === 'string' ? t.content : sharedContent;
     const mediaIds = Array.isArray(t.media_ids) ? t.media_ids : sharedMedia;
     const media = mediaIds.map((m) => {
       const r = getMedia(m);
-      if (!r.in_library && r.user_id !== user?.id && !canUseAccountMedia(user,r.id,acc.id)) throw err(404, 'not_found', 'Media pribadi tidak ditemukan.');
+      if (!r.in_library && r.user_id !== user?.id && !canUseAccountMedia(user,r.id,acc.id)) throw err(404, 'not_found', "Private media not found.");
       return { id: r.id, kind: r.kind, width: r.width, height: r.height, duration_ms: r.duration_ms, size: r.size_bytes };
     });
     const options = t.options && typeof t.options === 'object' ? structuredClone(t.options) : {};
     // validate referenced media inside options
     if (options.cover_media_id) {
       const cm = getMedia(options.cover_media_id);
-      if (!cm.in_library && cm.user_id !== user?.id) throw err(404, 'not_found', 'Cover pribadi tidak ditemukan.');
-      if (cm.kind !== 'image') throw err(400, 'invalid_options', 'cover_media_id harus gambar');
+      if (!cm.in_library && cm.user_id !== user?.id) throw err(404, 'not_found', "Private cover image not found.");
+      if (cm.kind !== 'image') throw err(400, 'invalid_options', "cover_media_id must reference an image.");
     }
     for (const part of options.thread || []) if (typeof part === 'object') for (const mid of part.media_ids || []) {
       const image = getMedia(mid);
-      if (!image.in_library && image.user_id !== user?.id) throw err(404, 'not_found', 'Media pribadi tidak ditemukan.');
+      if (!image.in_library && image.user_id !== user?.id) throw err(404, 'not_found', "Private media not found.");
     }
     validateTarget(acc.platform, { content, media, options, accountId: acc.id });
     return {
@@ -86,8 +86,8 @@ function normalizeTargets(body, user) {
 function scheduleTime(input) {
   const iso = toUtcIso(input);
   if (!iso) return null;
-  if (new Date(iso).getTime() < Date.now() - 5 * 60_000) throw err(400, 'validation_failed', 'scheduled_at sudah lewat', { field: 'scheduled_at' });
-  if (new Date(iso).getTime() > Date.now() + 365 * 864e5) throw err(400, 'validation_failed', 'scheduled_at maksimal 1 tahun ke depan', { field: 'scheduled_at' });
+  if (new Date(iso).getTime() < Date.now() - 5 * 60_000) throw err(400, 'validation_failed', "scheduled_at is in the past.", { field: 'scheduled_at' });
+  if (new Date(iso).getTime() > Date.now() + 365 * 864e5) throw err(400, 'validation_failed', "scheduled_at must not be more than one year in the future.", { field: 'scheduled_at' });
   return iso;
 }
 
@@ -102,7 +102,7 @@ export function createPost(user, body, { idempotencyKey, source = 'api', dedupeW
   if (idempotencyKey) {
     const ex = one('SELECT * FROM posts WHERE created_by=? AND idempotency_key=?', userId, idempotencyKey);
     if (ex) {
-      if (ex.request_hash !== reqHash) throw err(409, 'idempotency_conflict', 'Idempotency-Key ini sudah dipakai dengan body berbeda');
+      if (ex.request_hash !== reqHash) throw err(409, 'idempotency_conflict', "This Idempotency-Key has already been used with a different request body.");
       return { post: publicPost(ex), replayed: true };
     }
   }
@@ -130,7 +130,7 @@ export function createPost(user, body, { idempotencyKey, source = 'api', dedupeW
 
 export function getPost(postId) {
   const p = one('SELECT * FROM posts WHERE id=? AND removed_at IS NULL', postId);
-  if (!p) throw err(404, 'not_found', `Post ${postId} tidak ditemukan`);
+  if (!p) throw err(404, 'not_found', `Post ${postId} not found`);
   return p;
 }
 
@@ -158,7 +158,7 @@ export function calendar(fromIso, toIso, user) {
 
 function assertEditable(p) {
   const started = one("SELECT 1 FROM post_targets WHERE post_id=? AND status NOT IN ('pending','cancelled')", p.id);
-  if (started || p.status !== 'scheduled') throw err(409, 'post_not_editable', 'Post sudah mulai diterbitkan dan tidak bisa diubah');
+  if (started || p.status !== 'scheduled') throw err(409, 'post_not_editable', "Publishing has started and this post can no longer be edited.");
 }
 
 export function updatePost(postId, patch, user) {
@@ -208,10 +208,10 @@ export function publishNow(postId) {
 export function retryPost(postId) {
   const p = getPost(postId);
   const failed = all("SELECT * FROM post_targets WHERE post_id=? AND status='failed'", p.id);
-  if (!failed.length) throw err(409, 'nothing_to_retry', 'Tidak ada akun yang gagal di post ini');
+  if (!failed.length) throw err(409, 'nothing_to_retry', "This post has no failed destination accounts.");
   for (const t of failed) {
     const acc = one('SELECT status, username FROM accounts WHERE id=?', t.account_id);
-    if (acc?.status !== 'active') throw err(422, 'account_expired', `Akun @${acc?.username} perlu disambungkan ulang sebelum retry`, { account_id: t.account_id });
+    if (acc?.status !== 'active') throw err(422, 'account_expired', `Account @${acc?.username} needs to be reconnected before retrying`, { account_id: t.account_id });
   }
   run("UPDATE post_targets SET status='pending', run_at=?, error_code=NULL, error_message=NULL, attempts=0, container_id=NULL WHERE post_id=? AND status='failed'", now(), p.id);
   refreshPostStatus(p.id);
@@ -221,7 +221,7 @@ export function retryPost(postId) {
 export function removePost(postId) {
   const p = getPost(postId);
   if (one("SELECT 1 FROM post_targets WHERE post_id=? AND status IN ('pending','publishing')", p.id)) {
-    throw err(409, 'post_not_removable', 'Batalkan post terjadwal dulu sebelum menghapus dari riwayat');
+    throw err(409, 'post_not_removable', 'Cancel the scheduled post before deleting it from history.');
   }
   run('UPDATE posts SET removed_at=? WHERE id=?', now(), p.id);
 }

@@ -11,12 +11,12 @@ export function publicAddress(address) {
   return version === 6 && /^[23]/i.test(address) && !/^2001:db8:/i.test(address) && !/^2002:/i.test(address);
 }
 export function imageUrl(value) {
-  if (typeof value !== 'string' || value.length > 16384) throw err(400,'image_url_invalid','URL gambar tidak valid.');
+  if (typeof value !== 'string' || value.length > 16384) throw err(400,'image_url_invalid',"Invalid image URL.");
   let url;
-  try { url = new URL(value); } catch { throw err(400,'image_url_invalid','URL gambar tidak valid.'); }
+  try { url = new URL(value); } catch { throw err(400,'image_url_invalid',"Invalid image URL."); }
   const hostname = url.hostname.replace(/^\[|\]$/g,'');
   if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443') ||
-      (net.isIP(hostname) && !publicAddress(hostname))) throw err(400,'image_url_invalid','Gunakan URL HTTPS publik tanpa kredensial atau alamat jaringan privat.');
+      (net.isIP(hostname) && !publicAddress(hostname))) throw err(400,'image_url_invalid',"Use a public HTTPS URL without credentials or private network addresses.");
   return url;
 }
 export function downloadImage(value, redirects=0) {
@@ -33,24 +33,24 @@ export function downloadImage(value, redirects=0) {
     }, response => {
       if (response.statusCode >= 300 && response.statusCode < 400) {
         response.resume();
-        if (!response.headers.location || redirects >= 3) return reject(err(400,'image_fetch_failed','Redirect gambar terlalu banyak atau tidak valid.'));
+        if (!response.headers.location || redirects >= 3) return reject(err(400,'image_fetch_failed',"Image redirect is invalid or exceeds the redirect limit."));
         try { resolve(downloadImage(new URL(response.headers.location,url).href,redirects+1)); } catch(error) { reject(error); }
         return;
       }
-      if (response.statusCode !== 200) { response.resume(); return reject(err(400,'image_fetch_failed','Gambar tidak dapat diunduh. Gunakan URL unduh publik yang masih berlaku atau kirim base64.')); }
+      if (response.statusCode !== 200) { response.resume(); return reject(err(400,'image_fetch_failed',"Image could not be downloaded. Use a valid public download URL or send base64.")); }
       const chunks=[]; let bytes=0;
       response.on('data',chunk=>{
         bytes+=chunk.length;
-        if (bytes>8*1024*1024) { response.destroy(); reject(err(400,'image_too_large','Gambar maksimal 8 MB.')); }
+        if (bytes>8*1024*1024) { response.destroy(); reject(err(400,'image_too_large',"Image must not exceed 8 MB.")); }
         else chunks.push(chunk);
       });
       response.on('end',()=>resolve(Buffer.concat(chunks)));
-      response.on('error',()=>reject(err(400,'image_fetch_failed','Unduhan gambar terputus.')));
+      response.on('error',()=>reject(err(400,'image_fetch_failed',"Image download was interrupted.")));
     });
     request.setTimeout(15000,()=>request.destroy(new Error('Image timeout')));
     const deadline = setTimeout(()=>request.destroy(new Error('Image deadline')),20000);
     deadline.unref();
     request.on('close',()=>clearTimeout(deadline));
-    request.on('error',()=>reject(err(400,'image_fetch_failed','Gambar tidak bisa diunduh dari URL publik. Tautan sandbox ChatGPT tidak dapat diakses server; gunakan URL unduh HTTPS atau base64.')));
+    request.on('error',()=>reject(err(400,'image_fetch_failed',"Image could not be downloaded from the public URL. ChatGPT sandbox links are not accessible to the server; use an HTTPS download URL or base64.")));
   });
 }

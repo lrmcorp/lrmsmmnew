@@ -12,7 +12,7 @@ Copy the block below and add your concrete task:
 > and user edits. Briefly state what you will do, then carry out the task within
 > the authorization already provided in this conversation.
 >
-> Keep vanilla JS and the shared h/api/modal helpers; Bahasa Indonesia UI, WIB
+> Keep vanilla JS and the shared h/api/modal helpers; English UI, WIB
 > times, SVG icons, compact account chips, shared company/account scope, autosave,
 > mobile and keyboard behavior. Preserve server-side account authorization, private
 > user keys/drafts, idempotency and human publication approval.

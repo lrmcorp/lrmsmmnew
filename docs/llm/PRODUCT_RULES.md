@@ -4,7 +4,7 @@
 
 - Preserve LRMsmm's white/light, compact visual identity and the mockup notes for
   the page being edited. Preserve useful functions when matching a screenshot.
-- Bahasa Indonesia is the current UI default; WIB is the visible scheduling zone.
+- English is the current UI default; WIB is the visible scheduling zone.
   Internal timestamps are ISO UTC. Do not use the browser's local zone accidentally.
 - UI icons are SVG. Caption language defaults to Indonesian, can be chosen per
   account/session, and may include emoji. Content is not interface copy.

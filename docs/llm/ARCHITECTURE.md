@@ -30,7 +30,7 @@ flowchart LR
 | `public/app.js` | Application shell, auth, hash routing and workspace dispatch; also contains older implementations |
 | `public/ui.js` | Shared dialogs, chips, scope controls, autosave, grouping/format helpers |
 | `public/icons.js` | SVG icons |
-| `public/strings.id.js`, `public/strings.en.js` | Current Indonesian UI copy and existing translation helpers |
+| `public/strings.id.js`, `public/strings.en.js` | English UI catalog plus retained legacy Indonesian translations (not the active interface) |
 | `public/generator-workspace.js` | Campaign/Storyline form, model drawer, quick ideas, progress and generation submission |
 | `public/content-workspace.js` | Draft session list/detail, concept/image review and session-calendar presentation |
 | `public/home-workspace.js` | H1 dashboard with scoped summary and polling cleanup |

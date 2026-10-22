@@ -34,10 +34,10 @@ async function publishTarget(t) {
   };
   try {
     if (!acc || acc.status === 'disconnected') { run("UPDATE post_targets SET status='cancelled' WHERE id=?", t.id); return; }
-    if (acc.status === 'expired') return fail('account_expired', 'Akun perlu disambungkan ulang');
+    if (acc.status === 'expired') return fail('account_expired', 'Account needs to be reconnected.');
     if (post.created_by) {
       const author = one('SELECT * FROM users WHERE id=?', post.created_by);
-      if (!author || !canAccount(author, acc.id)) return fail('access_revoked', 'Akses pembuat post ke akun ini sudah dicabut.');
+      if (!author || !canAccount(author, acc.id)) return fail('access_revoked', 'The post creator’s access to this account has been revoked.');
     }
 
     const token = tokenOf(acc);
@@ -63,7 +63,7 @@ async function publishTarget(t) {
     if (e.partial) {
       // Main thread post is live; a continuation failed. Don't retry (would duplicate the main post).
       run(`UPDATE post_targets SET status='published', platform_post_id=?, permalink=?, extra_post_ids=?, published_at=?, error_code='thread_partial', error_message=?, locked_at=NULL WHERE id=?`,
-        e.partial.id, e.partial.permalink, JSON.stringify(e.partial.extra), now(), `Bagian utas ${e.details?.thread_part} gagal: ${pe.message}`, t.id);
+        e.partial.id, e.partial.permalink, JSON.stringify(e.partial.extra), now(), `Thread part ${e.details?.thread_part} failed: ${pe.message}`, t.id);
     } else if (pe.transient && t.attempts < MAX_ATTEMPTS) {
       const wait = BACKOFF_MIN[Math.min(t.attempts - 1, BACKOFF_MIN.length - 1)] * 60_000;
       run("UPDATE post_targets SET status='pending', run_at=?, error_code=?, error_message=?, locked_at=NULL WHERE id=?",

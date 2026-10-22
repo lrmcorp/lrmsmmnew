@@ -3,7 +3,7 @@
 This is the coding-agent handoff for **lrmcorp/lrmsmmnew**, serving
 `https://lrmsosmed.playgo.id`. Last substantive implementation documented:
 **2026-10-22, PR #8**. Documentation language is English for agent readability;
-product UI remains Bahasa Indonesia.
+product UI defaults to English.
 
 ## Read in this order
 
@@ -29,6 +29,7 @@ that page's original mockups and numbered notes, plus the relevant QA evidence.
 - [CI definition](../../.github/workflows/deploy.yml): executable test/deploy source.
 
 Historical redesign files contain superseded requirements, including English-only
-UI and old phase order. The later condensed user brief selected Bahasa Indonesia
-and WIB. Do not revive superseded rules just because an older file calls itself
+UI and old phase order. The latest user direction selected English UI while preserving WIB and independently selectable caption language. Do not revive superseded rules just because an older file calls itself
 "master". Current user direction wins; reconcile discrepancies explicitly.
+
+- [Account-specialized agents and draft sessions](ACCOUNT_AGENT_SESSIONS.md)

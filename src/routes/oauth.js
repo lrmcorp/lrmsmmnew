@@ -46,7 +46,7 @@ const validRedirect = (u) => {
 oauth.post('/oauth/register', express.json(), (req, res) => {
   const uris = req.body?.redirect_uris;
   if (!Array.isArray(uris) || !uris.length || !uris.every(validRedirect)) {
-    return res.status(400).json({ error: 'invalid_redirect_uri', error_description: 'redirect_uris wajib https (atau localhost)' });
+    return res.status(400).json({ error: 'invalid_redirect_uri', error_description: "redirect_uris must use HTTPS or localhost." });
   }
   const clientId = `cl_${randomToken(16)}`;
   const name = String(req.body.client_name || 'Aplikasi AI').slice(0, 100);
@@ -59,11 +59,11 @@ oauth.post('/oauth/register', express.json(), (req, res) => {
 
 function loadAuthRequest(q) {
   const client = one('SELECT * FROM oauth_clients WHERE client_id=?', q.client_id);
-  if (!client) throw err(400, 'invalid_client', 'client_id tidak dikenal');
+  if (!client) throw err(400, 'invalid_client', "Unknown client_id.");
   const uris = JSON.parse(client.redirect_uris);
-  if (!uris.includes(q.redirect_uri)) throw err(400, 'invalid_redirect_uri', 'redirect_uri tidak terdaftar');
-  if (q.response_type !== 'code') throw err(400, 'unsupported_response_type', 'response_type harus code');
-  if (!q.code_challenge || q.code_challenge_method !== 'S256') throw err(400, 'invalid_request', 'PKCE S256 wajib');
+  if (!uris.includes(q.redirect_uri)) throw err(400, 'invalid_redirect_uri', "redirect_uri is not registered.");
+  if (q.response_type !== 'code') throw err(400, 'unsupported_response_type', "response_type must be code.");
+  if (!q.code_challenge || q.code_challenge_method !== 'S256') throw err(400, 'invalid_request', "PKCE S256 is required.");
   return client;
 }
 
@@ -99,7 +99,7 @@ oauth.post('/oauth/authorize', express.urlencoded({ extended: false }), (req, re
     const user = sessionUser(req);
     const cs = kvGet(`csrf:${b.csrf}`); run('DELETE FROM kv WHERE k=?', `csrf:${b.csrf}`);
     const c = cs && JSON.parse(cs);
-    if (!user || !c || c.u !== user.id || c.exp < Date.now()) throw err(400, 'invalid_request', 'Sesi persetujuan kedaluwarsa, ulangi dari aplikasi AI');
+    if (!user || !c || c.u !== user.id || c.exp < Date.now()) throw err(400, 'invalid_request', "Approval session has expired. Start again from the AI app.");
     const back = new URL(b.redirect_uri);
     if (b.state) back.searchParams.set('state', b.state);
     if (b.decision !== 'allow') { back.searchParams.set('error', 'access_denied'); return res.redirect(back.toString()); }
@@ -128,20 +128,20 @@ oauth.post('/oauth/token', express.urlencoded({ extended: false }), express.json
   if (b.grant_type === 'authorization_code') {
     const row = one('SELECT * FROM oauth_codes WHERE code_hash=?', sha256(String(b.code || '')));
     if (row) run('DELETE FROM oauth_codes WHERE code_hash=?', row.code_hash);
-    if (!row || row.expires_at < now()) return fail('invalid_grant', 'Kode tidak valid atau kedaluwarsa');
-    if (b.client_id && b.client_id !== row.client_id) return fail('invalid_grant', 'client_id tidak cocok');
-    if (b.redirect_uri && b.redirect_uri !== row.redirect_uri) return fail('invalid_grant', 'redirect_uri tidak cocok');
+    if (!row || row.expires_at < now()) return fail('invalid_grant', 'Code is invalid or expired.');
+    if (b.client_id && b.client_id !== row.client_id) return fail('invalid_grant', 'client_id does not match.');
+    if (b.redirect_uri && b.redirect_uri !== row.redirect_uri) return fail('invalid_grant', 'redirect_uri does not match.');
     const challenge = crypto.createHash('sha256').update(String(b.code_verifier || '')).digest('base64url');
     if (challenge !== row.code_challenge) return fail('invalid_grant', 'code_verifier salah');
     return res.json(issueTokens(row.client_id, row.user_id, row.scope));
   }
   if (b.grant_type === 'refresh_token') {
     const row = one('SELECT * FROM oauth_tokens WHERE refresh_hash=? AND revoked_at IS NULL', sha256(String(b.refresh_token || '')));
-    if (!row || row.refresh_expires_at < now()) return fail('invalid_grant', 'Refresh token tidak valid');
+    if (!row || row.refresh_expires_at < now()) return fail('invalid_grant', 'Invalid refresh token.');
     run('UPDATE oauth_tokens SET revoked_at=? WHERE id=?', now(), row.id); // rotate
     return res.json(issueTokens(row.client_id, row.user_id, row.scope));
   }
-  fail('unsupported_grant_type', 'grant_type tidak didukung');
+  fail('unsupported_grant_type', 'Unsupported grant_type.');
 });
 
 oauth.post('/oauth/revoke', express.urlencoded({ extended: false }), (req, res) => {

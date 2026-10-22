@@ -1,19 +1,18 @@
-import { STRINGS_ID } from './strings.id.js';
 export const STRINGS = {
-  "error.unknown": "Request failed. Please try again.",
+  "error.unknown": "The request failed. Please try again.",
   "login.submit": "Sign in",
   "login.loading": "Signing in…",
-  "login.subtitle": "Sign in to your workspace",
+  "login.subtitle": "Sign in to your workspace.",
   "scope.company": "Company",
   "scope.accounts": "Accounts",
   "scope.allCompanies": "All companies",
   "scope.allAccounts": "All accounts",
-  "scope.search": "Search",
+  "scope.search": "Search accounts",
   "picker.search.placeholder": "Search accounts",
   "picker.done": "Done",
-  "picker.empty": "No accounts found",
+  "picker.empty": "No matching accounts.",
   "scope.unassigned": "Unassigned",
-  "view.date": "Date",
+  "view.date": "By date",
   "status.published": "Published",
   "status.scheduled": "Scheduled",
   "nav.group.content": "Content",
@@ -1259,4 +1258,4 @@ export const STRINGS = {
   "ui.showcase.imageReadiness": "Image production",
   "ui.showcase.integrations": "Integrations"
 };
-export function t(key,vars={}) { const value=STRINGS[key] ?? STRINGS_ID[key];if(value===undefined){if(["localhost","127.0.0.1"].includes(globalThis.location?.hostname))console.warn("Missing UI string:",key);return "["+key+"]";}return value.replace(/\{([^{}]+)\}/g,(_,name)=>vars[name]??"{"+name+"}");}
+export function t(key,vars={}) { const value=STRINGS[key];if(value===undefined){if(["localhost","127.0.0.1"].includes(globalThis.location?.hostname))console.warn("Missing UI string:",key);return "["+key+"]";}return value.replace(/\{([^{}]+)\}/g,(_,name)=>vars[name]??"{"+name+"}");}
