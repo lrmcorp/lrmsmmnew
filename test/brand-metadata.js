@@ -16,6 +16,7 @@ try{
   const user=one('SELECT * FROM users WHERE email=?','brand-owner@test.id'),p=story.profile(user,'brand-account');
   assert.equal(p.identity.essence,'Little details. Beautiful feelings.');assert.equal(p.identity.caption_language,'en');assert.equal(p.identity.emoji,false);
   assert.deepEqual(p.identity.tones,['Warm','Subtle']);const product=p.assets.find(x=>x.category==='product');
+  assert.ok(p.brand_notes.startsWith('x'.repeat(6000)),'legacy notes survive a restart');
   assert.equal(product.collection,'Everyday');assert.deepEqual(product.tags,['pink','glossy']);assert.equal(product.description,'Pink lembut, finishing glossy');
   assert.equal(brandReadiness(p).completeness,100);assert.match(p.brand_notes,/Write captions and on-image text in English/);assert.match(p.brand_notes,/Final Reviewer must flag/);
   db.close();console.log('PASS restart persistence');
@@ -38,6 +39,11 @@ try{
   assert.throws(()=>story.saveAsset(user,'brand-account',{category:'product',name:'',collection:'',tags:[]},product.id));
   assert.throws(()=>story.saveAsset(user,'brand-account',{category:'product',name:'Product',tags:['x'.repeat(61)]},product.id));
   assert.throws(()=>story.saveProfile(user,'brand-account',{seed:p.seed,brand_notes:'',identity:{caption_language:'unsupported'}}));
+  const legacyNotes='x'.repeat(6000);
+  p=story.saveProfile(user,'brand-account',{seed:p.seed,brand_notes:legacyNotes,identity:p.identity});
+  assert.ok(p.brand_notes.startsWith(legacyNotes),'full legacy notes remain intact when structured identity is added');
+  assert.match(p.brand_notes,/\[LRM BRAND IDENTITY\]/);
+  assert.throws(()=>story.saveProfile(user,'brand-account',{seed:p.seed,brand_notes:legacyNotes+'x',identity:p.identity}),/6\.000/);
   assert.throws(()=>story.profile(rep,'brand-account'),'unassigned Representative cannot read Brand Kit');
   assert.throws(()=>deleteCompany(company.id),'nonempty company cannot be deleted');const empty=saveCompany(null,'Empty company');deleteCompany(empty.id);assert.equal(one('SELECT id FROM companies WHERE id=?',empty.id),undefined);
   db.close();const restart=spawnSync(process.execPath,[fileURLToPath(import.meta.url)],{env:{...process.env,BRAND_METADATA_READ:'1'},encoding:'utf8'});assert.equal(restart.status,0,restart.stderr||restart.stdout);assert.match(restart.stdout,/PASS restart persistence/);console.log('PASS Brand metadata: lazy migration, legacy narrative, structured identity, language/emoji rules, collections/tags, recommended completeness, validation, account scope, company delete and process restart');

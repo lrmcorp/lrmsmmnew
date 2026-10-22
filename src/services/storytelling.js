@@ -27,8 +27,8 @@ export function profile(user,aid,sessionId=null) {
 export function saveProfile(user,aid,body) {
  account(user,aid);
  const identity=validateIdentity(body.identity);
- body={...body,brand_notes:typeof body.brand_notes==='string'?compileBrandNotes(body.brand_notes,identity):body.brand_notes};
  if(typeof body.seed!=='string'||body.seed.length>10000||typeof body.brand_notes!=='string'||body.brand_notes.length>6000)throw err(400,'validation_failed','Prompt awal maksimal 10.000 karakter; aturan brand maksimal 6.000.');
+ body={...body,brand_notes:compileBrandNotes(body.brand_notes,identity)};
  if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND status IN ('queued','running')",aid))throw err(409,'story_busy','Tunggu sesi cerita aktif selesai sebelum mengubah prompt awal.');
  const p=profile(user,aid);
  if(p.seed===body.seed.trim()&&p.brand_notes===body.brand_notes.trim()){saveIdentity(aid,identity);return profile(user,aid);}
