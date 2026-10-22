@@ -315,3 +315,19 @@ for(const [column,definition] of [['story_job_id','TEXT'],['story_episode','INTE
 for(const [column,definition] of [['schedule_reason',"TEXT NOT NULL DEFAULT ''"],['content_type',"TEXT NOT NULL DEFAULT 'image'"]]){
  if(!db.prepare('PRAGMA table_info(generator_runs)').all().some(c=>c.name===column))db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
 }
+
+// Story memory belongs to a named, account-scoped continuity session.
+db.exec(`CREATE TABLE IF NOT EXISTS story_memory_sessions (
+ id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+ title TEXT NOT NULL, bible TEXT NOT NULL DEFAULT '', memory TEXT NOT NULL DEFAULT '',
+ next_episode INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+); CREATE INDEX IF NOT EXISTS memory_sessions_account ON story_memory_sessions(account_id,created_at);`);
+for(const [table,column,definition] of [['story_jobs','memory_session_id','TEXT'],['story_episodes','memory_session_id','TEXT'],['story_episodes','session_episode','INTEGER']]){
+ if(!db.prepare(`PRAGMA table_info(${table})`).all().some(c=>c.name===column))db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+// Preserve existing continuity in one session; never recreate a deleted session.
+db.exec(`INSERT OR IGNORE INTO story_memory_sessions(id,account_id,title,bible,memory,next_episode,created_at,updated_at)
+ SELECT 'legacy:'||account_id,account_id,'Cerita awal',bible,memory,next_episode,updated_at,updated_at FROM account_story_profiles
+ WHERE (memory!='' OR bible!='' OR next_episode>1) AND NOT EXISTS(SELECT 1 FROM story_memory_sessions s WHERE s.account_id=account_story_profiles.account_id);
+ UPDATE story_episodes SET memory_session_id='legacy:'||account_id,session_episode=episode_number WHERE memory_session_id IS NULL AND EXISTS(SELECT 1 FROM story_memory_sessions s WHERE s.id='legacy:'||story_episodes.account_id);
+ UPDATE story_jobs SET memory_session_id='legacy:'||account_id WHERE memory_session_id IS NULL AND EXISTS(SELECT 1 FROM story_memory_sessions s WHERE s.id='legacy:'||story_jobs.account_id);`);

@@ -13,12 +13,16 @@ function account(user,aid) {
 export function canUseBrandMedia(user,mid,accountIds=null) {
  return all('SELECT account_id FROM account_brand_assets WHERE media_id=?',mid).some(a=>(!accountIds||accountIds.includes(a.account_id))&&canAccount(user,a.account_id));
 }
-export function profile(user,aid) {
+export function profile(user,aid,sessionId=null) {
  account(user,aid);
+ if(sessionId!==null&&typeof sessionId!=='string')throw err(400,'validation_failed','Sesi memori cerita tidak valid.');
  const p=one('SELECT * FROM account_story_profiles WHERE account_id=?',aid)||{account_id:aid,seed:'',brand_notes:'',bible:'',memory:'',next_episode:1,revision:0};
+ const sessions=all('SELECT id,title,next_episode,created_at,updated_at FROM story_memory_sessions WHERE account_id=? ORDER BY created_at,id',aid);
+ const session=sessionId?one('SELECT * FROM story_memory_sessions WHERE id=? AND account_id=?',sessionId,aid):sessions.length?one('SELECT * FROM story_memory_sessions WHERE id=?',sessions[0].id):null;
+ if(sessionId&&!session)throw err(404,'not_found','Sesi memori cerita tidak ditemukan.');
  const assets=all('SELECT * FROM account_brand_assets WHERE account_id=? ORDER BY created_at,id',aid).map(a=>({...a,media:media.publicMedia(one('SELECT * FROM media WHERE id=?',a.media_id))}));
- const episodes=all('SELECT * FROM story_episodes WHERE account_id=? ORDER BY episode_number DESC LIMIT 60',aid).map(e=>({...e,product_ids:parseJSON(e.product_ids,[]),status:one('SELECT status FROM generator_runs WHERE id=?',e.run_id)?.status||'deleted',current_caption:one('SELECT caption FROM generator_runs WHERE id=?',e.run_id)?.caption||'',current_brief:one('SELECT brief FROM generator_runs WHERE id=?',e.run_id)?.brief||''}));
- return {...p,identity:identityMetadata(aid,p),assets:assets.map(a=>({...a,...assetMetadata(a.id)})),episodes};
+ const episodes=all('SELECT *,COALESCE(session_episode,episode_number) AS episode_number FROM story_episodes WHERE account_id=? AND memory_session_id=? ORDER BY session_episode DESC,episode_number DESC',aid,session?.id||'').map(e=>({...e,product_ids:parseJSON(e.product_ids,[]),status:one('SELECT status FROM generator_runs WHERE id=?',e.run_id)?.status||'deleted',current_caption:one('SELECT caption FROM generator_runs WHERE id=?',e.run_id)?.caption||'',current_brief:one('SELECT brief FROM generator_runs WHERE id=?',e.run_id)?.brief||''}));
+ return {...p,bible:session?.bible||'',memory:session?.memory||'',next_episode:session?.next_episode||1,memory_session_id:session?.id||null,memory_session_title:session?.title||'',memory_sessions:sessions,identity:identityMetadata(aid,p),assets:assets.map(a=>({...a,...assetMetadata(a.id)})),episodes};
 }
 export function saveProfile(user,aid,body) {
  account(user,aid);
@@ -60,7 +64,7 @@ export function removeAsset(user,aid,assetId) {
 }
 export function job(user,jid) {
  const j=one('SELECT * FROM story_jobs WHERE id=? AND user_id=?',jid,user.id);if(!j)throw err(404,'not_found','Sesi cerita tidak ditemukan.');account(user,j.account_id);
- return {...j,payload:undefined,request_hash:undefined,user_id:undefined,steps:parseJSON(j.steps,{})};
+ return {...j,memory_session_title:one('SELECT title FROM story_memory_sessions WHERE id=?',j.memory_session_id)?.title||null,payload:undefined,request_hash:undefined,user_id:undefined,steps:parseJSON(j.steps,{})};
 }
 export function jobs(user,aid) {account(user,aid);return all('SELECT id FROM story_jobs WHERE user_id=? AND account_id=? ORDER BY created_at DESC LIMIT 1',user.id,aid).map(j=>job(user,j.id));}
 export function queue(user,body,agents) {
@@ -70,12 +74,20 @@ export function queue(user,body,agents) {
  if(typeof body.request_id!=='string'||!body.request_id||body.request_id.length>100||typeof(body.direction??'')!=='string'||(body.direction||'').length>10000)throw err(400,'validation_failed','request_id dan arahan sesi tidak valid.');
  if(!Number.isInteger(body.content_count)||body.content_count<1||body.content_count>30||!Number.isInteger(body.slide_count)||body.slide_count<1||body.slide_count>10)throw err(400,'validation_failed','Pilih 1–30 konten dan 1–10 slide.');
  if(typeof body.start_date!=='string'||typeof body.end_date!=='string'||!Array.isArray(body.times)||!body.times.length||body.times.length>12||body.times.some(t=>typeof t!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(t)))throw err(400,'validation_failed','Tanggal dan jam sesi wajib valid.');
- const payload={account_id:body.account_id,direction:body.direction||'',content_count:body.content_count,slide_count:body.slide_count,start_date:body.start_date,end_date:body.end_date,times:body.times,produce_media:body.produce_media===true,agents};
- const hash=sha256(JSON.stringify(payload)),existing=one('SELECT id,request_hash FROM story_jobs WHERE user_id=? AND request_id=?',user.id,body.request_id);
- if(existing){if(existing.request_hash!==hash)throw err(409,'idempotency_conflict','request_id dipakai untuk sesi berbeda.');return {...job(user,existing.id),replayed:true};}
- const p=profile(user,body.account_id);if(!p.seed.trim())throw err(400,'story_seed_required','Simpan prompt cerita awal untuk akun ini terlebih dahulu.');
+ if(body.memory_session_id!==undefined&&body.memory_session_id!==null&&(typeof body.memory_session_id!=='string'||!body.memory_session_id))throw err(400,'validation_failed','Pilih sesi memori cerita yang valid.');
+ const basePayload={account_id:body.account_id,direction:body.direction||'',content_count:body.content_count,slide_count:body.slide_count,start_date:body.start_date,end_date:body.end_date,times:body.times,produce_media:body.produce_media===true,agents};
+ const existing=one('SELECT id,request_hash,payload FROM story_jobs WHERE user_id=? AND request_id=?',user.id,body.request_id);
+ if(existing){
+  const stored=parseJSON(existing.payload,{}),replay=stored.memory_session_id?{memory_session_id:body.memory_session_id||stored.memory_session_id,...basePayload}:basePayload;
+  if(existing.request_hash!==sha256(JSON.stringify(replay))||!stored.memory_session_id&&body.memory_session_id)throw err(409,'idempotency_conflict','request_id dipakai untuk sesi berbeda.');
+  return {...job(user,existing.id),replayed:true};
+ }
+ let p=profile(user,body.account_id,body.memory_session_id||null);
+ if(!p.seed.trim())throw err(400,'story_seed_required','Simpan prompt cerita awal untuk akun ini terlebih dahulu.');
+ if(!p.memory_session_id){p=createMemorySession(user,body.account_id,{title:'Cerita awal'});}
+ const payload={memory_session_id:p.memory_session_id,...basePayload},hash=sha256(JSON.stringify(payload));
  if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND status IN ('queued','running')",body.account_id))throw err(409,'story_busy','Akun ini masih memiliki sesi cerita aktif.');
- const jid=id('story');run('INSERT INTO story_jobs(id,user_id,account_id,request_id,request_hash,payload,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',jid,user.id,body.account_id,body.request_id,hash,JSON.stringify({...payload,base_revision:p.revision}),now(),now());return job(user,jid);
+ const jid=id('story');run('INSERT INTO story_jobs(id,user_id,account_id,request_id,request_hash,payload,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',jid,user.id,body.account_id,body.request_id,hash,JSON.stringify({...payload,base_revision:p.revision}),now(),now());run('UPDATE story_jobs SET memory_session_id=? WHERE id=?',p.memory_session_id,jid);return job(user,jid);
 }
 const sessionSchema={type:'object',additionalProperties:false,required:['bible','memory','episodes'],properties:{bible:{type:'string'},memory:{type:'string'},episodes:{type:'array',items:{type:'object',additionalProperties:false,required:['title','brief','caption','content_type','video_asset_id','product_ids'],properties:{title:{type:'string'},brief:{type:'string'},caption:{type:'string'},content_type:{type:'string',enum:['image','carousel','reel']},video_asset_id:{type:['string','null']},product_ids:{type:'array',items:{type:'string'}}}}}}};
 const qcSchema={type:'object',additionalProperties:false,required:['approved','notes','bible','memory','episodes'],properties:{...sessionSchema.properties,approved:{type:'boolean'},notes:{type:'string'}}};
@@ -116,10 +128,10 @@ export async function processJob(user,jid,{generateText,keyOf,slotsFor,normalize
  const stage=(role,value)=>{steps[role]=value;run('UPDATE story_jobs SET steps=?,updated_at=? WHERE id=?',JSON.stringify(steps),now(),jid);};
  try{
   body.agents=normalizeAgents(body.agents||{});
-  checkpoint();const p=profile(user,body.account_id),assets=p.assets;if(body.base_revision!==p.revision)throw err(409,'story_changed','Fondasi/memori akun berubah. Buat sesi baru agar cerita tetap konsisten.');
+  checkpoint();const p=profile(user,body.account_id,body.memory_session_id||initial.memory_session_id),assets=p.assets;if(body.base_revision!==p.revision)throw err(409,'story_changed','Fondasi/memori akun berubah. Buat sesi baru agar cerita tetap konsisten.');
   const catalogue=assets.filter(a=>a.category==='product').map((a,i)=>({sheet:Math.floor(i/30)+1,row:Math.floor((i%30)/6)+1,column:(i%6)+1,id:a.id,name:a.name,description:a.description.slice(0,500),collection:a.collection,tags:a.tags}));
   const recent=p.episodes.slice(0,30).reverse().map(e=>({number:e.episode_number,title:e.title,brief:(e.current_brief||e.brief).slice(0,2000),caption:e.current_caption.slice(0,2200),products:e.product_ids,status:e.status}));
-  const context=JSON.stringify({first_prompt:p.seed,brand_rules:p.brand_notes,bible:p.bible,memory:p.memory,next_episode:p.next_episode,recent_episodes:recent,product_catalog:catalogue,uploaded_videos:assets.filter(a=>a.category==='video').map(a=>({id:a.id,name:a.name,description:a.description})),requested_slides:body.slide_count,session_direction:body.direction});
+  const context=JSON.stringify({memory_session_title:p.memory_session_title,first_prompt:p.seed,brand_rules:p.brand_notes,bible:p.bible,memory:p.memory,next_episode:p.next_episode,recent_episodes:recent,product_catalog:catalogue,uploaded_videos:assets.filter(a=>a.category==='video').map(a=>({id:a.id,name:a.name,description:a.description})),requested_slides:body.slide_count,session_direction:body.direction});
   let proposal=steps.storyteller?.output;
   if(!proposal){
    stage('storyteller',{status:'running',started_at:now()});const a=body.agents.storyteller;
@@ -158,7 +170,7 @@ export async function processJob(user,jid,{generateText,keyOf,slotsFor,normalize
   if(body.produce_media&&one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','concept_review','review')",user.id).n+body.content_count>40)throw err(409,'generator_limit','Selesaikan draft aktif dahulu; maksimal 40 konten aktif. Tahap cerita tersimpan.');
   const plan={id:id('plan')};
   tx(()=>{
-   run('INSERT INTO generator_plans(id,user_id,request_id,request_hash,brief,start_date,end_date,content_count,recommendation,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',plan.id,user.id,'story-'+jid,initial.request_hash,p.seed.slice(0,7000),body.start_date,body.end_date,body.content_count,JSON.stringify(latest.recommendation),now());
+   run('INSERT INTO generator_plans(id,user_id,request_id,request_hash,brief,start_date,end_date,content_count,recommendation,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',plan.id,user.id,'story-'+jid,initial.request_hash,(p.memory_session_title+'\n'+p.seed).slice(0,7000),body.start_date,body.end_date,body.content_count,JSON.stringify(latest.recommendation),now());
    const runs=review.episodes.map((e,i)=>{
     const rid=id('gen');
     run("INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,scheduled_at,status,created_at,updated_at,plan_id,title,draft_touched_at) VALUES(?,?,?,?,?,?,?,?,?,'planned',?,?,?,?,?)",rid,user.id,'story-'+jid+'-'+i,initial.request_hash,e.brief,JSON.stringify([{account_id:body.account_id}]),e.content_type==='image'?1:body.slide_count,JSON.stringify(body.agents),available[i],now(),now(),plan.id,e.title,now());return {id:rid};
@@ -174,8 +186,10 @@ export async function processJob(user,jid,{generateText,keyOf,slotsFor,normalize
       const steps={...parseJSON(initial.steps,{}),...parseJSON(one('SELECT steps FROM story_jobs WHERE id=?',jid)?.steps,{}),concept:{status:'done',output:{title:e.title,caption:e.caption,slides:[{prompt:e.brief}]}},revision:{status:'done',output:{title:e.title,caption:e.caption,slides:[{prompt:e.brief}]}},image:{status:'done',source:'uploaded_video'},final:{status:'manual',source:'uploaded_video',output:'Video berasal dari unggahan. Manager memeriksa cerita; tonton dan periksa isi video sebelum menyetujui publikasi.'}};
       run("UPDATE generator_runs SET status='review',media_ids=?,steps=?,slide_count=1 WHERE id=?",JSON.stringify([video.media_id]),JSON.stringify(steps),runs[i].id);
     }else if(body.produce_media){run("UPDATE generator_runs SET status='queued',concept_approved_at=? WHERE id=?",now(),runs[i].id);}
-    run('INSERT INTO story_episodes(id,account_id,job_id,episode_number,title,brief,product_ids,run_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)',id('ep'),body.account_id,jid,episode,e.title,e.brief,JSON.stringify(e.product_ids),runs[i].id,now());
+    const globalNumber=one('SELECT COALESCE(MAX(episode_number),0)+1 AS n FROM story_episodes WHERE account_id=?',body.account_id).n;
+    run('INSERT INTO story_episodes(id,account_id,job_id,episode_number,title,brief,product_ids,run_id,created_at,memory_session_id,session_episode) VALUES(?,?,?,?,?,?,?,?,?,?,?)',id('ep'),body.account_id,jid,globalNumber,e.title,e.brief,JSON.stringify(e.product_ids),runs[i].id,now(),p.memory_session_id,episode);
    });
+   run('UPDATE story_memory_sessions SET bible=?,memory=?,next_episode=?,updated_at=? WHERE id=?',review.bible,review.memory,p.next_episode+body.content_count,now(),p.memory_session_id);
    run('UPDATE account_story_profiles SET bible=?,memory=?,next_episode=?,revision=revision+1,updated_at=? WHERE account_id=?',review.bible,review.memory,p.next_episode+body.content_count,now(),body.account_id);
    run("UPDATE story_jobs SET status='completed',plan_id=?,error=NULL,updated_at=? WHERE id=?",plan.id,now(),jid);
   });
@@ -184,3 +198,43 @@ export async function processJob(user,jid,{generateText,keyOf,slotsFor,normalize
 export function retry(user,jid,agents=null){const j=job(user,jid);if(j.status!=='failed')throw err(409,'story_state','Hanya sesi gagal yang dapat dicoba ulang.');if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND id!=? AND status IN ('queued','running')",j.account_id,jid))throw err(409,'story_busy','Akun ini memiliki sesi lain yang aktif.');const row=one('SELECT payload FROM story_jobs WHERE id=?',jid),payload=parseJSON(row.payload,{});if(agents)payload.agents=agents;run("UPDATE story_jobs SET status='queued',error=NULL,payload=?,updated_at=? WHERE id=?",JSON.stringify(payload),now(),jid);return job(user,jid);}
 
 export function cancel(user,jid){const j=job(user,jid);if(!['queued','running'].includes(j.status))throw err(409,'story_state','Sesi sudah selesai atau berhenti.');run("UPDATE story_jobs SET status='cancelled',updated_at=? WHERE id=?",now(),jid);return job(user,jid);}
+
+function memoryEditable(user,aid){
+ account(user,aid);
+ if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND status IN ('queued','running')",aid))throw err(409,'story_busy','Tunggu proses cerita aktif selesai sebelum mengubah memori.');
+}
+function memoryChanged(aid){
+ // Old account-wide summaries must not restore deleted memory on a later restart.
+ run("UPDATE account_story_profiles SET bible='',memory='',next_episode=1,revision=revision+1,updated_at=? WHERE account_id=?",now(),aid);
+}
+export function createMemorySession(user,aid,body={}){
+ memoryEditable(user,aid);
+ const title=typeof body.title==='string'?body.title.trim():'';
+ if(!title||title.length>120)throw err(400,'validation_failed','Judul sesi wajib diisi, maksimal 120 karakter.');
+ if(one('SELECT COUNT(*) n FROM story_memory_sessions WHERE account_id=?',aid).n>=100)throw err(409,'memory_limit','Maksimal 100 sesi cerita per akun.');
+ const sid=id('memory');run('INSERT INTO story_memory_sessions(id,account_id,title,created_at,updated_at) VALUES(?,?,?,?,?)',sid,aid,title,now(),now());
+ return profile(user,aid,sid);
+}
+export function renameMemorySession(user,aid,sid,body={}){
+ memoryEditable(user,aid);profile(user,aid,sid);
+ const title=typeof body.title==='string'?body.title.trim():'';
+ if(!title||title.length>120)throw err(400,'validation_failed','Judul sesi wajib diisi, maksimal 120 karakter.');
+ run('UPDATE story_memory_sessions SET title=?,updated_at=? WHERE id=?',title,now(),sid);return profile(user,aid,sid);
+}
+export function deleteMemorySession(user,aid,sid){
+ memoryEditable(user,aid);profile(user,aid,sid);
+ tx(()=>{run('DELETE FROM story_episodes WHERE account_id=? AND memory_session_id=?',aid,sid);run('DELETE FROM story_memory_sessions WHERE id=? AND account_id=?',sid,aid);memoryChanged(aid);});
+ return profile(user,aid);
+}
+export function deleteMemory(user,aid,sid,eid){
+ memoryEditable(user,aid);profile(user,aid,sid);
+ if(!one('SELECT 1 FROM story_episodes WHERE id=? AND account_id=? AND memory_session_id=?',eid,aid,sid))throw err(404,'not_found','Memori cerita tidak ditemukan.');
+ tx(()=>{
+  run('DELETE FROM story_episodes WHERE id=?',eid);
+  const remaining=all('SELECT session_episode,title,brief FROM story_episodes WHERE account_id=? AND memory_session_id=? ORDER BY session_episode',aid,sid);
+  const summary=remaining.map(e=>`Episode ${e.session_episode}: ${e.title}\n${e.brief}`).join('\n\n').slice(-10000);
+  // Rebuild from retained episodes instead of retaining a cumulative summary containing deleted facts.
+  run("UPDATE story_memory_sessions SET bible='',memory=?,updated_at=? WHERE id=?",summary,now(),sid);memoryChanged(aid);
+ });
+ return profile(user,aid,sid);
+}

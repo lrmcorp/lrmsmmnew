@@ -1,3 +1,4 @@
+import {memorySessionPicker,rememberedMemory} from './story-memory.js';
 import {autosave,fmtDay,fmtNumber,fmtSlot} from './ui.js';
 import {brandReadiness} from './brand-readiness.js';
 const replace=(el,...nodes)=>el.replaceChildren(...nodes.flat(Infinity).filter(x=>x!=null&&x!==false));
@@ -30,7 +31,7 @@ export function accountBrandWorkspace(ctx,content){
  }
  async function brand(aid){
   await loadAccounts();const a=state.accounts.find(x=>x.id===aid);if(!a)return {element:h('p',{},'Akun tidak ditemukan atau akses telah dicabut.')};if(a.platform!=='instagram')return {element:h('div',{class:'ab-page'},h('h1',{},a.name||'@'+a.username),h('p',{},'Brand Kit & Cerita saat ini tersedia untuk Instagram.'),link('Perusahaan & Akun','/accounts'))};
-  let p=await api('GET','/v1/generator/accounts/'+aid+'/brand'),tab=new URLSearchParams(location.hash.split('?')[1]||'').get('tab')||'brand',busy=0;
+  const savedMemory=rememberedMemory(state.user.id,aid);let p=await api('GET','/v1/generator/accounts/'+aid+'/brand'+(savedMemory?'?memory_session_id='+encodeURIComponent(savedMemory):'')).catch(e=>{if(savedMemory&&e.code==='not_found')return api('GET','/v1/generator/accounts/'+aid+'/brand');throw e;}),tab=new URLSearchParams(location.hash.split('?')[1]||'').get('tab')||'brand',busy=0;
   const endpoint='/v1/generator/accounts/'+aid,saveStatus=h('span',{class:'ab-muted ab-save',role:'status'},'Tersimpan otomatis'),tabs=h('div',{class:'ab-tabs',role:'tablist'}),body=h('div'),meter=h('section',{class:'ab-completeness'}),assetArea=h('section',{class:'ab-card ab-assets'}),savers=new Set();state.brandProfiles??={};state.brandProfiles[aid]=p;
   let fullSeed=p.seed||'',rawNotes=(p.brand_notes||'').replace(/\n?\[LRM BRAND IDENTITY\][\s\S]*?\[\/LRM BRAND IDENTITY\]/g,'').replace(/\n?Caption language:.*|\n?Emoji in captions:.*/g,'').trim();const identity=p.identity||{};
   const essence=h('textarea',{rows:2,maxlength:1000,'aria-label':'Esensi brand'},identity.essence||''),language=h('select',{'aria-label':'Bahasa caption'},[['id','Bahasa Indonesia'],['en','English'],['mixed','Campuran']].map(([value,text])=>h('option',{value,selected:value===(identity.caption_language||'id')},text))),emoji=h('input',{type:'checkbox',checked:identity.emoji!==false}),doRules=h('textarea',{rows:3,maxlength:1800,'aria-label':'Boleh'},identity.do_rules||''),dontRules=h('textarea',{rows:3,maxlength:1800,'aria-label':'Jangan'},identity.dont_rules||''),toneRow=h('div',{class:'ab-tones'});let tones=[...(identity.tones||[])];
@@ -82,7 +83,7 @@ export function accountBrandWorkspace(ctx,content){
    });
    replace(assetArea,h('div',{class:'ab-card-head'},h('h2',{},'Aset brand'),h('span',{class:'ab-muted'},p.assets.length+' / 250 aset')),h('div',{class:'ab-asset-columns'},columns));
   }
-  async function switchTab(id){await saver.flush();if(saver.error)return;tab=id;const q=new URLSearchParams(location.hash.split('?')[1]||'');q.set('tab',tab);history.replaceState(null,'','#/accounts/'+aid+'?'+q);draw();}
+  async function switchTab(id){await saver.flush();if(saver.error)return;if(['memory','bible'].includes(id)){const sid=rememberedMemory(state.user.id,aid);if(sid&&sid!==p.memory_session_id&&p.memory_sessions?.some(s=>s.id===sid)){p=await api('GET',endpoint+'/brand?memory_session_id='+encodeURIComponent(sid));state.brandProfiles[aid]=p;}}tab=id;const q=new URLSearchParams(location.hash.split('?')[1]||'');q.set('tab',tab);history.replaceState(null,'','#/accounts/'+aid+'?'+q);draw();}
   function draw(){
    replace(tabs,...[['brand','Brand Kit'],['bible','Story Bible'],['memory','Memori cerita · '+(p.episodes?.length||0)],['integration','Integrasi']].map(([id,text])=>B(text,()=>switchTab(id),'ab-tab '+(tab===id?'on':''),{role:'tab','aria-selected':String(tab===id)})));
    if(tab==='brand'){
@@ -92,7 +93,9 @@ export function accountBrandWorkspace(ctx,content){
    }else if(tab==='bible'){
     replace(body,h('section',{class:'ab-card'},h('h2',{},'Story Bible'),p.bible?markdownView(p.bible):h('p',{class:'ab-muted'},'Story Bible dibuat setelah sesi Storyline pertama. Prompt awal tetap tersedia di Brand Kit.'),link('Rencanakan sesi','/generator?story_account='+aid,'btn primary')));
    }else if(tab==='memory'){
-    replace(body,h('section',{class:'ab-card'},h('h2',{},'Episode berikutnya: '+(p.next_episode||1)),p.memory?markdownView(p.memory):h('p',{class:'ab-muted'},'Belum ada memori cerita.'),(p.episodes||[]).map(e=>h('div',{class:'ab-memory-row'},h('div',{},h('b',{},'Ep. '+e.episode_number+' · '+e.title),h('p',{},e.current_caption||e.brief)),ui.chip(e.status),e.run_id?link('Buka konten','/generator/drafts?id='+e.run_id):null))));
+    const choose=memorySessionPicker(ctx,p,next=>{p=next;state.brandProfiles[aid]=p;draw();});
+    const remove=async e=>{if(!await ui.confirmDialog({title:'Hapus memori “'+e.title+'”?',body:'Memori ini tidak akan dipakai lagi oleh agen. Ringkasan sesi dibangun ulang dari memori yang tersisa. Draft, jadwal dan post tetap tersimpan.',tone:'danger',confirmLabel:'Hapus memori'}))return;p=await api('DELETE',endpoint+'/memory-sessions/'+p.memory_session_id+'/memories/'+e.id);state.brandProfiles[aid]=p;draw();};
+    replace(body,h('section',{class:'ab-card'},h('h2',{},'Memori cerita'),choose,h('p',{class:'ab-memory-note'},'Pilih sesi untuk melihat atau melanjutkan alur cerita. Setiap sesi memiliki ingatan dan nomor episode sendiri.'),p.memory_session_id?h('div',{},h('h3',{},p.memory_session_title+' · Episode berikutnya: '+p.next_episode),p.memory?markdownView(p.memory):h('p',{class:'ab-muted'},'Belum ada memori di sesi ini.'),link('Gunakan sesi ini','/generator?story_account='+aid+'&memory_session_id='+encodeURIComponent(p.memory_session_id),'btn primary'),(p.episodes||[]).map(e=>h('div',{class:'ab-memory-row'},h('div',{},h('b',{},'Ep. '+e.episode_number+' · '+e.title),h('p',{},e.current_caption||e.brief)),ui.chip(e.status),h('div',{class:'ab-memory-actions'},e.run_id?link('Buka konten','/generator/drafts?id='+e.run_id):null,B('Hapus memori',()=>remove(e),'btn sm danger'))))):h('p',{class:'ab-muted'},'Buat sesi cerita pertama untuk menyimpan alur yang ingin Anda lanjutkan.')));
    }else{
     const rows=[['Akun','@'+a.username],['Platform','Instagram'],['Perusahaan',companyName(a)],['Status',a.status==='active'?'Aktif':a.status],['Token berlaku sampai',a.token_expires_at?fmtSlot(a.token_expires_at)+' WIB':'Tidak tersedia']];
     replace(body,h('section',{class:'ab-card'},h('h2',{},'Detail integrasi'),h('dl',{class:'ab-integration'},rows.map(([label,value])=>h('div',{},h('dt',{},label),h('dd',{},value)))),owner()?h('a',{class:'btn',href:'/connect/'+a.platform},'Sambungkan ulang'):null));

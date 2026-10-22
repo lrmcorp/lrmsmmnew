@@ -72,7 +72,11 @@ const source = (req) => (req.auth.via === 'session' ? 'dashboard' : req.auth.via
 const kick = () => setImmediate(() => runPublisherTick().catch(() => {}));
 
 // Generator credentials and paid jobs are controlled by the signed-in user only.
-api.get('/generator/accounts/:id/brand',sessionOnly,(req,res)=>res.json(storytelling.profile(U(req),req.params.id)));
+api.get('/generator/accounts/:id/brand',sessionOnly,(req,res)=>res.json(storytelling.profile(U(req),req.params.id,req.query.memory_session_id||null)));
+api.post('/generator/accounts/:id/memory-sessions',sessionOnly,(req,res)=>{const p=storytelling.createMemorySession(U(req),req.params.id,req.body||{});audit(req.auth,'story.memory_session.create','account',req.params.id,{session_id:p.memory_session_id});res.status(201).json(p);});
+api.patch('/generator/accounts/:id/memory-sessions/:sid',sessionOnly,(req,res)=>{const p=storytelling.renameMemorySession(U(req),req.params.id,req.params.sid,req.body||{});audit(req.auth,'story.memory_session.rename','account',req.params.id,{session_id:req.params.sid});res.json(p);});
+api.delete('/generator/accounts/:id/memory-sessions/:sid',sessionOnly,(req,res)=>{const p=storytelling.deleteMemorySession(U(req),req.params.id,req.params.sid);audit(req.auth,'story.memory_session.delete','account',req.params.id,{session_id:req.params.sid});res.json(p);});
+api.delete('/generator/accounts/:id/memory-sessions/:sid/memories/:eid',sessionOnly,(req,res)=>{const p=storytelling.deleteMemory(U(req),req.params.id,req.params.sid,req.params.eid);audit(req.auth,'story.memory.delete','account',req.params.id,{session_id:req.params.sid,memory_id:req.params.eid});res.json(p);});
 api.put('/generator/accounts/:id/brand',sessionOnly,(req,res)=>{const p=storytelling.saveProfile(U(req),req.params.id,req.body||{});audit(req.auth,'brand.save','account',req.params.id);res.json(p);});
 api.post('/generator/accounts/:id/assets',sessionOnly,(req,res)=>{const p=storytelling.saveAsset(U(req),req.params.id,req.body||{});audit(req.auth,'brand.asset.save','account',req.params.id);res.json(p);});
 api.patch('/generator/accounts/:id/assets/:asset',sessionOnly,(req,res)=>{const result=storytelling.saveAsset(U(req),req.params.id,req.body||{},req.params.asset);audit(req.auth,'brand.asset.update','account',req.params.id,{asset_id:req.params.asset});res.json(result);});

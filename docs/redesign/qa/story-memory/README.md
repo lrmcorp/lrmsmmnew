@@ -1,0 +1,7 @@
+# Named story memory sessions
+
+Account details → Memori cerita and Generator → Storyline share one named session picker. Users can create, select, rename and delete account-scoped sessions. Generator submits the chosen session ID and its agents receive only that session's Bible, cumulative memory, retained episodes and next episode number. Brand assets/rules remain shared for the account. The chosen session is remembered per signed-in user/account on this browser; the account-details link also carries it in the URL.
+
+Existing account-wide memory is migrated once to **Cerita awal**. Migration is repeatable and deleted memory does not return after a restart. Each new continuity starts at episode 1. Removing an episode rebuilds the cumulative memory from retained episodes and clears its previous generated Bible so deleted facts are not sent back to agents. Episode numbers are not recycled within a session. Deleting memories/sessions does not delete existing generator drafts, schedules, published posts or historical jobs. These edits are blocked while account generation is queued/running and use existing account assignment checks and audit events.
+
+Verification: 40 application e2e checks, 53 backend checks (including isolated continuity, real API deletion/rename and migration/restart tests), browser create/select/rename/delete flows, Generator handoff, content-preservation assertions, and mobile 375px overflow checks. Fixtures simulate providers; no real publishing or paid API calls.
