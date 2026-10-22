@@ -331,3 +331,7 @@ db.exec(`INSERT OR IGNORE INTO story_memory_sessions(id,account_id,title,bible,m
  WHERE (memory!='' OR bible!='' OR next_episode>1) AND NOT EXISTS(SELECT 1 FROM story_memory_sessions s WHERE s.account_id=account_story_profiles.account_id);
  UPDATE story_episodes SET memory_session_id='legacy:'||account_id,session_episode=episode_number WHERE memory_session_id IS NULL AND EXISTS(SELECT 1 FROM story_memory_sessions s WHERE s.id='legacy:'||story_episodes.account_id);
  UPDATE story_jobs SET memory_session_id='legacy:'||account_id WHERE memory_session_id IS NULL AND EXISTS(SELECT 1 FROM story_memory_sessions s WHERE s.id='legacy:'||story_jobs.account_id);`);
+
+for(const [column,definition] of [['source_path','TEXT'],['source_size_bytes','INTEGER NOT NULL DEFAULT 0']]){
+ if(!db.prepare('PRAGMA table_info(media)').all().some(c=>c.name===column))db.exec(`ALTER TABLE media ADD COLUMN ${column} ${definition}`);
+}

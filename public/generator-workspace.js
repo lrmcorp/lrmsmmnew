@@ -946,7 +946,7 @@ export async function generatorWorkspace(ctx, workspace) {
               account_id: a.id
             });
           } else {
-            const assets = ['logo', 'visual', 'product', 'product'].reduce((out, category) => {
+            const assets = ['logo', 'product', 'visual', 'visual'].reduce((out, category) => {
               const x = (p.assets || []).find(x => x.category === category && x.media?.type === 'image' && !out.some(a => a.id === x.id));
               if (x) out.push(x);
               return out;
@@ -1155,10 +1155,15 @@ export async function generatorWorkspace(ctx, workspace) {
     class: 'row rd-quick-ideas'
   }, h('span', {
     class: 'small muted'
-  }, 'Ide cepat:'), ['Promo', 'Edukasi produk', 'Testimoni', 'Di balik layar'].map(x => B(x, () => {
-    brief.value += (brief.value ? '\n' : '') + x + ': ';
-    brief.focus();
-    update();
+  }, 'Ide cepat:'), ['Promo', 'Edukasi produk', 'Testimoni', 'Di balik layar'].map(x => B(x, async () => {
+    const ids=selected().map(a=>a.id);if(!ids.length){toast('Pilih akun terlebih dahulu agar ide sesuai Brand Kit dan riwayatnya.',true);return;}
+    if(!await ui.confirmDialog({title:'Buat prompt '+x+'?',tone:'cost',body:'Conceptor akan memakai API key pribadi untuk membaca Brand Kit, memori cerita dan sesi sebelumnya, lalu menyusun prompt detail. Belum membuat gambar atau menerbitkan post.',confirmLabel:'Buat prompt'}))return;
+    const before=brief.value;quickIdeas.inert=true;quickIdeas.setAttribute('aria-busy','true');const progress=h('span',{class:'small muted',role:'status'},'Conceptor sedang menyusun prompt…');quickIdeas.append(progress);
+    try{const result=await api('POST','/v1/generator/quick-idea',{account_ids:ids,kind:x,direction:before,agents,memory_sessions:Object.fromEntries(ids.map(id=>[id,state.brandProfiles[id]?.memory_session_id])),confirm_cost:true});
+      if(stopped)return;
+      if(brief.value!==before||JSON.stringify(selected().map(a=>a.id))!==JSON.stringify(ids)){const text=h('textarea',{rows:12,'aria-label':'Prompt Conceptor'},result.prompt);const d=modal('Prompt '+x,h('div',{},h('p',{},'Arahan atau pilihan akun berubah selama proses. Tinjau prompt sebelum menggunakannya.'),text),[B('Gunakan prompt',()=>{brief.value=text.value;d.close();update();})]);}
+      else{brief.value=result.prompt;brief.focus();update();toast('Prompt detail dari Conceptor siap. Anda dapat mengeditnya.');}
+    }catch(e){toast(errMsg(e),true);}finally{quickIdeas.inert=false;quickIdeas.removeAttribute('aria-busy');progress.remove();}
   }, 'btn sm'))), briefCounter);
   const composer = h('section', {
     class: 'panel rd-generator-composer'
@@ -1193,6 +1198,7 @@ export async function generatorWorkspace(ctx, workspace) {
   return {
     element: root,
     dispose: async () => {
+      if(quickIdeas.getAttribute('aria-busy')==='true')throw new Error('Tunggu Conceptor menyelesaikan prompt.');
       stopped = true;
       clearTimeout(timer);
       for (const saver of openSavers) {
