@@ -108,10 +108,24 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
 
  });
  await t.test('cancelled queued sessions do not spend tokens or advance history',async()=>{const before=calls.length,episode=story.profile(user,'story-account').next_episode;const j=gen.queueStory(user,body({}));story.cancel(user,j.id);gen.runGeneratorTick();await gen.waitGenerator();assert.equal(story.job(user,j.id).status,'cancelled');assert.equal(story.profile(user,'story-account').next_episode,episode);assert.equal(calls.length,before);});
+ await t.test('named memory sessions isolate continuity, support selection and delete memory without deleting content',async()=>{
+  const original=story.profile(user,'story-account'),first=original.memory_session_id;
+  const created=await http('POST','/accounts/story-account/memory-sessions',{title:'Ramadan campaign'});assert.equal(created.status,201);const second=await created.json();assert.equal(second.next_episode,1);assert.equal(second.memory,'');assert.equal(second.episodes.length,0);
+  assert.equal((await http('PATCH','/accounts/story-account/memory-sessions/'+second.memory_session_id,{title:'Season two'})).status,200);
+  assert.throws(()=>story.profile(user,'outside-account',second.memory_session_id),e=>e.status===404);
+  const result=await execute(gen.queueStory(user,body({memory_session_id:second.memory_session_id,content_count:1,start_date:date(40),end_date:date(43),times:['08:15']})));assert.equal(result.status,'completed',result.error);
+  const context=JSON.parse(calls.filter(c=>c.body.response_format?.json_schema?.schema?.properties?.bible&&!c.body.response_format.json_schema.schema.properties.approved).at(-1).body.messages[1].content[0].text);assert.equal(context.memory,'');assert.equal(context.recent_episodes.length,0);assert.equal(context.next_episode,1);
+  const updated=story.profile(user,'story-account',second.memory_session_id);assert.equal(updated.next_episode,2);assert.equal(updated.episodes[0].episode_number,1);assert.equal(story.profile(user,'story-account',first).memory,original.memory);assert.equal(story.profile(user,'story-account',first).next_episode,original.next_episode);
+  const memory=updated.episodes[0],contentId=memory.run_id;
+  assert.throws(()=>story.deleteMemory(user,'story-account',first,memory.id),e=>e.status===404);
+  const removed=await http('DELETE','/accounts/story-account/memory-sessions/'+second.memory_session_id+'/memories/'+memory.id);assert.equal(removed.status,200);const cleared=await removed.json();assert.equal(cleared.memory,'');assert.equal(cleared.bible,'');assert.equal(cleared.episodes.length,0);assert.equal(cleared.next_episode,2,'deleted episode numbers are not silently reused');assert.ok(one('SELECT id FROM generator_runs WHERE id=?',contentId));
+  assert.equal((await http('DELETE','/accounts/story-account/memory-sessions/'+second.memory_session_id)).status,200);assert.throws(()=>story.profile(user,'story-account',second.memory_session_id),e=>e.status===404);assert.equal(story.profile(user,'story-account',first).memory,original.memory);assert.ok(one('SELECT id FROM generator_runs WHERE id=?',contentId));
+  assert.equal((await http('POST','/accounts/outside-account/memory-sessions',{title:'Not assigned'})).status,404);
+ });
  await t.test('account lock and revoked grants checked across paid calls',async()=>{
   let release;hold=new Promise(r=>release=r);const started=new Promise(r=>entered=r);
   const j=gen.queueStory(user,body({}));gen.runGeneratorTick();await started;
-  assert.throws(()=>story.saveProfile(user,'story-account',{seed:'Changed',brand_notes:''}),/Tunggu/);
+  assert.throws(()=>story.saveProfile(user,'story-account',{seed:'Changed',brand_notes:''}),/Tunggu/);assert.throws(()=>story.deleteMemorySession(user,'story-account',story.profile(user,'story-account').memory_session_id),/Tunggu/);
   setAssignments(user.id,[]);release();await gen.waitGenerator();hold=null;entered=null;setAssignments(user.id,['story-account']);assert.equal(story.job(user,j.id).status,'failed');
  });
 }finally{hold=null;global.fetch=real;await gen.waitGenerator();await new Promise(r=>server.close(r));fs.rmSync(tmp,{recursive:true,force:true});}});

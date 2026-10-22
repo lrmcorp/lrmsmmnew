@@ -1,3 +1,4 @@
+import {memorySessionPicker,rememberedMemory} from './story-memory.js';
 import {brandReadiness} from './brand-readiness.js';
 import {workflowCanvas} from './workflow-canvas.js';
 import { autosave, fmtSlot, readSessionGroups } from './ui.js';
@@ -65,7 +66,10 @@ export async function generatorWorkspace(ctx, workspace) {
     company = state.accounts.find(a => a.id === selection[0])?.company_id || '';
   }
   if (mode === 'story') selection = selection.slice(0, 1);
-  const profiles = await Promise.allSettled(state.accounts.filter(a => a.platform === 'instagram').map(async a => [a.id, await api('GET', `/v1/generator/accounts/${a.id}/brand`)]));
+  const profiles = await Promise.allSettled(state.accounts.filter(a => a.platform === 'instagram').map(async a => {
+    const sid=a.id===q.get('story_account')&&q.get('memory_session_id')||rememberedMemory(state.user.id,a.id),base=`/v1/generator/accounts/${a.id}/brand`;
+    let p;try{p=await api('GET',base+(sid?'?memory_session_id='+encodeURIComponent(sid):''));}catch(e){if(!sid||e.code!=='not_found')throw e;p=await api('GET',base);}return[a.id,p];
+  }));
   for (const r of profiles) if (r.status === 'fulfilled') state.brandProfiles[r.value[0]] = r.value[1];
   const running = h('div', {
       class: 'rd-running',
@@ -243,7 +247,7 @@ export async function generatorWorkspace(ctx, workspace) {
         p = state.brandProfiles[a?.id];
       storyInfo.append(h('div', {
         class: 'gf-story-position'
-      }, p?.seed ? h('div', {}, h('b', {}, `@${a.username} · Episode berikutnya ${p.next_episode || 1}`), h('p', {}, 'Cerita melanjutkan fondasi dan riwayat akun. Arahan sesi tidak menggantikan Story Bible.'), B('Lihat Story Bible', () => storyBible(a, p), 'btn ghost sm'), storyArc(p), h('p', {
+      }, p?.seed ? h('div', {}, memorySessionPicker(ctx,p,next=>{state.brandProfiles[a.id]=next;drawStory();update();}),h('b', {}, `@${a.username} · Episode berikutnya ${p.next_episode || 1}`), h('p', {}, 'Cerita melanjutkan memori sesi yang dipilih. Brand Kit akun tetap menjadi fondasi bersama.'), B('Lihat Story Bible', () => storyBible(a, p), 'btn ghost sm'), storyArc(p), h('p', {
         class: 'gf-story-next'
       }, `Sesi ini melanjutkan episode ${p.next_episode || 1}–${(p.next_episode || 1) + Math.max(1, Number(count.value) || 1) - 1}. Storyteller menggunakan memori cerita yang tersimpan.`)) : h('p', {}, 'Pilih satu akun dan lengkapi fondasi brand untuk melanjutkan cerita.')));
     }
@@ -263,6 +267,7 @@ export async function generatorWorkspace(ctx, workspace) {
   }
   function readyItems() {
     const items = [];
+    if(mode==='story'&&selected()[0]&&!state.brandProfiles[selected()[0].id]?.memory_session_id)items.push({text:'Buat sesi memori cerita terlebih dahulu',fix:()=>storyInfo.querySelector('button')?.focus()});
     if (!selection.length) items.push({
       text: 'Pilih minimal satu akun.',
       fix: () => accountRow.scrollIntoView({
@@ -696,6 +701,7 @@ export async function generatorWorkspace(ctx, workspace) {
     d.close = async () => {
       await saver.flush();
       if (saver.error) return;
+      const sid=rememberedMemory(state.user.id,a.id);if(sid&&sid!==p.memory_session_id&&p.memory_sessions?.some(s=>s.id===sid)){p=await api('GET',`/v1/generator/accounts/${a.id}/brand?memory_session_id=`+encodeURIComponent(sid));state.brandProfiles[a.id]=p;}
       openSavers.delete(saver);
       close();
       drawAccounts();
@@ -920,6 +926,7 @@ export async function generatorWorkspace(ctx, workspace) {
             const result = await api('POST', '/v1/generator/story-jobs', {
               request_id: batch.id + '-' + i,
               account_id: a.id,
+              memory_session_id: state.brandProfiles[a.id]?.memory_session_id,
               direction: (brief.value + '\n' + rules).trim(),
               content_count: n,
               slide_count: Number(slides.value),
@@ -1086,7 +1093,7 @@ export async function generatorWorkspace(ctx, workspace) {
       }
       replace(running, ...latestJobs.filter(j => ['queued', 'running', 'failed'].includes(j.status)).map(j => h('section', {
         class: 'panel rd-live-session gf-live-card'
-      }, h('h2', {}, 'Sesi Storyline · @' + (state.accounts.find(a => a.id === j.account_id)?.username || '')), ui.progressPipeline(['storyteller', 'manager', 'scheduler'].map(role => ({
+      }, h('h2', {}, (j.memory_session_title||'Sesi Storyline')+' · @' + (state.accounts.find(a => a.id === j.account_id)?.username || '')), ui.progressPipeline(['storyteller', 'manager', 'scheduler'].map(role => ({
         label: roles[role],
         status: j.steps?.[role]?.status || 'waiting'
       }))), j.error ? errorBox(j.error) : null, j.status === 'failed' ? B('Coba ulang sesi', async () => {

@@ -1,0 +1,21 @@
+import {test,after} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'lrmsmm-memory-migration-'));
+Object.assign(process.env,{DATA_DIR:dir,META_MOCK:'1',DISABLE_WORKER:'1'});
+const {db,run,one}=await import('../src/db.js'),{createUser}=await import('../src/auth.js'),{encrypt}=await import('../src/util.js'),story=await import('../src/services/storytelling.js');
+const owner=createUser({email:'migration@fixture.id',name:'Owner',password:'fixture-password',role:'owner'}),stamp=new Date().toISOString();
+run("INSERT INTO accounts(id,platform,platform_user_id,username,token_enc) VALUES('legacy-account','instagram','legacy','legacy',?)",encrypt('fixture'));
+run("INSERT INTO account_story_profiles(account_id,seed,bible,memory,next_episode,updated_at) VALUES('legacy-account','Brand foundation','Existing bible','Existing memory',2,?)",stamp);
+run("INSERT INTO story_jobs(id,user_id,account_id,request_id,request_hash,payload,status,created_at,updated_at) VALUES('old-job',?,'legacy-account','old','hash','{}','completed',?,?)",owner.id,stamp,stamp);
+run("INSERT INTO story_episodes(id,account_id,job_id,episode_number,title,brief,created_at) VALUES('old-memory','legacy-account','old-job',1,'Original episode','Existing episode',?)",stamp);
+const reopen=()=>execFileSync(process.execPath,['--no-warnings','--input-type=module','-e',"await import('./src/db.js');"],{cwd:path.resolve(import.meta.dirname,'..'),env:process.env,stdio:'pipe'});
+after(()=>{db.close();fs.rmSync(dir,{recursive:true,force:true});});
+test('existing account-wide memories migrate once and a deleted session never reappears after restart',()=>{
+ reopen();const p=story.profile(owner,'legacy-account');assert.equal(p.memory_sessions.length,1);assert.equal(p.memory_session_title,'Cerita awal');assert.equal(p.memory,'Existing memory');assert.equal(p.bible,'Existing bible');assert.equal(p.next_episode,2);assert.equal(p.episodes[0].id,'old-memory');assert.equal(one("SELECT memory_session_id FROM story_jobs WHERE id='old-job'").memory_session_id,p.memory_session_id);
+ reopen();assert.equal(story.profile(owner,'legacy-account').memory_sessions.length,1);
+ story.deleteMemorySession(owner,'legacy-account',p.memory_session_id);reopen();const empty=story.profile(owner,'legacy-account');assert.equal(empty.memory_sessions.length,0);assert.equal(empty.memory,'');assert.equal(empty.episodes.length,0);assert.ok(one("SELECT id FROM story_jobs WHERE id='old-job'"),'production/job history is preserved');
+});
