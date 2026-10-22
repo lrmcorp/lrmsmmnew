@@ -14,7 +14,7 @@ test('autosave drains edits made during an in-flight save and allows failed save
  let value='first',release,started,fail=false;const writes=[],status={textContent:''},gate=new Promise(r=>release=r),begin=new Promise(r=>started=r);
  const saver=autosave(async()=>{const snapshot=value;started();if(snapshot==='first')await gate;if(fail)throw new Error('offline');writes.push(snapshot);},{delay:60000,statusEl:status});
  saver.schedule();const flush=saver.flush();await begin;value='second';saver.schedule();release();await flush;assert.deepEqual(writes,['first','second']);assert.equal(saver.error,null);
- fail=true;value='third';saver.schedule();await saver.flush();assert.ok(saver.error);assert.match(status.textContent,/Belum tersimpan/);fail=false;await saver.flush();assert.deepEqual(writes,['first','second','third']);assert.equal(saver.error,null);
+ fail=true;value='third';saver.schedule();await saver.flush();assert.ok(saver.error);assert.match(status.textContent,/Could not save/);fail=false;await saver.flush();assert.deepEqual(writes,['first','second','third']);assert.equal(saver.error,null);
 });
 
 test('displayed time stays in WIB independently of browser timezone',()=>{assert.match(fmtTime('2026-11-01T05:15:00Z'),/^12[.:]15$/);});

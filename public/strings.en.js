@@ -1,5 +1,21 @@
 import { STRINGS_ID } from './strings.id.js';
 export const STRINGS = {
+  "error.unknown": "Request failed. Please try again.",
+  "login.submit": "Sign in",
+  "login.loading": "Signing in…",
+  "login.subtitle": "Sign in to your workspace",
+  "scope.company": "Company",
+  "scope.accounts": "Accounts",
+  "scope.allCompanies": "All companies",
+  "scope.allAccounts": "All accounts",
+  "scope.search": "Search",
+  "picker.search.placeholder": "Search accounts",
+  "picker.done": "Done",
+  "picker.empty": "No accounts found",
+  "scope.unassigned": "Unassigned",
+  "view.date": "Date",
+  "status.published": "Published",
+  "status.scheduled": "Scheduled",
   "nav.group.content": "Content",
   "nav.group.engagement": "Engagement",
   "nav.group.workspace": "Workspace",
@@ -23,13 +39,13 @@ export const STRINGS = {
   "role.rep": "Representative",
   "autosave.saving": "Saving…",
   "autosave.saved": "Saved {HH:MM}",
-  "autosave.failed": "Not saved: {reason}. Try again",
+  "autosave.failed": "Could not save. {reason}",
   "dialog.cancel": "Cancel",
   "dialog.back": "Back",
   "dialog.cost.chip": "API cost",
   "dialog.danger.chip": "Cannot be undone",
   "toast.undo": "Undo",
-  "error.network": "You're offline. Your changes haven't been sent yet; we'll retry automatically.",
+  "error.network": "The request could not reach the server. Check your connection and try again.",
   "error.429": "Your {provider} API quota ran out. Add quota in your {provider} dashboard, then try again.",
   "error.401": "Your {provider} API key is invalid or was revoked. Update it in Personal settings > AI connections.",
   "error.timeout": "{provider} isn't responding. Try again in a few minutes.",
@@ -1243,4 +1259,4 @@ export const STRINGS = {
   "ui.showcase.imageReadiness": "Image production",
   "ui.showcase.integrations": "Integrations"
 };
-export function t(key,vars={}) { const value=STRINGS_ID[key] ?? STRINGS[key];if(value===undefined){if(["localhost","127.0.0.1"].includes(globalThis.location?.hostname))console.warn("Missing UI string:",key);return "["+key+"]";}return value.replace(/\{([^{}]+)\}/g,(_,name)=>vars[name]??"{"+name+"}");}
+export function t(key,vars={}) { const value=STRINGS[key] ?? STRINGS_ID[key];if(value===undefined){if(["localhost","127.0.0.1"].includes(globalThis.location?.hostname))console.warn("Missing UI string:",key);return "["+key+"]";}return value.replace(/\{([^{}]+)\}/g,(_,name)=>vars[name]??"{"+name+"}");}

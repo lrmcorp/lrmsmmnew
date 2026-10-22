@@ -10,7 +10,7 @@ import { workflowCanvas } from './workflow-canvas.js';
 import { bindInteraction } from './interactions.js';
 import { HERO, PLAT_SVG } from './icons.js';
 const $app = document.getElementById('app');
-document.documentElement.lang = 'id';
+document.documentElement.lang = 'en';
 document.title = t('common.app.title');
 
 // ---------------- helpers ----------------
@@ -141,7 +141,7 @@ const status = s => h('span', {
 }, STATUS[s] || s);
 const len = s => [...(s || '')].length;
 const fmtDT = fmtSlot;
-const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('id-ID', {
+const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('en-GB', {
   timeZone: 'Asia/Jakarta',
   hourCycle: 'h23',
   hour: '2-digit',
@@ -187,7 +187,9 @@ async function api(method, path, body, opts = {}) {
     init.headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
-  const r = await fetch(path, init);
+  let r;
+  try { r = await fetch(path, init); }
+  catch { throw uiError(t('error.network')); }
   if (r.status === 204) return null;
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
@@ -198,6 +200,7 @@ async function api(method, path, body, opts = {}) {
     const e = new Error(j.error?.message || `HTTP ${r.status}`);
     e.code = j.error?.code;
     e.details = j.error?.details;
+    e.status = r.status;
     throw e;
   }
   return j;
@@ -224,10 +227,10 @@ function toast(msg, bad = false, action = null) {
   setTimeout(() => el.remove(), action ? 6000 : bad ? 10000 : 4500);
 }
 const errMsg = e => e.ui ? e.message : e.code && ERR[e.code] ? ERR[e.code] : e.code === 'invalid_credentials' ? t('login.error.generic') : e.code === 'provider_key_missing' ? t('gen.ready.key.missing', {
-  provider: 'AI'
-}) : e.code === 'rate_limited' ? t('error.429', {
+  provider: /(?:OpenAI|Anthropic|Gemini)/i.exec(e.message || '')?.[0] || 'AI'
+}) : e.code === 'provider_model_unavailable' ? 'That model is unavailable for this API key. Choose another model in AI team & models, then retry.' : e.code === 'provider_error' ? 'The AI provider rejected this request. Check the API key, model access, and quota in Personal settings.' : e.code === 'provider_unavailable' ? 'The AI provider could not be reached. Please retry in a few minutes.' : e.code === 'rate_limited' ? t('error.429', {
   provider: 'API'
-}) : t('common.error');
+}) : e.code === 'schedule_capacity' ? 'There are not enough available dates and times for this session. Extend the date range or add posting times.' : e.code === 'story_busy' ? 'This Instagram account already has a story session in progress. Open its draft session or wait for it to finish.' : e.code === 'story_seed_required' ? 'Save this Instagram account’s Story foundation before planning episodes.' : e.code === 'idempotency_conflict' ? 'This request ID was used for different content. Please start a new session.' : e.code ? `Request failed (${e.code}). Open technical details for more information.` : e.status ? `Request failed (HTTP ${e.status}). Please try again.` : t('common.error');
 function technicalError(message, code) {
   return h('div', {
     class: 'err-box'
@@ -534,7 +537,7 @@ function shell(active, content, ownCleanup = null) {
     title: t("ui.copy.0025")
   });
   const tick = () => {
-    clock.textContent = `${new Date().toLocaleTimeString('id-ID', {
+    clock.textContent = `${new Date().toLocaleTimeString('en-GB', {
       timeZone: 'Asia/Jakarta',
       hour: '2-digit',
       minute: '2-digit'
@@ -2607,21 +2610,21 @@ async function pageSettings() {
       try {
         await api('POST', '/auth/password', Object.fromEntries(new FormData(passwordForm)));
         passwordForm.reset();
-        securityStatus.textContent = 'Password diperbarui.';
+        securityStatus.textContent = 'Password updated.';
       } catch (e) {
         securityStatus.textContent = errMsg(e);
       }
     }
   }, h('label', {
     class: 'rd-field'
-  }, 'Password saat ini', h('input', {
+  }, 'Current password', h('input', {
     type: 'password',
     name: 'current',
     required: true,
     autocomplete: 'current-password'
   })), h('label', {
     class: 'rd-field'
-  }, 'Password baru (minimal 8 karakter)', h('input', {
+  }, 'New password (at least 8 characters)', h('input', {
     type: 'password',
     name: 'next',
     required: true,
@@ -2630,15 +2633,15 @@ async function pageSettings() {
   })), securityStatus, h('button', {
     class: 'btn primary',
     type: 'submit'
-  }, 'Ubah password'));
+  }, 'Change password'));
   return shell('/settings', h('div', {
     class: 'personal-settings rd-page'
-  }, pagehead('Pengaturan pribadi', 'Profil, keamanan dan koneksi AI pribadi.'), h('div', {
+  }, pagehead('Personal settings', 'Profile, security, and your AI connections.'), h('div', {
     class: 'rd-tabs',
     style: {
       marginBottom: '20px'
     }
-  }, [['profile', 'Profil'], ['security', 'Keamanan'], ['ai', 'Koneksi AI']].map(([id, label]) => h('a', {
+  }, [['profile', 'Profile'], ['security', 'Security'], ['ai', 'AI connections']].map(([id, label]) => h('a', {
     class: 'btn ' + (currentTab === id ? 'on' : ''),
     href: '#/settings?tab=' + id
   }, label))), currentTab === 'security' ? h('section', {
@@ -2646,13 +2649,13 @@ async function pageSettings() {
     style: {
       maxWidth: '500px'
     }
-  }, h('h2', {}, 'Ubah password'), passwordForm) : currentTab === 'profile' ? h('section', {
+  }, h('h2', {}, 'Change password'), passwordForm) : currentTab === 'profile' ? h('section', {
     class: 'panel'
-  }, h('h2', {}, state.user.name), h('p', {}, state.user.email), h('p', {}, 'Peran: ' + ROLE[state.user.role])) : h('section', {
+  }, h('h2', {}, state.user.name), h('p', {}, state.user.email), h('p', {}, 'Role: ' + ROLE[state.user.role])) : h('section', {
     class: 'panel'
-  }, h('h2', {}, 'Koneksi AI pribadi', keySummary), h('p', {
+  }, h('h2', {}, 'Your AI connections', keySummary), h('p', {
     class: 'muted small'
-  }, 'Key disimpan terenkripsi dan tidak ditampilkan kembali. Tagihan mengikuti tarif provider. Model tiap agen diatur di Sosmed Generator.'), keys)));
+  }, 'Add or replace your Claude, Gemini, or OpenAI key at any time. An OpenAI key also powers Codex models. New requests use the latest saved key automatically. Claude can plan and review text; image generation needs OpenAI or Gemini. Keys are encrypted and cannot be viewed again. Provider charges apply. Choose each agent’s model in Content Generator.'), keys)));
 }
 
 // ---------------- Sosmed Generator ----------------
@@ -2924,7 +2927,7 @@ async function pageGenerator() {
     'aria-label': t("ui.copy.0247")
   });
   const postTimes = h('input', {
-    value: '12:15, 19:15',
+    value: '09:00, 12:15, 19:15',
     'aria-label': t("ui.copy.0248")
   });
   const planningMode = h('select', {
@@ -3190,7 +3193,7 @@ async function pageGenerator() {
     }
   }, t("ui.copy.0274")));
   function summarizeSchedule() {
-    const date = value => value ? new Date(value + 'T00:00:00+07:00').toLocaleDateString('id-ID', {
+    const date = value => value ? new Date(value + 'T00:00:00+07:00').toLocaleDateString('en-GB', {
       timeZone: 'Asia/Jakarta',
       day: 'numeric',
       month: 'short'
@@ -3391,6 +3394,7 @@ async function pageGenerator() {
     accounts: state.accounts.filter(a => a.platform === 'instagram' && a.status === 'active'),
     mode: 'production',
     agents: collectAgents,
+    canGenerateImages: config.keys.some(k => config.providers[k.provider]?.image),
     dates: {
       count: totalContents,
       slides: count,
@@ -3408,7 +3412,8 @@ async function pageGenerator() {
       }
       studio?.setStoryContext(value);
     },
-    onJob: showStoryWorkflow
+    onJob: showStoryWorkflow,
+    onStarted: job => go('/generator/drafts/' + encodeURIComponent(job.id))
   });
   studio = generatorStudio({
     h,
@@ -3531,7 +3536,7 @@ async function pageCalendar() {
     const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
     start = mondayOf(first);
     end = addDays(start, 42);
-    label = first.toLocaleDateString('id-ID', {
+    label = first.toLocaleDateString('en-GB', {
       timeZone: 'Asia/Jakarta',
       month: 'long',
       year: 'numeric'
@@ -3539,11 +3544,11 @@ async function pageCalendar() {
   } else if (view === '3day') {
     start = startOfDay(anchor);
     end = addDays(start, 3);
-    label = `${start.toLocaleDateString('id-ID', {
+    label = `${start.toLocaleDateString('en-GB', {
       timeZone: 'Asia/Jakarta',
       day: 'numeric',
       month: 'short'
-    })} – ${addDays(end, -1).toLocaleDateString('id-ID', {
+    })} – ${addDays(end, -1).toLocaleDateString('en-GB', {
       timeZone: 'Asia/Jakarta',
       day: 'numeric',
       month: 'short',
@@ -3552,11 +3557,11 @@ async function pageCalendar() {
   } else {
     start = mondayOf(anchor);
     end = addDays(start, 7);
-    label = `${start.toLocaleDateString('id-ID', {
+    label = `${start.toLocaleDateString('en-GB', {
       timeZone: 'Asia/Jakarta',
       day: 'numeric',
       month: 'short'
-    })} – ${addDays(end, -1).toLocaleDateString('id-ID', {
+    })} – ${addDays(end, -1).toLocaleDateString('en-GB', {
       timeZone: 'Asia/Jakarta',
       day: 'numeric',
       month: 'short',
@@ -3653,7 +3658,7 @@ async function pageCalendar() {
         class: `day ${d.getTime() === today ? 'today' : ''}`
       }, h('div', {
         class: 'dh'
-      }, d.toLocaleDateString('id-ID', {
+      }, d.toLocaleDateString('en-GB', {
         timeZone: 'Asia/Jakarta',
         weekday: 'short'
       }), h('b', {}, d.getDate()), !past ? h('a', {
@@ -4219,7 +4224,7 @@ const METRIC = {
   quotes: 'Kutipan',
   clicks: t("ui.sweep.40")
 };
-const fmtNum = n => n == null ? '–' : Number(n).toLocaleString('id-ID');
+const fmtNum = n => n == null ? '–' : Number(n).toLocaleString('en-GB');
 
 /** Single-series line chart (SVG) with recessive grid, 2px line, hover tooltip. */
 function lineChart(points, label) {
@@ -4319,7 +4324,7 @@ function lineChart(points, label) {
     cross.setAttribute('x2', best[0]);
     cross.setAttribute('visibility', 'visible');
     tip.hidden = false;
-    tip.replaceChildren(h('b', {}, fmtNum(best[2].v)), ' ', new Date(`${best[2].d}T00:00:00`).toLocaleDateString('id-ID', {
+    tip.replaceChildren(h('b', {}, fmtNum(best[2].v)), ' ', new Date(`${best[2].d}T00:00:00`).toLocaleDateString('en-GB', {
       timeZone: 'Asia/Jakarta',
       day: 'numeric',
       month: 'short'
@@ -4332,7 +4337,7 @@ function lineChart(points, label) {
     tip.hidden = true;
   });
   svgEl.append(hit);
-  const fmtD = d => new Date(`${d}T00:00:00`).toLocaleDateString('id-ID', {
+  const fmtD = d => new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', {
     timeZone: 'Asia/Jakarta',
     day: 'numeric',
     month: 'short'
@@ -4469,7 +4474,7 @@ async function pageAccountDetail(accountId) {
     })), h('p', {}, `Username: @${a.username}`), h('p', {}, t("ui.sweep.43", {
       "0": a.status
     })), a.followers_count != null ? h('p', {}, t("ui.copy.0347", {
-      "0": a.followers_count.toLocaleString('id-ID')
+      "0": a.followers_count.toLocaleString('en-GB')
     })) : null, a.token_expires_at ? h('p', {}, t("ui.copy.0348", {
       "0": fmtDT(a.token_expires_at)
     })) : null, a.last_error ? technicalError(a.last_error) : null, h('div', {
@@ -4573,9 +4578,9 @@ async function pageAccounts() {
     }, `@${a.username}`), h('div', {
       class: 'meta'
     }, plat(a.platform), a.followers_count != null ? h('span', {}, t("ui.copy.0355", {
-      "0": a.followers_count.toLocaleString('id-ID')
+      "0": a.followers_count.toLocaleString('en-GB')
     })) : null, a.token_expires_at ? h('span', {}, t("ui.sweep.45", {
-      "0": new Date(a.token_expires_at).toLocaleDateString('id-ID')
+      "0": new Date(a.token_expires_at).toLocaleDateString('en-GB')
     })) : null), a.last_error && a.status !== 'active' ? technicalError(a.last_error) : null), status(a.status), isOwner() ? h('select', {
       'aria-label': t("ui.copy.0356", {
         "0": a.username

@@ -49,7 +49,7 @@ export async function generatorWorkspace(ctx, workspace) {
     pollBusy = false,
     submitting = false,
     mode = 'campaign',
-    preset = 'Seimbang',
+    preset = 'Balanced',
     agents = structuredClone(config.agents),
     selection = [],
     batch = null,
@@ -96,24 +96,24 @@ export async function generatorWorkspace(ctx, workspace) {
     brief = h('textarea', {
       rows: 5,
       maxlength: 10000,
-      placeholder: 'Misalnya: campaign perawatan kuku menjelang akhir tahun untuk pelanggan baru.',
-      'aria-label': 'Arahan konten',
+      placeholder: 'For example: an end of year nail care campaign for new customers.',
+      'aria-label': 'Content brief',
       oninput: update
     }),
     captionLanguage = h('select', {
-      'aria-label': 'Bahasa caption',
+      'aria-label': 'Caption language',
       onchange: update
-    }, [['account', 'Sesuai Brand Kit'], ['id', 'Bahasa Indonesia'], ['en', 'English'], ['mixed', 'Campuran']].map(([value, text]) => h('option', {
+    }, [['account', 'Use Brand Kit'], ['id', 'Indonesian'], ['en', 'English'], ['mixed', 'Mixed']].map(([value, text]) => h('option', {
       value
     }, text))),
     format = h('select', {
-      'aria-label': 'Format konten',
+      'aria-label': 'Content format',
       onchange: () => {
         slides.disabled = format.value === 'single';
         if (slides.disabled) slides.value = 1;else if (Number(slides.value) < 2) slides.value = 3;
         update();
       }
-    }, [['single', 'Foto tunggal'], ['carousel', 'Carousel']].map(([value, text]) => h('option', {
+    }, [['single', 'Single image'], ['carousel', 'Carousel']].map(([value, text]) => h('option', {
       value
     }, text))),
     slides = h('input', {
@@ -122,28 +122,28 @@ export async function generatorWorkspace(ctx, workspace) {
       min: 1,
       max: 10,
       disabled: true,
-      'aria-label': 'Slide per konten',
+      'aria-label': 'Slides per post',
       oninput: update
     }),
     images = h('select', {
-      'aria-label': 'Sumber gambar',
+      'aria-label': 'Image source',
       onchange: update
     }, h('option', {
       value: 'ai'
-    }, 'AI membuat gambar'), h('option', {
+    }, 'Generate images with AI'), h('option', {
       value: 'manual'
-    }, 'Saya unggah foto sendiri'));
+    }, 'I will upload my own photos'));
   const start = h('input', {
       type: 'date',
       value: new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0, 10),
       min: new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0, 10),
-      'aria-label': 'Dari tanggal WIB',
+      'aria-label': 'Start date (Jakarta time)',
       oninput: update
     }),
     end = h('input', {
       type: 'date',
       value: new Date(Date.now() + 14 * 864e5 + 7 * 3600000).toISOString().slice(0, 10),
-      'aria-label': 'Sampai tanggal WIB',
+      'aria-label': 'End date (Jakarta time)',
       oninput: update
     }),
     count = h('input', {
@@ -151,12 +151,12 @@ export async function generatorWorkspace(ctx, workspace) {
       value: 12,
       min: 1,
       max: 30,
-      'aria-label': 'Jumlah konten per akun',
+      'aria-label': 'Posts per account',
       oninput: update
     }),
     times = h('input', {
-      value: '12:15, 19:15',
-      'aria-label': 'Jam posting WIB',
+      value: '09:00, 12:15, 19:15',
+      'aria-label': 'Posting times (Jakarta time)',
       oninput: update
     }),
     submit = B('Generate', generate, 'btn primary rd-generate');
@@ -182,6 +182,7 @@ export async function generatorWorkspace(ctx, workspace) {
         images,
         captionLanguage
       })) if (saved[name] !== undefined) input.value = saved[name];
+      if (saved.times === '12:15, 19:15') times.value = '09:00, 12:15, 19:15';
       mode = q.get('story_account') ? 'story' : saved.mode || mode;
     }
   } catch {}
@@ -189,7 +190,7 @@ export async function generatorWorkspace(ctx, workspace) {
   if (slides.disabled) slides.value = 1;
   brief.value = mode === 'story' ? '' : q.get('brief') || brief.value || '';
   const companySelect = h('select', {
-    'aria-label': 'Perusahaan',
+    'aria-label': 'Company',
     onchange: e => {
       company = e.target.value;
       selection = [];
@@ -198,7 +199,7 @@ export async function generatorWorkspace(ctx, workspace) {
     }
   }, h('option', {
     value: ''
-  }, 'Semua perusahaan'), state.companies.map(c => h('option', {
+  }, 'All companies'), state.companies.map(c => h('option', {
     value: c.id,
     selected: c.id === company
   }, c.name)));
@@ -231,11 +232,11 @@ export async function generatorWorkspace(ctx, workspace) {
     }).element);
   }
   function drawStory() {
-    replace(modeControl, ...[['campaign', 'Campaign baru'], ['story', 'Lanjutkan Storyline']].map(([id, text]) => B(text, () => {
+    replace(modeControl, ...[['campaign', 'New campaign'], ['story', 'Continue Storyline']].map(([id, text]) => B(text, () => {
       mode = id;
       selection = selection.slice(0, mode === 'story' ? 1 : selection.length);
       brief.value = '';
-      brief.placeholder = mode === 'story' ? 'Opsional: arah sesi ini. Kosongkan untuk melanjutkan fondasi dan memori cerita.' : 'Misalnya: campaign produk baru, manfaat dan alasan pelanggan perlu mencobanya.';
+      brief.placeholder = mode === 'story' ? 'Optional direction for this session. Leave blank to continue the saved story.' : 'For example: introduce a new product, its benefits, and why customers should try it.';
       drawAccounts();
       drawStory();
       update();
@@ -247,14 +248,14 @@ export async function generatorWorkspace(ctx, workspace) {
         p = state.brandProfiles[a?.id];
       storyInfo.append(h('div', {
         class: 'gf-story-position'
-      }, p?.seed ? h('div', {}, memorySessionPicker(ctx,p,next=>{state.brandProfiles[a.id]=next;drawStory();update();}),h('b', {}, `@${a.username} · Episode berikutnya ${p.next_episode || 1}`), h('p', {}, 'Cerita melanjutkan memori sesi yang dipilih. Brand Kit akun tetap menjadi fondasi bersama.'), B('Lihat Story Bible', () => storyBible(a, p), 'btn ghost sm'), storyArc(p), h('p', {
+      }, p?.seed ? h('div', {}, memorySessionPicker(ctx,p,next=>{state.brandProfiles[a.id]=next;drawStory();update();}),h('b', {}, `@${a.username} · Next episode ${p.next_episode || 1}`), h('p', {}, 'The story continues from the selected session memory. This account’s Brand Kit remains the foundation.'), B('View Story Bible', () => storyBible(a, p), 'btn ghost sm'), storyArc(p), h('p', {
         class: 'gf-story-next'
-      }, `Sesi ini melanjutkan episode ${p.next_episode || 1}–${(p.next_episode || 1) + Math.max(1, Number(count.value) || 1) - 1}. Storyteller menggunakan memori cerita yang tersimpan.`)) : h('p', {}, 'Pilih satu akun dan lengkapi fondasi brand untuk melanjutkan cerita.')));
+      }, `This session continues episodes ${p.next_episode || 1}–${(p.next_episode || 1) + Math.max(1, Number(count.value) || 1) - 1}. Storyteller uses the saved story memory.`)) : h('p', {}, 'Select one account and complete its Brand Kit to continue the story.')));
     }
   }
   function languageFor(a) {
     if (captionLanguage.value !== 'account') return captionLanguage.value;
-    return /Caption language:\s*(id|en|mixed)/i.exec(state.brandProfiles[a.id]?.brand_notes || '')?.[1] || 'id';
+    return /Caption language:\s*(id|en|mixed)/i.exec(state.brandProfiles[a.id]?.brand_notes || '')?.[1] || 'en';
   }
   function instructionsFor(a) {
     const p = state.brandProfiles[a.id],
@@ -267,63 +268,70 @@ export async function generatorWorkspace(ctx, workspace) {
   }
   function readyItems() {
     const items = [];
-    if(mode==='story'&&selected()[0]&&!state.brandProfiles[selected()[0].id]?.memory_session_id)items.push({text:'Buat sesi memori cerita terlebih dahulu',fix:()=>storyInfo.querySelector('button')?.focus()});
+    if(mode==='story'&&selected()[0]&&!state.brandProfiles[selected()[0].id]?.memory_session_id)items.push({text:'Create a story memory session first',fix:()=>storyInfo.querySelector('button')?.focus()});
     if (!selection.length) items.push({
-      text: 'Pilih minimal satu akun.',
+      text: 'Select at least one account.',
       fix: () => accountRow.scrollIntoView({
         behavior: 'smooth'
       })
     });
     for (const a of selected()) {
       if (a.platform === 'instagram' && !brandReadiness(state.brandProfiles[a.id]).ok) items.push({
-        text: `@${a.username}: fondasi Brand Kit belum diisi.`,
+        text: `@${a.username}: complete the Brand Kit first.`,
         fix: () => quickBrand(a),
         account: a
       });
       if (a.status && a.status !== 'active') items.push({
-        text: `@${a.username}: sambungkan ulang akun.`,
+        text: `@${a.username}: reconnect this account.`,
         url: '/accounts/' + a.id
       });
     }
     if (mode === 'campaign' && !brief.value.trim()) items.push({
-      text: 'Tulis arahan campaign.',
+      text: 'Write a campaign brief.',
       fix: () => brief.focus()
     });
     const activeRoles = mode === 'story' ? ['storyteller', 'manager', 'scheduler'] : images.value === 'manual' ? [] : ['concept', 'revision'];
     for (const p of [...new Set(activeRoles.map(role => agents[role]?.provider))]) if (p && !config.keys.some(k => k.provider === p)) items.push({
-      text: `Tambahkan API key ${p} di pengaturan pribadi.`,
+      text: `Add an API key for ${p} in Personal settings.`,
       url: '/settings?from=generator'
     });
     const n = Number(count.value);
     if (!Number.isInteger(n) || n < 1 || n > 30) items.push({
-      text: 'Pilih 1–30 konten per akun.',
+      text: 'Choose 1–30 posts per account.',
       fix: () => count.focus()
     });
     if (Number(slides.value) < 1 || Number(slides.value) > 10) items.push({
-      text: 'Pilih 1–10 slide.',
+      text: 'Choose 1–10 slides.',
       fix: () => slides.focus()
     });
     if (!start.value || start.value <= today() || !end.value || end.value < start.value) items.push({
-      text: 'Tanggal mulai minimal besok dan akhir tidak boleh lebih awal.',
+      text: 'Start tomorrow or later; the end cannot be before the start.',
       fix: () => start.focus()
     });
     if (Date.parse(end.value) - Date.parse(start.value) > 90 * 864e5) items.push({
-      text: 'Rentang jadwal maksimal 90 hari.',
+      text: 'The schedule can span at most 90 days.',
       fix: () => end.focus()
     });
     const ts = times.value.split(',').map(s => s.trim()).filter(Boolean);
-    if (!ts.length || ts.length > 12 || ts.some(s => !/^([01]\d|2[0-3]):[0-5]\d$/.test(s))) items.push({
-      text: 'Isi jam WIB HH:MM, pisahkan koma (maksimal 12 jam).',
+    if (!ts.length || ts.length > 8 || ts.some(s => !/^([01]\d|2[0-3]):[0-5]\d$/.test(s))) items.push({
+      text: 'Enter 1–8 Jakarta times as HH:MM, separated by commas.',
       fix: () => times.focus()
     });
+    else if (start.value && end.value && end.value >= start.value && Number.isInteger(n) && n > 0) {
+      const days = Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1;
+      if (days * new Set(ts).size < n) items.push({
+        text: `${n} posts need at least ${n} available slots. Add a posting time or extend the date range.`,
+        fix: () => times.focus()
+      });
+    }
     return items;
   }
   function shortDate(value) {
-    return value ? new Intl.DateTimeFormat('id-ID', {
+    return value ? new Intl.DateTimeFormat('en-GB', {
       day: 'numeric',
       month: 'short',
       timeZone: 'Asia/Jakarta'
-    }).format(new Date(value + 'T12:00:00+07:00')) : 'Pilih tanggal';
+    }).format(new Date(value + 'T12:00:00+07:00')) : 'Select a date';
   }
   function storyArc(p) {
     const text = String(p.bible || ''),
@@ -353,7 +361,7 @@ export async function generatorWorkspace(ctx, workspace) {
       }
     }, 'btn sm', {
       disabled: slides.disabled,
-      'aria-label': 'Kurangi slide'
+      'aria-label': 'Remove a slide'
     }), slides, B('+', () => {
       if (!slides.disabled) {
         slides.value = Math.min(10, Number(slides.value) + 1);
@@ -361,14 +369,14 @@ export async function generatorWorkspace(ctx, workspace) {
       }
     }, 'btn sm', {
       disabled: slides.disabled,
-      'aria-label': 'Tambah slide'
+      'aria-label': 'Add a slide'
     }), h('span', {
       class: 'gf-format-divider'
     }), h('span', {
       class: 'small'
-    }, 'Sumber gambar'), h('div', {
+    }, 'Image source'), h('div', {
       class: 'rd-tabs'
-    }, [['ai', 'AI membuat'], ['manual', 'Foto saya']].map(([v, label]) => B(label, () => {
+    }, [['ai', 'AI generated'], ['manual', 'My photos']].map(([v, label]) => B(label, () => {
       images.value = v;
       update();
       drawFormats();
@@ -376,14 +384,14 @@ export async function generatorWorkspace(ctx, workspace) {
   }
   function drawSchedule() {
     const ts = times.value.split(',').map(x => x.trim()).filter(Boolean);
-    replace(scheduleSentence, mode === 'story' ? 'Lanjutkan ' : 'Buat ', B(`${count.value || 0} ${mode === 'story' ? 'episode' : 'konten'}`, () => schedulePopover('count'), 'gf-inline'), mode === 'story' ? ' dari ' : ' per akun, dari ', B(shortDate(start.value), () => schedulePopover('start'), 'gf-inline'), ' sampai ', B(shortDate(end.value), () => schedulePopover('end'), 'gf-inline'), ', tayang jam ', ...ts.map((time, index) => h('span', {
+    replace(scheduleSentence, mode === 'story' ? 'Continue ' : 'Create ', B(`${count.value || 0} ${mode === 'story' ? 'episodes' : 'posts'}`, () => schedulePopover('count'), 'gf-inline'), mode === 'story' ? ' from ' : ' per account, from ', B(shortDate(start.value), () => schedulePopover('start'), 'gf-inline'), ' to ', B(shortDate(end.value), () => schedulePopover('end'), 'gf-inline'), ', posting at ', ...ts.map((time, index) => h('span', {
       class: 'gf-time-token'
     }, B(time.replace(':', '.'), () => schedulePopover('times'), 'gf-inline'), B('×', () => {
       times.value = ts.filter((_, i) => i !== index).join(', ');
       update();
     }, 'gf-remove-time', {
       'aria-label': 'Hapus jam ' + time
-    }))), B('+ jam', () => schedulePopover('times'), 'gf-inline'), ' WIB.');
+    }))), B('+ time', () => schedulePopover('times'), 'gf-inline'), ' WIB.');
   }
   function schedulePopover(focus) {
     const rhythm = h('p', {
@@ -409,8 +417,8 @@ export async function generatorWorkspace(ctx, workspace) {
         month.setUTCMonth(month.getUTCMonth() - 1);
         refreshCalendar();
       }, 'btn ghost sm', {
-        'aria-label': 'Bulan sebelumnya'
-      }), h('b', {}, new Intl.DateTimeFormat('id-ID', {
+        'aria-label': 'Previous month'
+      }), h('b', {}, new Intl.DateTimeFormat('en-GB', {
         month: 'long',
         year: 'numeric',
         timeZone: 'Asia/Jakarta'
@@ -418,10 +426,10 @@ export async function generatorWorkspace(ctx, workspace) {
         month.setUTCMonth(month.getUTCMonth() + 1);
         refreshCalendar();
       }, 'btn ghost sm', {
-        'aria-label': 'Bulan berikutnya'
+        'aria-label': 'Next month'
       })), h('div', {
         class: 'gf-range-days'
-      }, ...['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map(x => h('span', {
+      }, ...['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(x => h('span', {
         class: 'small muted'
       }, x)), ...Array.from({
         length: offset
@@ -443,7 +451,7 @@ export async function generatorWorkspace(ctx, workspace) {
           'aria-pressed': String(date >= start.value && date <= end.value)
         });
       })));
-      rhythm.textContent = `${count.value} konten dalam ${Math.max(1, Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1)} hari per akun. Slot WIB: ${times.value}. Distribusi merata mengikuti urutan konten.`;
+      rhythm.textContent = `${count.value} posts across ${Math.max(1, Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1)} days per account. Jakarta slots: ${times.value}. Posts are spread evenly in sequence.`;
     }
     function presetRange(days, nextMonday = false) {
       let date = new Date(Date.now() + 864e5 + 7 * 3600000);
@@ -458,11 +466,11 @@ export async function generatorWorkspace(ctx, workspace) {
       update();
       refreshCalendar();
     }
-    const d = modal('Rencana & jadwal', h('div', {}, h('div', {
+    const d = modal('Plan and schedule', h('div', {}, h('div', {
       class: 'gf-date-presets'
-    }, B('2 minggu', () => presetRange(14), 'btn sm'), B('1 bulan', () => presetRange(30), 'btn sm'), B('Minggu ini', () => presetRange(Math.max(1, 7 - new Date(Date.now() + 7 * 3600000).getUTCDay())), 'btn sm'), B('Mulai Senin depan', () => presetRange(14, true), 'btn sm')), h('div', {
+    }, B('2 weeks', () => presetRange(14), 'btn sm'), B('1 month', () => presetRange(30), 'btn sm'), B('This week', () => presetRange(Math.max(1, 7 - new Date(Date.now() + 7 * 3600000).getUTCDay())), 'btn sm'), B('Start next Monday', () => presetRange(14, true), 'btn sm')), h('div', {
       class: 'gf-schedule-fields'
-    }, field('Konten per akun', count), field('Dari tanggal (WIB)', start), field('Sampai tanggal (WIB)', end), field('Jam posting (WIB, pisahkan koma)', times)), calendar, rhythm), [B('Terapkan', () => {
+    }, field('Posts per account', count), field('Start date (Jakarta)', start), field('End date (Jakarta)', end), field('Posting times (Jakarta, comma separated)', times)), calendar, rhythm), [B('Apply', () => {
       update();
       d.close();
     }, 'btn primary')]);
@@ -495,26 +503,26 @@ export async function generatorWorkspace(ctx, workspace) {
       img = mode === 'story' || images.value === 'ai' ? total * Number(slides.value) : 0,
       days = Math.max(1, Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1 || 1),
       missing = readyItems();
-    submit.textContent = submitting ? 'Menyiapkan sesi…' : mode === 'story' ? `Rencanakan ${selection.length ? n : 0} episode` : `Generate ${total} konten`;
+    submit.textContent = submitting ? 'Preparing session…' : mode === 'story' ? `Plan ${selection.length ? n : 0} episodes` : `Generate ${total} posts`;
     submit.disabled = submitting || missing.length > 0;
     mobileSubmit.textContent = submit.textContent;
     mobileSubmit.disabled = submit.disabled;
-    mobileMeta.textContent = `${total} konten · ${img} gambar · ${missing.length ? 'Belum siap' : 'Siap'}`;
-    teamSummary.textContent = `${preset} · ${mode === 'story' ? 8 : 5} agen`;
-    briefCounter.textContent = brief.value.length.toLocaleString('id-ID') + ' / 10.000';
-    replace(accountMeta, h('span', {}, `${selection.length} dari ${scoped().length} dipilih`), mode === 'campaign' ? B('Pilih semua', () => {
+    mobileMeta.textContent = `${total} posts · ${img} images · ${missing.length ? 'Not ready' : 'Ready'}`;
+    teamSummary.textContent = `${preset} · ${mode === 'story' ? 8 : 5} agents`;
+    briefCounter.textContent = brief.value.length.toLocaleString('en-GB') + ' / 10.000';
+    replace(accountMeta, h('span', {}, `${selection.length} of ${scoped().length} selected`), mode === 'campaign' ? B('Select all', () => {
       selection = scoped().map(a => a.id);
       drawAccounts();
       drawStory();
       update();
-    }, 'ui-text-button') : h('span', {}, 'Satu akun per sesi'));
+    }, 'ui-text-button') : h('span', {}, 'One account per session'));
     for(const button of accountRow.querySelectorAll('[data-account-control^="chip-"]')){const id=button.dataset.accountControl.slice(5),account=state.accounts.find(a=>a.id===id),label=button.querySelector('span:not(.ui-avatar):not(.ui-dot)');if(account&&label)label.textContent='@'+account.username+(mode==='story'&&selection.includes(id)?' · Ep. '+(state.brandProfiles[id]?.next_episode||1):'');}
-    const stepReady=[selection.length>0&&selected().every(a=>!!state.brandProfiles[a.id]?.seed),mode==='story'?!!state.brandProfiles[selected()[0]?.id]?.seed:!!brief.value.trim(),!missing.some(x=>/tanggal|jam|konten per akun|slide/.test(x.text))];composer.querySelectorAll('.rd-step-number').forEach((el,i)=>{replace(el,stepReady[i]?icon('check'):String(i+1));el.classList.toggle('done',stepReady[i]);});
+    const stepReady=[selection.length>0&&selected().every(a=>!!state.brandProfiles[a.id]?.seed),mode==='story'?!!state.brandProfiles[selected()[0]?.id]?.seed:!!brief.value.trim(),!missing.some(x=>/date|times|slots|posts per account|slides/.test(x.text))];composer.querySelectorAll('.rd-step-number').forEach((el,i)=>{replace(el,stepReady[i]?icon('check'):String(i+1));el.classList.toggle('done',stepReady[i]);});
     drawSchedule();
     const nextStory = storyInfo.querySelector('.gf-story-next');
     if (nextStory) {
       const profile = state.brandProfiles[selected()[0]?.id];
-      nextStory.textContent = `Sesi ini melanjutkan episode ${profile?.next_episode || 1}–${(profile?.next_episode || 1) + n - 1}. Storyteller menggunakan memori cerita tersimpan.`;
+      nextStory.textContent = `This session continues episodes ${profile?.next_episode || 1}–${(profile?.next_episode || 1) + n - 1}. Storyteller uses the saved story memory.`;
     }
     const a = selected()[0],
       p = state.brandProfiles[a?.id],
@@ -529,29 +537,29 @@ export async function generatorWorkspace(ctx, workspace) {
       }, icon('check'), text);
     replace(summary, h('div', {
       class: 'gf-summary-header'
-    }, h('h2', {}, 'Ringkasan sesi'), ui.chip(mode === 'story' ? 'Storyline' : 'Campaign', mode === 'story' ? 'concept' : 'info')), h('div', {
+    }, h('h2', {}, 'Session summary'), ui.chip(mode === 'story' ? 'Storyline' : 'Campaign', mode === 'story' ? 'concept' : 'info')), h('div', {
       class: 'rd-summary-total'
-    }, total, h('span', {}, mode === 'story' ? 'episode' : 'konten')), h('p', {
+    }, total, h('span', {}, mode === 'story' ? 'episodes' : 'posts')), h('p', {
       class: 'small muted'
-    }, mode === 'story' ? a ? `@${a.username} · episode ${episode}–${episode + n - 1}` : 'Pilih akun cerita' : `${selection.length} akun × ${n} konten`), h('div', {
+    }, mode === 'story' ? a ? `@${a.username} · episode ${episode}–${episode + n - 1}` : 'Select a story account' : `${selection.length} accounts × ${n} posts`), h('div', {
       class: 'gf-summary-rows'
-    }, summaryRow('Format', mode === 'story' ? 'Sesuai alur cerita' : format.value === 'single' ? 'Single' : `Carousel · ${slides.value} slide`, h('span', {
+    }, summaryRow('Format', mode === 'story' ? 'Follow the story arc' : format.value === 'single' ? 'Single' : `Carousel · ${slides.value} slide`, h('span', {
       class: 'muted'
-    }, `${img} gambar`)), summaryRow('Periode', `${shortDate(start.value)} – ${shortDate(end.value)}`, h('span', {
+    }, `${img} images`)), summaryRow('Period', `${shortDate(start.value)} – ${shortDate(end.value)}`, h('span', {
       class: 'muted'
-    }, `${days} hari`)), summaryRow('Ritme', `±${(n / days).toFixed(1)} post/hari/akun`), summaryRow('Bahasa', captionLanguage.selectedOptions[0]?.textContent), summaryRow('Tim AI', teamSummary.textContent, B('Ubah', teamDrawer, 'ui-text-button'))), mode === 'story' && a ? summaryRow('Aset', `${(p?.assets || []).filter(x => x.category === 'logo').length} logo · ${(p?.assets || []).filter(x => x.category === 'visual').length} referensi · ${(p?.assets || []).filter(x => x.category === 'product').length} produk`, B('Kelola', () => quickBrand(a), 'ui-text-button')) : null, mode === 'story' && a && !(p?.assets || []).some(x => x.category === 'product') ? h('div', {
+    }, `${days} days`)), summaryRow('Pace', `±${(n / days).toFixed(1)} posts/day/account`), summaryRow('Language', captionLanguage.selectedOptions[0]?.textContent), summaryRow('AI team', teamSummary.textContent, B('Change', teamDrawer, 'ui-text-button'))), mode === 'story' && a ? summaryRow('Assets', `${(p?.assets || []).filter(x => x.category === 'logo').length} logo · ${(p?.assets || []).filter(x => x.category === 'visual').length} references · ${(p?.assets || []).filter(x => x.category === 'product').length} products`, B('Manage', () => quickBrand(a), 'ui-text-button')) : null, mode === 'story' && a && !(p?.assets || []).some(x => x.category === 'product') ? h('div', {
       class: 'rd-callout warn small'
-    }, 'Belum ada foto produk. Storyteller belum bisa memilih produk spesifik. ', B('Tambah foto produk', () => quickBrand(a), 'ui-text-button')) : null, h('div',{class:'gf-brand-completeness'},selected().filter(a=>a.platform==='instagram').map(a=>{const ready=brandReadiness(state.brandProfiles[a.id]);return h('div',{class:'small'},B('@'+a.username+' · Brand Kit '+ready.completeness+'%',()=>quickBrand(a),'ui-text-button'),ready.ok&&ready.missing.length?h('span',{class:'muted'},' · Disarankan: '+ready.missing.map(x=>x.label).join(', ')):null);})),h('h3', {}, missing.length ? 'Yang perlu dilengkapi' : 'Siap generate'), h('div', {
+    }, 'No product photos yet. Storyteller cannot choose a specific product. ', B('Add product photos', () => quickBrand(a), 'ui-text-button')) : null, h('div',{class:'gf-brand-completeness'},selected().filter(a=>a.platform==='instagram').map(a=>{const ready=brandReadiness(state.brandProfiles[a.id]);return h('div',{class:'small'},B('@'+a.username+' · Brand Kit '+ready.completeness+'%',()=>quickBrand(a),'ui-text-button'),ready.ok&&ready.missing.length?h('span',{class:'muted'},' · Recommended: '+ready.missing.map(x=>x.label).join(', ')):null);})),h('h3', {}, missing.length ? 'Complete these items' : 'Ready to generate'), h('div', {
       class: 'rd-readiness'
     }, ...(missing.length ? missing.map(item => h('div', {
       class: 'rd-check-item warn'
-    }, icon('warn'), h('span', {}, item.text), item.fix ? B('Lengkapi', item.fix, 'ui-text-button') : link('Buka', item.url, 'ui-text-button'), item.account ? B('Lewati', () => {
+    }, icon('warn'), h('span', {}, item.text), item.fix ? B('Complete', item.fix, 'ui-text-button') : link('Open', item.url, 'ui-text-button'), item.account ? B('Skip', () => {
       selection = selection.filter(id => id !== item.account.id);
       drawAccounts();
       update();
-    }, 'ui-text-button') : null)) : [check(`${selection.length} akun, semua Brand Kit siap`), check(mode === 'story' ? 'Fondasi cerita tersimpan' : 'Arahan ditulis'), check(images.value === 'manual' && mode === 'campaign' ? 'Foto diunggah sendiri' : 'API key tim agen tersambung')])), submit, h('p', {
+    }, 'ui-text-button') : null)) : [check(`${selection.length} accounts, all Brand Kits ready`), check(mode === 'story' ? 'Story foundation saved' : 'Brief written'), check(images.value === 'manual' && mode === 'campaign' ? 'Photos uploaded manually' : 'Agent API key connected')])), submit, h('p', {
       class: 'small muted gf-cta-note'
-    }, mode === 'story' ? 'Rencana dan proposal muncul di Draft Konten. Tidak ada biaya gambar sampai Anda menyetujui konsep.' : 'Tahap 1 hanya konsep. Gambar dibuat setelah Anda menyetujui konsep. Publikasi setelah persetujuan akhir.'));
+    }, mode === 'story' ? 'Plans and concepts appear in Drafts. Images are charged only after you approve the concepts.' : 'First, review the concepts. Images are generated after your approval. Publishing requires final approval.'));
   }
   async function quickBrand(a) {
     let p = state.brandProfiles[a.id] || {
@@ -570,11 +578,11 @@ export async function generatorWorkspace(ctx, workspace) {
       notes = h('textarea', {
         rows: 4,
         maxlength: 5500,
-        'aria-label': 'Aturan brand'
+        'aria-label': 'Brand rules'
       }, (p.brand_notes || '').replace(/\n?Caption language:.*|\n?Emoji in captions:.*/g, '')),
       language = h('select', {
-        'aria-label': 'Bahasa caption akun'
-      }, [['id', 'Bahasa Indonesia'], ['en', 'English'], ['mixed', 'Campuran']].map(([value, text]) => h('option', {
+        'aria-label': 'Account caption language'
+      }, [['id', 'Indonesian'], ['en', 'English'], ['mixed', 'Mixed']].map(([value, text]) => h('option', {
         value,
         selected: value === languageFor(a)
       }, text))),
@@ -590,13 +598,13 @@ export async function generatorWorkspace(ctx, workspace) {
         hidden: true
       }),
       category = h('select', {
-        'aria-label': 'Kategori aset'
-      }, [['logo', 'Logo'], ['visual', 'Referensi visual'], ['product', 'Foto produk'], ['video', 'Video / Reel']].map(([value, text]) => h('option', {
+        'aria-label': 'Asset category'
+      }, [['logo', 'Logo'], ['visual', 'Visual reference'], ['product', 'Product photo'], ['video', 'Video / Reel']].map(([value, text]) => h('option', {
         value
       }, text))),
       assetName = h('input', {
-        'aria-label': 'Nama produk atau koleksi',
-        placeholder: 'Nama / koleksi (opsional)'
+        'aria-label': 'Product or collection name',
+        placeholder: 'Name / collection (optional)'
       });
     const saver = autosave(async () => {
       p = await api('PUT', `/v1/generator/accounts/${a.id}/brand`, {
@@ -653,48 +661,48 @@ export async function generatorWorkspace(ctx, workspace) {
       }),
       identity = h('section', {
         class: 'gf-brand-page'
-      }, field('Brand ini menjual apa, untuk siapa?', seed), h('h3', {}, 'Tone bicara'), h('div', {
+      }, field('What does this brand sell, and to whom?', seed), h('h3', {}, 'Brand tone'), h('div', {
         class: 'gf-tone-chips'
-      }, ['Ramah', 'Profesional', 'To the point', 'Playful', 'Mewah'].map(tone => B(tone, e => {
+      }, ['Friendly', 'Professional', 'Direct', 'Playful', 'Premium'].map(tone => B(tone, e => {
         const line = 'Tone: ' + tone;
         if (!notes.value.includes(line)) {
           notes.value += (notes.value ? '\n' : '') + line;
           saver.schedule();
         }
         toast('Tone ' + tone + ' ditambahkan ke aturan brand.');
-      }, 'btn sm'))), field('Bahasa caption', language), h('label', {
+      }, 'btn sm'))), field('Caption language', language), h('label', {
         class: 'gf-notify'
-      }, emoji, 'Izinkan emoji pada caption')),
+      }, emoji, 'Allow emoji in captions')),
       rulesPage = h('section', {
         class: 'gf-brand-page'
-      }, field('Aturan: yang boleh / tidak boleh', notes), h('p', {
+      }, field('Brand rules: do and do not', notes), h('p', {
         class: 'small muted'
-      }, 'Logo dan detail produk harus dipertahankan. Jelaskan warna, gaya bahasa dan klaim yang perlu dihindari.')),
+      }, 'Preserve the logo and product details. Describe the palette, voice, and claims to avoid.')),
       assetPage = h('section', {
         class: 'gf-brand-page'
-      }, h('h3', {}, 'Logo, referensi visual & produk'), assets, h('div', {
+      }, h('h3', {}, 'Logos, visual references, and products'), assets, h('div', {
         class: 'row'
-      }, category, assetName, file, B('Unggah aset', () => file.click())));
+      }, category, assetName, file, B('Upload assets', () => file.click())));
     let brandStep = 0;
-    const next = B('Lanjut: Aturan', () => {
+    const next = B('Next: Rules', () => {
       if (brandStep < 2) {
         brandStep++;
         drawBrandSteps();
       } else d.close();
     }, 'btn primary');
     function drawBrandSteps() {
-      replace(stageTabs, ...['Identitas', 'Aturan', 'Aset'].map((label, i) => B(i + 1 + ' · ' + label, () => {
+      replace(stageTabs, ...['Identity', 'Rules', 'Assets'].map((label, i) => B(i + 1 + ' · ' + label, () => {
         brandStep = i;
         drawBrandSteps();
       }, 'btn ' + (i === brandStep ? 'on' : ''))));
       [identity, rulesPage, assetPage].forEach((el, i) => el.hidden = i !== brandStep);
-      next.textContent = ['Lanjut: Aturan', 'Lanjut: Aset', 'Selesai'][brandStep];
+      next.textContent = ['Next: Rules', 'Next: Assets', 'Done'][brandStep];
     }
     const d = modal('Brand Kit cepat · @' + a.username, h('div', {}, h('p', {
       class: 'muted small'
-    }, 'Fondasi yang sama disimpan pada akun dan dipakai untuk sesi berikutnya.'), stageTabs, identity, rulesPage, assetPage, saveStatus, h('p', {
+    }, 'This account’s foundation is saved for future sessions.'), stageTabs, identity, rulesPage, assetPage, saveStatus, h('p', {
       class: 'small muted'
-    }, 'Bisa dilengkapi kapan saja di Perusahaan & Akun → Brand Kit.')), [link('Detail Brand Kit', '/accounts/' + a.id + '?tab=brand'), B('Nanti', () => d.close()), next]);
+    }, 'You can complete this later in Companies & Accounts → Brand Kit.')), [link('Brand Kit details', '/accounts/' + a.id + '?tab=brand'), B('Later', () => d.close()), next]);
     d.classList.add('rd-drawer', 'gf-brand-drawer');
     drawBrandSteps();
     const close = d.close.bind(d);
@@ -733,7 +741,7 @@ export async function generatorWorkspace(ctx, workspace) {
       }),
       description = h('p', {
         class: 'muted small'
-      }, 'Pilihan model berasal dari katalog provider. Ketersediaan akhir bergantung API key dan kuota Anda.'),
+      }, 'Models come from each provider’s catalog. Availability depends on your API key and quota.'),
       draft = structuredClone(agents),
       activeRoles = mode === 'story' ? ['storyteller', 'manager', 'scheduler', 'concept', 'revision', 'visual', 'image', 'final'] : ['concept', 'revision', 'visual', 'image', 'final'];
     let selectedPreset = preset;
@@ -745,7 +753,7 @@ export async function generatorWorkspace(ctx, workspace) {
       const textProvider = keys.has('openai') ? 'openai' : keys.has('anthropic') ? 'anthropic' : keys.has('gemini') ? 'gemini' : null,
         imageProvider = keys.has('openai') ? 'openai' : keys.has('gemini') ? 'gemini' : null;
       if (!textProvider) {
-        toast('Tambahkan API key terlebih dahulu.', true);
+        toast('Add an API key first.', true);
         return;
       }
       for (const role of Object.keys(draft)) {
@@ -753,7 +761,7 @@ export async function generatorWorkspace(ctx, workspace) {
         if (!p) continue;
         const list = models(p, role);
         let model = list[0];
-        if (name === 'Kualitas') model = list.find(x => /opus|pro\b|gpt-4\.1$/.test(x.id)) || list.at(-1) || model;else if (name === 'Hemat') model = list.find(x => /mini|haiku|lite/.test(x.id)) || model;
+        if (name === 'Quality') model = list.find(x => /opus|pro\b|gpt-4\.1$/.test(x.id)) || list.at(-1) || model;else if (name === 'Economy') model = list.find(x => /mini|haiku|lite/.test(x.id)) || model;
         draft[role] = {
           ...draft[role],
           provider: p,
@@ -773,66 +781,66 @@ export async function generatorWorkspace(ctx, workspace) {
           }, Object.entries(config.providers).filter(([p, c]) => role !== 'image' || c.image).map(([value, c]) => h('option', {
             value,
             selected: value === draft[role].provider
-          }, c.name + (keys.has(value) ? '' : ' · key belum diisi')))),
+          }, c.name + (keys.has(value) ? '' : ' · key missing')))),
           model = h('select', {
             'aria-label': 'Model ' + roles[role]
           }),
           instructions = h('textarea', {
             rows: 3,
             maxlength: 4000,
-            'aria-label': 'Instruksi ' + roles[role]
+            'aria-label': 'Instructions for ' + roles[role]
           }, draft[role].instructions);
         function drawModels() {
           const list = models(provider.value, role);
           if (!list.some(m => m.id === draft[role].model)) {
             if(role!=='image'&&/transcribe|computer.?use|tts|embedding|image|imagen|nano.?banana|veo|audio/i.test(draft[role].model))draft[role].model=list[0]?.id||'';
-            else list.push({id:draft[role].model,name:draft[role].model+' · tersimpan'});
+            else list.push({id:draft[role].model,name:draft[role].model+' · saved'});
           }
-          const groups=[['Disarankan',list.slice(0,3)],['Model lain yang sesuai',list.slice(3)]];
+          const groups=[['Recommended',list.slice(0,3)],['Other compatible models',list.slice(3)]];
           replace(model,...groups.filter(([,items])=>items.length).map(([label,items])=>h('optgroup',{label},items.map(m=>h('option',{value:m.id,selected:m.id===draft[role].model},m.name)))));
 
         }
         provider.onchange = () => {
           draft[role].provider = provider.value;
           draft[role].model = models(provider.value, role)[0]?.id || '';
-          selectedPreset = 'Kustom';
+          selectedPreset = 'Custom';
           drawModels();
         };
         model.onchange = () => {
           draft[role].model = model.value;
-          selectedPreset = 'Kustom';
+          selectedPreset = 'Custom';
         };
         instructions.oninput = () => draft[role].instructions = instructions.value;
         drawModels();
-        row.append(h('h3', {}, roles[role]), provider, model, h('details', {}, h('summary', {}, 'Instruksi agen'), instructions));
+        row.append(h('h3', {}, roles[role]), provider, model, h('details', {}, h('summary', {}, 'Agent instructions'), instructions));
         return row;
       }));
     }
-    const d = modal('Tim agen & model', h('div', {}, h('div', {
+    const d = modal('Agent team and models', h('div', {}, h('div', {
       class: 'gf-presets'
-    }, ['Hemat', 'Seimbang', 'Kualitas'].map(n => B(h('span', {}, h('b', {}, n), h('small', {}, {
-      Hemat: 'Model ringan untuk ide dan uji coba.',
-      Seimbang: 'Konsep detail, review ringan. Disarankan.',
-      Kualitas: 'Model terbaik tiap tahap. Lebih lambat.'
+    }, ['Economy', 'Balanced', 'Quality'].map(n => B(h('span', {}, h('b', {}, n), h('small', {}, {
+      Economy: 'Lightweight models for ideas and testing.',
+      Balanced: 'Detailed concepts with a light review. Recommended.',
+      Quality: 'Best available models for each step. Slower.'
     }[n])), () => {
       applyPreset(n);
-      d.querySelectorAll('.gf-presets .btn').forEach((el, i) => el.classList.toggle('on', ['Hemat', 'Seimbang', 'Kualitas'][i] === n));
-    }, 'btn ' + (n === selectedPreset ? 'on' : '')))), description, table, keys.has('gemini') ? B('Perbarui model Gemini', async () => {
+      d.querySelectorAll('.gf-presets .btn').forEach((el, i) => el.classList.toggle('on', ['Economy', 'Balanced', 'Quality'][i] === n));
+    }, 'btn ' + (n === selectedPreset ? 'on' : '')))), description, table, keys.has('gemini') ? B('Refresh Gemini models', async () => {
       const result = await api('GET', '/v1/generator/providers/gemini/models?refresh=true');
       config.providers.gemini = {
         ...config.providers.gemini,
         ...result
       };
       draw();
-    }) : null), [B('Lihat sebagai canvas',()=>{const canvas=workflowCanvas({h,icon,userId:state.user.id,nodes:activeRoles.map((role,i)=>({id:role,title:roles[role],subtitle:draft[role].provider+' / '+draft[role].model,x:(i%3)*300,y:Math.floor(i/3)*230,width:260,content:h('p',{},draft[role].instructions||'Instruksi default')})),edges:activeRoles.slice(1).map((role,i)=>({from:activeRoles[i],to:role}))});const view=modal('Alur tim agen',canvas.element||canvas);view.classList.add('gf-canvas-dialog');view.addEventListener('close',()=>canvas.dispose(),{once:true});}),B('Simpan sebagai default', async () => {
+    }) : null), [B('View as canvas',()=>{const canvas=workflowCanvas({h,icon,userId:state.user.id,nodes:activeRoles.map((role,i)=>({id:role,title:roles[role],subtitle:draft[role].provider+' / '+draft[role].model,x:(i%3)*300,y:Math.floor(i/3)*230,width:260,content:h('p',{},draft[role].instructions||'Default instructions')})),edges:activeRoles.slice(1).map((role,i)=>({from:activeRoles[i],to:role}))});const view=modal('Agent workflow',canvas.element||canvas);view.classList.add('gf-canvas-dialog');view.addEventListener('close',()=>canvas.dispose(),{once:true});}),B('Save as default', async () => {
       await api('PUT', '/v1/generator/settings', {
         agents: draft
       });
       agents = structuredClone(draft);
       preset = selectedPreset;
       update();
-      toast('Tim agen default tersimpan.');
-    }), B('Terapkan', () => {
+      toast('Default agent team saved.');
+    }), B('Apply', () => {
       agents = structuredClone(draft);
       preset = selectedPreset;
       d.close();
@@ -849,13 +857,13 @@ export async function generatorWorkspace(ctx, workspace) {
           checked: notifyReady
         }),
         stage = (name, amount, when, tone) => h('tr', {}, h('td', {}, name), h('td', {}, amount), h('td', {}, ui.chip(when, tone))),
-        d = modal(mode === 'story' ? `Rencanakan ${n} episode?` : `Buat ${n * chosen.length} ide konten?`, h('div', {}, ui.chip(mode === 'story' ? 'Storyline' : 'Campaign', 'info'), h('table', {
+        d = modal(mode === 'story' ? `Plan ${n} episodes?` : `Create ${n * chosen.length} content ideas?`, h('div', {}, ui.chip(mode === 'story' ? 'Storyline' : 'Campaign', 'info'), h('table', {
           class: 'gf-stage-table'
-        }, h('thead', {}, h('tr', {}, ['Tahap', 'Jumlah', 'Kapan'].map(x => h('th', {}, x)))), h('tbody', {}, stage(mode === 'story' ? 'Storyteller + Manager + Scheduler' : 'Konsep + caption + review', `${n * chosen.length} konten`, 'Sekarang', 'ok'), stage('Gambar · ' + agents.image.model, `${n * chosen.length * Number(slides.value)} gambar`, 'Setelah konsep disetujui'), stage('Terbit', '0', 'Hanya setelah Anda setujui'))), h('div', {
+        }, h('thead', {}, h('tr', {}, ['Step', 'Amount', 'When'].map(x => h('th', {}, x)))), h('tbody', {}, stage(mode === 'story' ? 'Storyteller + Manager + Scheduler' : 'Concept + caption + review', `${n * chosen.length} posts`, 'Now', 'ok'), stage('Images · ' + agents.image.model, `${n * chosen.length * Number(slides.value)} images`, 'After concept approval'), stage('Publish', '0', 'Only after your approval'))), h('div', {
           class: 'rd-callout'
-        }, 'Biaya dibebankan ke API key pribadi sesuai tarif provider. Gambar memerlukan persetujuan dan konfirmasi biaya terpisah. Tidak ada publikasi otomatis.'), h('details', {}, h('summary', {}, 'Model yang dipakai sekarang'), h('ul', {}, (mode === 'story' ? ['storyteller', 'manager', 'scheduler'] : ['concept', 'revision']).map(role => h('li', {}, roles[role] + ' · ' + agents[role].provider + ' / ' + agents[role].model)))), h('label', {
+        }, 'Your personal API keys are billed at provider rates. Images need separate approval and cost confirmation. Nothing publishes automatically.'), h('details', {}, h('summary', {}, 'Models used for this run'), h('ul', {}, (mode === 'story' ? ['storyteller', 'manager', 'scheduler'] : ['concept', 'revision']).map(role => h('li', {}, roles[role] + ' · ' + agents[role].provider + ' / ' + agents[role].model)))), h('label', {
           class: 'gf-notify'
-        }, notify, 'Beri tahu di aplikasi saat konsep siap ditinjau')), [B('Kembali', () => d.close()), B('Mulai sesi', () => {
+        }, notify, 'Notify me in the app when concepts are ready')), [B('Back', () => d.close()), B('Start session', () => {
           accepted = true;
           notifyReady = notify.checked;
           d.close();
@@ -1001,24 +1009,19 @@ export async function generatorWorkspace(ctx, workspace) {
       }
       if (failures.length) replace(error, h('div', {
         class: 'rd-callout warn'
-      }, h('b', {}, `${[...batch.results.values()].filter(r => r.started || r.story || manual).length} akun siap · ${failures.length} perlu dicoba ulang`), ...failures.map(({
+      }, h('b', {}, `${[...batch.results.values()].filter(r => r.started || r.story || manual).length} accounts ready · ${failures.length} need retry`), ...failures.map(({
         a,
         e
-      }) => h('p', {}, '@' + a.username + ': ' + errMsg(e))), B('Coba ulang yang gagal', generate)));else if (mode === 'campaign') {
+      }) => h('p', {}, '@' + a.username + ': ' + errMsg(e))), B('Retry failed accounts', generate)));else if (mode === 'campaign') {
         const results = [...batch.results.values()];
-        toast(manual ? 'Rencana dibuat. Unggah media di Draft Konten.' : 'Sesi dimulai. Tinjau konsep di Draft Konten.');
-        running.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
+        toast(manual ? 'Plan created. Upload media in Drafts.' : 'Session started. Review its concepts in Drafts.');
       } else {
-        toast('Storyline mulai disusun. Progres sesi tampil di atas.');
-        running.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
+        toast('Storyline planning started. Opening its Drafts session.');
       }
-      await refresh();
+      if (!failures.length && batch.results.size) {
+        const result = [...batch.results.values()][0];
+        go('/generator/drafts/' + encodeURIComponent(result.id));
+      } else await refresh();
     } finally {
       submitting = false;
       update();
@@ -1043,32 +1046,32 @@ export async function generatorWorkspace(ctx, workspace) {
       class: 'gf-live-heading'
     }, ui.chip(failed.length ? 'Terhenti' : 'Sedang dibuat', failed.length ? 'bad' : 'info'), h('h2', {}, s.title), h('span', {
       class: 'small muted'
-    }, `${new Set(s.runs.flatMap(r => (r.targets || []).map(target => target.account_id))).size} akun · ${s.runs.length} konten`)), ui.progressPipeline(steps), failed.length ? h('div', {
+    }, `${new Set(s.runs.flatMap(r => (r.targets || []).map(target => target.account_id))).size} accounts · ${s.runs.length} posts`)), ui.progressPipeline(steps), failed.length ? h('div', {
       class: 'rd-callout warn'
-    }, h('b', {}, `${failed.length} konten gagal. ${s.runs.length - failed.length} konten lain tetap aman.`), errorBox(failed[0].error || 'Tahap provider belum selesai. Coba ulang setelah memeriksa model dan kuota.')) : null, h('div', {
+    }, h('b', {}, `${failed.length} posts failed. ${s.runs.length - failed.length} other posts remain saved.`), errorBox(failed[0].error || 'The provider step did not finish. Check the model and quota, then retry.')) : null, h('div', {
       class: 'gf-live-actions'
-    }, concepts.length ? link(`Tinjau ${concepts.length} konsep sekarang`, '/generator/drafts/' + s.id, 'ui-text-button') : ready.length ? link(`Tinjau ${ready.length} yang berhasil`, '/generator/drafts/' + s.id, 'ui-text-button') : h('span', {
+    }, concepts.length ? link(`Review ${concepts.length} concepts now`, '/generator/drafts/' + s.id, 'ui-text-button') : ready.length ? link(`Review ${ready.length} completed posts`, '/generator/drafts/' + s.id, 'ui-text-button') : h('span', {
       class: 'small muted'
-    }, 'Progres diperbarui otomatis.'), h('span', {
+    }, 'Progress updates automatically.'), h('span', {
       class: 'gf-grow'
-    }), failed.length ? B('Coba lagi ' + failed.length, async () => {
+    }), failed.length ? B('Retry ' + failed.length, async () => {
       if (!(await ui.confirmDialog({
-        title: `Coba ulang ${failed.length} konten?`,
+        title: `Retry ${failed.length} posts?`,
         tone: 'cost',
-        body: 'Hanya konten gagal yang dicoba ulang. Tahap berikutnya dapat memakai API key pribadi.'
+        body: 'Only failed posts are retried. The next step may use your personal API key.'
       }))) return;
       for (const r of failed) await api('POST', `/v1/generator/runs/${r.id}/retry`);
       await refresh();
     }) : B('Jeda', async () => {
       if (!(await ui.confirmDialog({
-        title: 'Hentikan sesi?',
+        title: 'Stop this session?',
         tone: 'danger',
-        body: 'Tahap yang sudah dikenakan biaya tidak dapat dibatalkan.',
+        body: 'Completed paid steps cannot be undone.',
         confirmLabel: 'Hentikan'
       }))) return;
       for (const r of s.runs.filter(r => ['queued', 'running'].includes(r.status))) await api('DELETE', `/v1/generator/runs/${r.id}`);
       await refresh();
-    }), link('Buka sesi', '/generator/drafts/' + s.id, 'btn primary')));
+    }), link('Open session', '/generator/drafts/' + s.id, 'btn primary')));
   }
   async function refresh() {
     if (stopped || pollBusy) return;
@@ -1082,13 +1085,13 @@ export async function generatorWorkspace(ctx, workspace) {
         latestJobs = response.data;
       }
       if (stopped) return;
-      const draftNav=root.querySelector('.pagehead a');if(draftNav){const waiting=sessions.reduce((n,s)=>n+s.runs.filter(r=>['concept_review','review'].includes(r.status)).length,0);replace(draftNav,'Draft Konten',waiting?ui.chip(waiting+' perlu ditinjau','warn'):null);}
+      const draftNav=root.querySelector('.pagehead a');if(draftNav){const waiting=sessions.reduce((n,s)=>n+s.runs.filter(r=>['concept_review','review'].includes(r.status)).length,0);replace(draftNav,'Drafts',waiting?ui.chip(waiting+' need review','warn'):null);}
       for (const s of sessions) {
         const ready = s.runs.filter(r => ['concept_review', 'review'].includes(r.status)).length,
           prior = old.find(x => x.id === s.id);
         if (notifyReady && prior && ready > prior.runs.filter(r => ['concept_review', 'review'].includes(r.status)).length && !notified.has(s.id)) {
           notified.add(s.id);
-          toast('Konsep sesi siap ditinjau di Draft Konten.');
+          toast('Session concepts are ready to review in Drafts.');
         }
       }
       replace(running, ...latestJobs.filter(j => ['queued', 'running', 'failed'].includes(j.status)).map(j => h('section', {
@@ -1096,11 +1099,11 @@ export async function generatorWorkspace(ctx, workspace) {
       }, h('h2', {}, (j.memory_session_title||'Sesi Storyline')+' · @' + (state.accounts.find(a => a.id === j.account_id)?.username || '')), ui.progressPipeline(['storyteller', 'manager', 'scheduler'].map(role => ({
         label: roles[role],
         status: j.steps?.[role]?.status || 'waiting'
-      }))), j.error ? errorBox(j.error) : null, j.status === 'failed' ? B('Coba ulang sesi', async () => {
+      }))), j.error ? errorBox(j.error) : null, j.status === 'failed' ? B('Retry session', async () => {
         if (!(await ui.confirmDialog({
-          title: 'Coba ulang Storyline?',
+          title: 'Retry Storyline?',
           tone: 'cost',
-          body: 'Tahap yang belum selesai dicoba ulang dengan API key pribadi.'
+          body: 'Incomplete steps are retried using your personal API key.'
         }))) return;
         await api('POST', `/v1/generator/story-jobs/${j.id}/retry`, {
           agents,
@@ -1109,31 +1112,31 @@ export async function generatorWorkspace(ctx, workspace) {
         await refresh();
       }) : B('Hentikan', async () => {
         if (await ui.confirmDialog({
-          title: 'Hentikan sesi cerita?',
+          title: 'Stop this story session?',
           tone: 'danger',
-          body: 'Tahap yang sudah dikenakan biaya tidak dapat dibatalkan.',
+          body: 'Completed paid steps cannot be undone.',
           confirmLabel: 'Hentikan'
         })) {
           await api('DELETE', `/v1/generator/story-jobs/${j.id}`);
           await refresh();
         }
-      }), j.plan_id ? link('Buka proposal', '/generator/drafts/' + j.plan_id) : null)), ...sessions.filter(s => workspace.stateOf(s) === 'running' || s.runs.some(r => r.status === 'failed' && Date.parse(r.updated_at || r.created_at) > Date.now() - 864e5)).slice(0, 2).map(liveCard));
+      }), j.plan_id ? link('Open proposal', '/generator/drafts/' + j.plan_id) : null)), ...sessions.filter(s => workspace.stateOf(s) === 'running' || s.runs.some(r => r.status === 'failed' && Date.parse(r.updated_at || r.created_at) > Date.now() - 864e5)).slice(0, 2).map(liveCard));
       replace(recent, h('section', {
         class: 'gf-session-recent'
-      }, h('header', {}, h('h2', {}, 'Sesi terakhir'), link('Semua sesi di Draft Konten', '/generator/drafts', 'ui-text-button')), ...latestJobs.filter(j => j.status === 'review' && j.plan_id).map(j => link('Tinjau proposal Storyline', '/generator/drafts/' + j.plan_id, 'btn primary')), ...sessions.slice(0, 3).map(s => h('div', {
+      }, h('header', {}, h('h2', {}, 'Recent sessions'), link('All sessions in Drafts', '/generator/drafts', 'ui-text-button')), ...latestJobs.filter(j => j.status === 'review' && j.plan_id).map(j => link('Review Storyline proposal', '/generator/drafts/' + j.plan_id, 'btn primary')), ...sessions.slice(0, 3).map(s => h('div', {
         class: 'gf-recent-row'
       }, ui.chip({
-        action: 'Perlu ditinjau',
+        action: 'Needs review',
         running: 'Sedang dibuat',
-        done: 'Selesai',
-        plan: 'Rencana',
+        done: 'Done',
+        plan: 'Planned',
         expired: 'Kedaluwarsa'
-      }[workspace.stateOf(s)] || 'Perlu ditinjau', workspace.stateOf(s) === 'done' ? 'ok' : workspace.stateOf(s)==='action'?'warn':'info'), h('b', {}, s.title), h('span', {
+      }[workspace.stateOf(s)] || 'Needs review', workspace.stateOf(s) === 'done' ? 'ok' : workspace.stateOf(s)==='action'?'warn':'info'), h('b', {}, s.title), h('span', {
         class: 'small muted'
-      }, `${new Set(s.runs.flatMap(r => (r.targets || []).map(target => target.account_id))).size} akun · ${s.runs.length} konten`), link('Buka', '/generator/drafts/' + s.id, 'btn sm'))), !sessions.length ? h('p', {
+      }, `${new Set(s.runs.flatMap(r => (r.targets || []).map(target => target.account_id))).size} accounts · ${s.runs.length} posts`), link('Open', '/generator/drafts/' + s.id, 'btn sm'))), !sessions.length ? h('p', {
         class: 'muted small',
         style: 'padding:16px'
-      }, 'Belum ada sesi. Sesi pertama Anda muncul di sini.') : null));
+      }, 'No sessions yet. Your first session will appear here.') : null));
     } catch (e) {
       if (!stopped) replace(error, errorBox(e));
     } finally {
@@ -1155,25 +1158,25 @@ export async function generatorWorkspace(ctx, workspace) {
     class: 'row rd-quick-ideas'
   }, h('span', {
     class: 'small muted'
-  }, 'Ide cepat:'), ['Promo', 'Edukasi produk', 'Testimoni', 'Di balik layar'].map(x => B(x, async () => {
-    const ids=selected().map(a=>a.id);if(!ids.length){toast('Pilih akun terlebih dahulu agar ide sesuai Brand Kit dan riwayatnya.',true);return;}
-    if(!await ui.confirmDialog({title:'Buat prompt '+x+'?',tone:'cost',body:'Conceptor akan memakai API key pribadi untuk membaca Brand Kit, memori cerita dan sesi sebelumnya, lalu menyusun prompt detail. Belum membuat gambar atau menerbitkan post.',confirmLabel:'Buat prompt'}))return;
-    const before=brief.value;quickIdeas.inert=true;quickIdeas.setAttribute('aria-busy','true');const progress=h('span',{class:'small muted',role:'status'},'Conceptor sedang menyusun prompt…');quickIdeas.append(progress);
-    try{const result=await api('POST','/v1/generator/quick-idea',{account_ids:ids,kind:x,direction:before,agents,memory_sessions:Object.fromEntries(ids.map(id=>[id,state.brandProfiles[id]?.memory_session_id])),confirm_cost:true});
+  }, 'Quick ideas:'), [['Promo', 'Promotion'], ['Edukasi produk', 'Product education'], ['Testimoni', 'Testimonials'], ['Di balik layar', 'Behind the scenes']].map(([kind, label]) => B(label, async () => {
+    const ids=selected().map(a=>a.id);if(!ids.length){toast('Select an account so the idea uses its Brand Kit and history.',true);return;}
+    if(!await ui.confirmDialog({title:'Create a prompt for '+label+'?',tone:'cost',body:'Conceptor uses your personal API key to read this account’s Brand Kit, story memory, and previous sessions. This creates a detailed prompt without images or publishing.',confirmLabel:'Create prompt'}))return;
+    const before=brief.value;quickIdeas.inert=true;quickIdeas.setAttribute('aria-busy','true');const progress=h('span',{class:'small muted',role:'status'},'Conceptor is preparing a prompt…');quickIdeas.append(progress);
+    try{const result=await api('POST','/v1/generator/quick-idea',{account_ids:ids,kind,direction:before,agents,memory_sessions:Object.fromEntries(ids.map(id=>[id,state.brandProfiles[id]?.memory_session_id])),confirm_cost:true});
       if(stopped)return;
-      if(brief.value!==before||JSON.stringify(selected().map(a=>a.id))!==JSON.stringify(ids)){const text=h('textarea',{rows:12,'aria-label':'Prompt Conceptor'},result.prompt);const d=modal('Prompt '+x,h('div',{},h('p',{},'Arahan atau pilihan akun berubah selama proses. Tinjau prompt sebelum menggunakannya.'),text),[B('Gunakan prompt',()=>{brief.value=text.value;d.close();update();})]);}
-      else{brief.value=result.prompt;brief.focus();update();toast('Prompt detail dari Conceptor siap. Anda dapat mengeditnya.');}
+      if(brief.value!==before||JSON.stringify(selected().map(a=>a.id))!==JSON.stringify(ids)){const text=h('textarea',{rows:12,'aria-label':'Conceptor prompt'},result.prompt);const d=modal('Prompt: '+label,h('div',{},h('p',{},'The brief or selected accounts changed during generation. Review the prompt before using it.'),text),[B('Use prompt',()=>{brief.value=text.value;d.close();update();})]);}
+      else{brief.value=result.prompt;brief.focus();update();toast('Conceptor’s detailed prompt is ready to edit.');}
     }catch(e){toast(errMsg(e),true);}finally{quickIdeas.inert=false;quickIdeas.removeAttribute('aria-busy');progress.remove();}
   }, 'btn sm'))), briefCounter);
   const composer = h('section', {
     class: 'panel rd-generator-composer'
-  }, step('1', 'Untuk akun mana?', h('div', {}, accountRow, h('p', {
+  }, step('1', 'Which account?', h('div', {}, accountRow, h('p', {
     class: 'small muted gf-account-hint'
   }, h('span', {
     class: 'ui-dot warn'
-  }), ' = Brand Kit belum ada. Detail dan cara memperbaiki ada di ringkasan sesi.')), accountMeta), step('2', 'Mau buat apa?', h('div', {}, storyInfo, field('Arahan sesi', brief), quickIdeas, formatOptions, field('Bahasa caption', captionLanguage)), modeControl), step('3', 'Kapan tayang?', h('div', {}, scheduleSentence, h('p', {
+  }), ' = Brand Kit missing. See the session summary for details.')), accountMeta), step('2', 'What would you like to create?', h('div', {}, storyInfo, field('Session brief', brief), quickIdeas, formatOptions, field('Caption language', captionLanguage)), modeControl), step('3', 'When should it post?', h('div', {}, scheduleSentence, h('p', {
     class: 'small muted'
-  }, 'Distribusi mengikuti rentang dan slot yang dipilih. Jam belum dianalisis dari performa akun.'))));
+  }, 'Posts use the selected date range and time slots. Times are not based on account performance.'))));
   format.classList.add('gf-native-control');
   images.classList.add('gf-native-control');
   slides.classList.add('gf-slide-count');
@@ -1183,11 +1186,11 @@ export async function generatorWorkspace(ctx, workspace) {
     class: 'rd-page gf-generator'
   }, h('div', {
     class: 'pagehead'
-  }, h('div', {}, h('h1', {}, 'Sosmed Generator'), h('p', {}, 'Pilih akun, tulis arahan, AI menyiapkan draft untuk Anda tinjau.')), link('Draft Konten', '/generator/drafts', 'btn')), running, error, h('div', {
+  }, h('div', {}, h('h1', {}, 'Content Generator'), h('p', {}, 'Select an account and write a brief. AI will prepare drafts for your review.')), link('Drafts', '/generator/drafts', 'btn')), running, error, h('div', {
     class: 'rd-generator-layout'
   }, composer, summary), h('div', {
     class: 'rd-advanced'
-  }, B('Tim agen & model · Lanjutan', teamDrawer, 'ui-text-button'), teamSummary), recent, mobileFooter);
+  }, B('Agent team and models · Advanced', teamDrawer, 'ui-text-button'), teamSummary), recent, mobileFooter);
   drawAccounts();
   drawStory();
   update();
@@ -1198,12 +1201,12 @@ export async function generatorWorkspace(ctx, workspace) {
   return {
     element: root,
     dispose: async () => {
-      if(quickIdeas.getAttribute('aria-busy')==='true')throw new Error('Tunggu Conceptor menyelesaikan prompt.');
+      if(quickIdeas.getAttribute('aria-busy')==='true')throw new Error('Wait for Conceptor to finish the prompt.');
       stopped = true;
       clearTimeout(timer);
       for (const saver of openSavers) {
         await saver.flush();
-        if (saver.error) throw new Error('Brand Kit belum tersimpan. Coba simpan kembali.');
+        if (saver.error) throw new Error('Brand Kit was not saved. Try saving again.');
       }
       document.querySelectorAll('dialog.rd-drawer[open]').forEach(d => d.close());
     }

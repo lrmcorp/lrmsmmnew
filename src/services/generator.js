@@ -14,14 +14,14 @@ import { PROVIDERS, generateText, generateImage, geminiModels } from '../llm/pro
 
 export const ROLES = ['concept', 'revision', 'image', 'final', 'storyteller', 'manager', 'scheduler', 'visual'];
 export const DEFAULT_AGENTS = {
-  visual:{provider:'openai',model:'gpt-4.1-mini',instructions:'Anda Final Visual Conceptor. Finalisasi arahan visual setiap slide sesuai referensi unggahan, logo, produk asli dan gaya feed Instagram yang benar-benar tersedia. Tentukan komposisi, warna, tipografi, pencahayaan dan kesinambungan antar-post. Jangan mengubah logo atau detail produk. Jangan meniru isi atau klaim dari referensi.'},
-  storyteller:{provider:'openai',model:'gpt-4.1-mini',instructions:'Anda storyteller kelas dunia untuk Instagram. Bangun cerita merek berkelanjutan dari prompt awal, pilih produk dari katalog, dan kembangkan episode tanpa memulai ulang kisah.'},
-  manager:{provider:'openai',model:'gpt-4.1-mini',instructions:'Anda Social Media Manager. Periksa kesinambungan cerita, konsistensi merek, klaim, variasi konten, pemilihan produk, serta tujuan tiap episode. Koreksi proposal sebelum produksi.'},
-  scheduler:{provider:'openai',model:'gpt-4.1-mini',instructions:'Anda Scheduler. Diskusikan temuan Manager, pilih slot waktu yang tersedia untuk tiap episode berdasarkan alur cerita dan jenis konten, dan jelaskan alasannya. Jangan mengaku memiliki data performa yang tidak diberikan.'},
-  concept: { provider: 'openai', model: 'gpt-4.1-mini', instructions: 'Buat konsep sosial media yang jelas dan sesuai merek. Jangan mengarang fakta atau klaim produk.' },
-  revision: { provider: 'anthropic', model: 'claude-sonnet-4-5', instructions: 'Kritisi konsep, perbaiki kejelasan, konsistensi, ejaan dan klaim. Pertahankan tujuan brief.' },
-  image: { provider: 'openai', model: 'gpt-image-1', instructions: 'Buat gambar persegi berkualitas untuk feed Instagram. Jaga gaya visual konsisten antar-slide.' },
-  final: { provider: 'gemini', model: 'gemini-2.5-flash', instructions: 'Periksa gambar nyata, kecocokan dengan caption, ejaan, konsistensi dan risiko klaim. Beri catatan jujur untuk persetujuan manusia.' },
+  visual:{provider:'openai',model:'gpt-4.1-mini',instructions:'Finalize the visual direction for each slide using the account’s real references, logo, products and Instagram feed style. Specify composition, palette, type, lighting and continuity. Never alter the logo or product details or copy claims from references.'},
+  storyteller:{provider:'openai',model:'gpt-4.1-mini',instructions:'Build a continuing Instagram story for the selected account from its own story foundation, Brand Kit, products and saved memory. Advance the story without restarting it or borrowing another account’s identity.'},
+  manager:{provider:'openai',model:'gpt-4.1-mini',instructions:'Review this account’s story continuity, Brand Kit, claims, content variety, products and the purpose of each episode. Correct the proposal before production.'},
+  scheduler:{provider:'openai',model:'gpt-4.1-mini',instructions:'Use this account’s approved story and available time slots to schedule each episode in order. Explain each choice without claiming access to performance data that was not supplied.'},
+  concept: { provider: 'openai', model: 'gpt-4.1-mini', instructions: 'Create clear social content concepts for the selected account and its Brand Kit. Do not invent product facts or claims.' },
+  revision: { provider: 'anthropic', model: 'claude-sonnet-4-5', instructions: 'Review concepts for clarity, brand consistency, spelling and unsupported claims. Preserve the brief’s goal.' },
+  image: { provider: 'openai', model: 'gpt-image-1', instructions: 'Create square Instagram feed images consistent with this account’s Brand Kit and real product references.' },
+  final: { provider: 'gemini', model: 'gemini-2.5-flash', instructions: 'Review the actual images against the caption, spelling, brand consistency and claims. Give honest notes for human approval.' },
 };
 const active = new Map();
 const keyOf = (userId, provider) => {
@@ -31,8 +31,20 @@ const keyOf = (userId, provider) => {
 };
 export function settings(user) {
   const stored=parseJSON(one('SELECT agents FROM generator_settings WHERE user_id=?',user.id)?.agents,{});
-  return { providers: PROVIDERS, agents: Object.fromEntries(ROLES.map(role=>[role,{...DEFAULT_AGENTS[role],...(stored?.[role]||(role==='visual'?{provider:stored?.concept?.provider||DEFAULT_AGENTS.visual.provider,model:stored?.concept?.model||DEFAULT_AGENTS.visual.model}:{}))}])),
-    keys: all('SELECT provider,updated_at FROM generator_keys WHERE user_id=?', user.id) };
+  const keys=all('SELECT provider,updated_at FROM generator_keys WHERE user_id=?', user.id);
+  const available=new Set(keys.map(k=>k.provider));
+  const preferred=['openai','gemini','anthropic'].find(p=>available.has(p));
+  const imagePreferred=['openai','gemini'].find(p=>available.has(p));
+  const agents=Object.fromEntries(ROLES.map(role=>{
+    const agent={...DEFAULT_AGENTS[role],...(stored?.[role]||(role==='visual'?{provider:stored?.concept?.provider||DEFAULT_AGENTS.visual.provider,model:stored?.concept?.model||DEFAULT_AGENTS.visual.model}:{}))};
+    const fallback=role==='image'?imagePreferred:preferred;
+    if(fallback&&!available.has(agent.provider)){
+      agent.provider=fallback;
+      agent.model=role==='image'?PROVIDERS[fallback].imageModel:PROVIDERS[fallback].textModel;
+    }
+    return [role,agent];
+  }));
+  return {providers:PROVIDERS,agents,keys};
 }
 function cleanAgents(agents) {
   if (!agents || typeof agents !== 'object') throw err(400, 'validation_failed', 'Konfigurasi agen wajib diisi.');
@@ -319,7 +331,13 @@ export async function createPlan(user, body) {
     if (body.manual !== true) {
       if (body.confirm_cost !== true) throw err(400, 'cost_confirmation_required', 'Konfirmasi biaya satu panggilan AI untuk menyusun rencana. Gambar dibuat terpisah.');
       const a = agents.concept;
-      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), jsonSchema:campaignSchema, maxTokens:Math.min(16000,2000+body.content_count*400), system: a.instructions + '\n'+ASSET_PRESERVATION+`\nReturn ONLY JSON {"contents":[{"title":"topic title","brief":"specific content brief"}]}. Exactly ${body.content_count} distinct content ideas, each brief <=200 characters, using the user's language. No images, no publishing.`, prompt: body.brief+'\nBrand rules: '+refs.notes });
+      const accountContext=body.account_ids.map(aid=>{
+        const account=one('SELECT username,platform FROM accounts WHERE id=?',aid);
+        if(account?.platform!=='instagram')return {account:account?.username||aid,brand_rules:refs.notes};
+        const p=storytelling.profile(user,aid);
+        return {account:'@'+account.username,story_foundation:p.seed.slice(0,1800),brand_rules:p.brand_notes.slice(0,1800),story_memory:p.memory.slice(0,1800),brand_identity:p.identity,products:p.assets.filter(asset=>asset.category==='product').slice(0,12).map(asset=>({name:asset.name,description:asset.description.slice(0,220)}))};
+      });
+      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), jsonSchema:campaignSchema, maxTokens:Math.min(16000,2000+body.content_count*400), system: a.instructions + '\n'+ASSET_PRESERVATION+`\nCreate ideas specifically for the selected account and its Brand Kit. Do not reuse another account's identity, story or products. Return ONLY JSON {"contents":[{"title":"topic title","brief":"specific content brief"}]}. Exactly ${body.content_count} distinct content ideas, each brief <=200 characters, using the requested caption language. No images, no publishing.`, prompt:JSON.stringify({direction:body.brief,accounts:accountContext,reference_notes:refs.notes}).slice(0,12000) });
       let parsed; try { parsed = JSON.parse(result.text.replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'')); } catch { throw err(422, 'generator_format', 'Agen planner tidak mengembalikan JSON yang valid.'); }
       if (!Array.isArray(parsed.contents) || parsed.contents.length !== body.content_count || parsed.contents.some(c => typeof c.title !== 'string' || !c.title.trim() || c.title.length > 200 || typeof c.brief !== 'string' || !c.brief.trim() || c.brief.length > 2000)) throw err(422, 'generator_format', 'Jumlah/judul/brief ide planner tidak sesuai permintaan.');
       ideas = parsed.contents;

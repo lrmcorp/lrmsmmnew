@@ -1,0 +1,70 @@
+// Browser smoke test for the English Generator and its Drafts handoff.
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+
+(async()=>{
+  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'lrmsmm-deploy-browser-'));
+  Object.assign(process.env,{META_MOCK:'1',DATA_DIR:tmp,DISABLE_WORKER:'1'});
+  const root=path.resolve(__dirname,'..');
+  const {app}=await import(root+'/src/server.js');
+  const {createUser}=await import(root+'/src/auth.js');
+  const {run}=await import(root+'/src/db.js');
+  const {encrypt}=await import(root+'/src/util.js');
+  const generator=await import(root+'/src/services/generator.js');
+  const story=await import(root+'/src/services/storytelling.js');
+  const user=createUser({email:'browser@fixture.id',password:'fixture-password',name:'Browser Owner',role:'owner'});
+  run("INSERT INTO accounts(id,platform,platform_user_id,username,token_enc) VALUES('browser-account','instagram','browser-account','browser.brand',?)",encrypt('fixture-token'));
+  story.saveProfile(user,'browser-account',{seed:'A precise, friendly brand for everyday care.',brand_notes:'Caption language: en'});
+  generator.saveKey(user,'openai','fixture-private-key');
+  const server=app.listen(0,'127.0.0.1');
+  await new Promise(resolve=>server.once('listening',resolve));
+  const base='http://127.0.0.1:'+server.address().port;
+  const login=await fetch(base+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:user.email,password:'fixture-password'})});
+  assert.equal(login.status,200);
+  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
+  try{
+    const context=await browser.newContext({viewport:{width:1280,height:900},locale:'en-GB'});
+    await context.addCookies([{name:'lrmsmm_sid',value:login.headers.get('set-cookie').split(';')[0].split('=')[1],url:base}]);
+    const page=await context.newPage(),errors=[];
+    page.on('pageerror',error=>errors.push(error.message));
+    await page.goto(base+'/#/settings?tab=ai');
+    await page.getByRole('heading',{name:'Your AI connections'}).waitFor();
+    await page.getByRole('heading',{name:'OpenAI (ChatGPT & Codex)'}).waitFor();
+    assert.equal(await page.locator('html').getAttribute('lang'),'en');
+    await page.goto(base+'/#/generator');
+    await page.getByRole('heading',{name:'Content Generator'}).waitFor();
+    await page.locator('[data-account-control="chip-browser-account"]').click();
+    await page.getByLabel('Content brief').fill('Introduce the brand to first-time customers.');
+    await page.getByLabel('Image source').selectOption('manual');
+    const start=new Date(Date.now()+4*864e5+7*3600000).toISOString().slice(0,10);
+    const end=new Date(Date.now()+5*864e5+7*3600000).toISOString().slice(0,10);
+    await page.locator('.gf-schedule-sentence button.gf-inline').first().click();
+    await page.getByLabel('Start date (Jakarta time)').fill(start);
+    await page.getByLabel('End date (Jakarta time)').fill(end);
+    await page.getByLabel('Posts per account').fill('6');
+    const submit=page.locator('.rd-generate');
+    await page.getByLabel('Posting times (Jakarta time)').fill('12:15, 19:15');
+    await page.getByRole('button',{name:'Apply'}).click();
+    assert.equal(await submit.isDisabled(),true,'six posts cannot fit in four slots');
+    await page.getByText('6 posts need at least 6 available slots.',{exact:false}).waitFor();
+    await page.locator('.gf-schedule-sentence button.gf-inline').first().click();
+    await page.getByLabel('Posting times (Jakarta time)').fill('09:00, 12:15, 19:15');
+    await page.getByRole('button',{name:'Apply'}).click();
+    assert.equal(await submit.isEnabled(),true);
+    await submit.click();
+    await page.waitForURL(/#\/generator\/drafts\/plan_/);
+    await page.locator('.rd-session-page').waitFor();
+    await page.getByRole('link',{name:'Drafts'}).first().waitFor();
+    assert.equal(await page.locator('.df-plan-table tbody tr').count(),6);
+    assert.deepEqual(errors,[]);
+    await context.close();
+    console.log('PASS English settings, schedule capacity and Generator to Drafts handoff');
+  }finally{
+    await browser.close();
+    await new Promise(resolve=>server.close(resolve));
+    fs.rmSync(tmp,{recursive:true,force:true});
+  }
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -81,6 +81,7 @@ test('personal credentials, provider contracts, durable pipeline and final hando
     await t.test('planned concepts require only concept and revision keys before image approval',async()=>{
       gen.saveKey(other,'openai',secret);
       const agents=structuredClone(gen.settings(other).agents);
+      assert.ok(Object.entries(agents).every(([role,agent])=>agent.provider==='openai'), 'one OpenAI key automatically covers all compatible roles');
       agents.concept={...agents.concept,provider:'openai',model:'gpt-4.1-mini'};
       agents.revision={...agents.revision,provider:'openai',model:'gpt-4.1-mini'};
       const date=new Date(Date.now()+2*864e5+7*3600000).toISOString().slice(0,10);
@@ -90,6 +91,21 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.equal(providerCalls.length,before,'queue does not spend or invoke later providers');
       gen.cancelRun(other,planned.id);gen.deleteKey(other,'openai');
       run('DELETE FROM generator_runs WHERE plan_id=?',plan.id);run('DELETE FROM generator_plans WHERE id=?',plan.id);
+    });
+    await t.test('Codex text models use the Responses API with the OpenAI key',async()=>{
+      const previous=global.fetch;
+      let request;
+      try{
+        global.fetch=async(url,options)=>{
+          request={url,options};
+          return Response.json({output:[{content:[{type:'output_text',text:'{"ok":true}'}]}]});
+        };
+        const result=await generateText({provider:'openai',model:'gpt-5.1-codex-mini',key:secret,system:'Return JSON',prompt:'Plan content',jsonSchema:{type:'object',properties:{ok:{type:'boolean'}},required:['ok'],additionalProperties:false}});
+        assert.equal(request.url,'https://api.openai.com/v1/responses');
+        assert.equal(request.options.headers.Authorization,'Bearer '+secret);
+        assert.equal(JSON.parse(request.options.body).text.format.type,'json_schema');
+        assert.equal(result.text,'{"ok":true}');
+      }finally{global.fetch=previous;}
     });
     await t.test('Gemini catalog uses private key metadata, isolates users, and excludes unsupported models',async()=>{
       const before=providerCalls.length,reads=catalogReads;

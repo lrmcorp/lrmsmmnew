@@ -12,13 +12,15 @@ export async function storyWorkspace({
   technicalError,
   accounts,
   agents,
+  canGenerateImages = true,
   dates,
   toast,
   fmtDT,
   fixedAccount = false,
   mode = "setup",
   onContext = () => {},
-  onJob = () => {}
+  onJob = () => {},
+  onStarted = () => {}
 }) {
   let stopped = false,
     profile = null,
@@ -458,7 +460,7 @@ export async function storyWorkspace({
       start_date: dates.from.value,
       end_date: dates.until.value,
       times: dates.times.value.split(',').map(_targetValue => _targetValue.trim()).filter(Boolean),
-      produce_media: true,
+      produce_media: canGenerateImages,
       agents: agents(),
       confirm_cost: true
     };
@@ -483,7 +485,7 @@ export async function storyWorkspace({
     currentJob = j.id;
     lastSignature = '';
     requestSignature = '';
-    await refresh();
+    onStarted(j);
   }, true, true);
   const setupLink = h('a', {
     class: 'btn'

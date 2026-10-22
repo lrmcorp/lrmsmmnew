@@ -84,7 +84,7 @@ export function queue(user,body,agents) {
  }
  let p=profile(user,body.account_id,body.memory_session_id||null);
  if(!p.seed.trim())throw err(400,'story_seed_required','Simpan prompt cerita awal untuk akun ini terlebih dahulu.');
- if(!p.memory_session_id){p=createMemorySession(user,body.account_id,{title:'Cerita awal'});}
+ if(!p.memory_session_id){p=createMemorySession(user,body.account_id,{title:'Initial story'});}
  const payload={memory_session_id:p.memory_session_id,...basePayload},hash=sha256(JSON.stringify(payload));
  if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND status IN ('queued','running')",body.account_id))throw err(409,'story_busy','Akun ini masih memiliki sesi cerita aktif.');
  const jid=id('story');run('INSERT INTO story_jobs(id,user_id,account_id,request_id,request_hash,payload,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',jid,user.id,body.account_id,body.request_id,hash,JSON.stringify({...payload,base_revision:p.revision}),now(),now());run('UPDATE story_jobs SET memory_session_id=? WHERE id=?',p.memory_session_id,jid);return job(user,jid);

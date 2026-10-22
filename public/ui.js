@@ -690,8 +690,8 @@ function outside(e, node) {
   const r = node.getBoundingClientRect();
   return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
 }
-export const fmtNumber = n => Number(n || 0).toLocaleString('id-ID');
-const date = (iso, options) => iso ? new Intl.DateTimeFormat('id-ID', {
+export const fmtNumber = n => Number(n || 0).toLocaleString('en-GB');
+const date = (iso, options) => iso ? new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Asia/Jakarta',
   hourCycle: 'h23',
   ...options

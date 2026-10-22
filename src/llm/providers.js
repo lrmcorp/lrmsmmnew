@@ -3,9 +3,9 @@ import { createHash } from 'node:crypto';
 import { err } from '../util.js';
 
 export const PROVIDERS = {
-  openai: { name: 'OpenAI (ChatGPT models)', textModel: 'gpt-4.1-mini', imageModel: 'gpt-image-1', image: true, textModels: [{id:'gpt-4.1-mini',name:'GPT-4.1 mini · Ringan'}, {id:'gpt-4.1',name:'GPT-4.1 · Detail'}, {id:'gpt-4o',name:'GPT-4o · Multimodal'}], imageModels: [{id:'gpt-image-1',name:'GPT Image 1'}] },
-  anthropic: { name: 'Anthropic (Claude)', textModel: 'claude-sonnet-4-5', image: false, textModels: [{id:'claude-sonnet-4-5',name:'Claude Sonnet 4.5'}, {id:'claude-haiku-4-5',name:'Claude Haiku 4.5 · Ringan'}, {id:'claude-opus-4-1',name:'Claude Opus 4.1 · Detail'}], imageModels: [] },
-  gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detail'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Ringan'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
+  openai: { name: 'OpenAI (ChatGPT & Codex)', textModel: 'gpt-4.1-mini', imageModel: 'gpt-image-1', image: true, textModels: [{id:'gpt-4.1-mini',name:'GPT-4.1 mini · Fast'}, {id:'gpt-4.1',name:'GPT-4.1 · Detailed'}, {id:'gpt-4o',name:'GPT-4o · Multimodal'}, {id:'gpt-5.1-codex-mini',name:'GPT-5.1 Codex mini · Responses API'}], imageModels: [{id:'gpt-image-1',name:'GPT Image 1'}] },
+  anthropic: { name: 'Anthropic (Claude)', textModel: 'claude-sonnet-4-5', image: false, textModels: [{id:'claude-sonnet-4-5',name:'Claude Sonnet 4.5'}, {id:'claude-haiku-4-5',name:'Claude Haiku 4.5 · Fast'}, {id:'claude-opus-4-1',name:'Claude Opus 4.1 · Detailed'}], imageModels: [] },
+  gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detailed'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Fast'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
 };
 
 async function jsonRequest(url, headers, body, method = 'POST') {
@@ -60,7 +60,10 @@ export async function geminiModels(key,{refresh=false}={}) {
 
 export async function generateText({ provider, model, key, system, prompt, images = [], maxTokens = 2400, jsonSchema = null }) {
   let result, text;
-  if (provider === 'openai') {
+  if (provider === 'openai' && /codex/i.test(model)) {
+    result = await jsonRequest('https://api.openai.com/v1/responses', { Authorization: `Bearer ${key}` }, { model, instructions:system, input:[{role:'user',content:[{type:'input_text',text:prompt},...images.map(x=>({type:'input_image',image_url:`data:${x.mime};base64,${x.data}`}))]}], max_output_tokens:maxTokens, ...(jsonSchema?{text:{format:{type:'json_schema',name:'content_plan',strict:true,schema:jsonSchema}}}:{}) });
+    text = result.output_text || result.output?.flatMap(item=>item.content||[]).filter(part=>part.type==='output_text').map(part=>part.text).join('\n');
+  } else if (provider === 'openai') {
     const content = [{ type: 'text', text: prompt }, ...images.map(x => ({ type: 'image_url', image_url: { url: `data:${x.mime};base64,${x.data}`, detail: 'low' } }))];
     result = await jsonRequest('https://api.openai.com/v1/chat/completions', { Authorization: `Bearer ${key}` }, { model, ...(jsonSchema?{response_format:{type:'json_schema',json_schema:{name:'content_plan',strict:true,schema:jsonSchema}}}:{}), max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content }] });
     text = result.choices?.[0]?.message?.content;
