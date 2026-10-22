@@ -3396,6 +3396,7 @@ async function pageGenerator() {
     accounts: state.accounts.filter(a => a.platform === 'instagram' && a.status === 'active'),
     mode: 'production',
     agents: collectAgents,
+    canGenerateImages: config.keys.some(k => config.providers[k.provider]?.image),
     dates: {
       count: totalContents,
       slides: count,
@@ -3413,7 +3414,8 @@ async function pageGenerator() {
       }
       studio?.setStoryContext(value);
     },
-    onJob: showStoryWorkflow
+    onJob: showStoryWorkflow,
+    onStarted: job => go('/generator/drafts/' + encodeURIComponent(job.id))
   });
   studio = generatorStudio({
     h,

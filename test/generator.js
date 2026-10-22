@@ -82,7 +82,6 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       gen.saveKey(other,'openai',secret);
       assert.ok(Object.values(gen.settings(other).agents).every(agent=>agent.provider==='openai'),'one OpenAI key covers compatible roles');
       const agents=structuredClone(gen.settings(other).agents);
-      assert.ok(Object.entries(agents).every(([role,agent])=>agent.provider==='openai'), 'one OpenAI key automatically covers all compatible roles');
       agents.concept={...agents.concept,provider:'openai',model:'gpt-4.1-mini'};
       agents.revision={...agents.revision,provider:'openai',model:'gpt-4.1-mini'};
       const date=new Date(Date.now()+2*864e5+7*3600000).toISOString().slice(0,10);

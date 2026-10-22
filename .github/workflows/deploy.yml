@@ -40,7 +40,7 @@ jobs:
       - name: Browser workflow and responsive checks
         run: |
           npm install --prefix "$RUNNER_TEMP/lrmsmm-browser-tools" --no-save --ignore-scripts playwright@1.56.1
-          PLAYWRIGHT_MODULE="$RUNNER_TEMP/lrmsmm-browser-tools/node_modules/playwright" CHROMIUM_PATH="$(command -v google-chrome)" node --no-warnings test/deploy-browser.cjs
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/lrmsmm-browser-tools/node_modules/playwright" CHROMIUM_PATH="$(command -v google-chrome)" node --no-warnings test/redesign-browser.cjs
       - name: Upload browser review screenshots
         if: always()
         uses: actions/upload-artifact@v4
