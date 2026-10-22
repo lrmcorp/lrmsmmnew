@@ -1,3 +1,4 @@
+import {homeWorkspace} from './home-workspace.js';
 import {accountBrandWorkspace} from './account-brand-workspace.js';
 import {auditWorkspace} from './audit-workspace.js';
 import {autosave,fmtDay,fmtSlot,fmtTime,fmtNumber} from './ui.js';
@@ -152,5 +153,5 @@ export function workspacePages(ctx,content){
   await load();return{element:h('div',{class:'rd-page'},head('Jejak Audit','Aktivitas workspace yang tercatat. Filter akun hanya memakai hubungan yang tersedia.',B('Ekspor CSV',csv)),scope.element,h('div',{class:'rd-list-tools'},memberSelect,typeSelect,dateInput),body,more)};
  }
 
- return {home,...accountBrandWorkspace(ctx,content),media:mediaPage,calendar,insights,team,audit:()=>auditWorkspace(ctx,content),table,head};
+ return {home:()=>homeWorkspace(ctx,content),...accountBrandWorkspace(ctx,content),media:mediaPage,calendar,insights,team,audit:()=>auditWorkspace(ctx,content),table,head};
 }
