@@ -55,7 +55,9 @@ async function finalize(mediaId, filePath) {
       // Instagram only accepts JPEG — convert once on ingest.
       finalPath = `${filePath}.jpg`;
       await sharp(filePath).flatten({ background: '#ffffff' }).jpeg({ quality: 90, mozjpeg: true }).toFile(finalPath);
-      fs.rmSync(filePath, { force: true });
+      // Retain exact uploaded PNG bytes/alpha privately for brand composition.
+      const sourcePath=`${filePath}.original.png`;fs.renameSync(filePath,sourcePath);
+      run('UPDATE media SET source_path=?,source_size_bytes=? WHERE id=?',sourcePath,size,mediaId);
       mime = 'image/jpeg'; size = fs.statSync(finalPath).size;
     } else {
       fs.renameSync(filePath, finalPath);
@@ -98,7 +100,7 @@ export async function saveBuffer(userId, buf, opts = {}) {
   fs.writeFileSync(p, buf);
   try { const m = await finalize(mid, p); if (opts.alt_text) return setAlt(mid, opts.alt_text); return m; }
   catch (e) {
-    for (const suffix of ['', '.jpg', '.png', '.mp4', '.mov']) fs.rmSync(p + suffix, { force: true });
+    for (const suffix of ['', '.jpg', '.png', '.original.png', '.mp4', '.mov']) fs.rmSync(p + suffix, { force: true });
     run('DELETE FROM media WHERE id=?', mid); throw e;
   }
 }
@@ -220,7 +222,7 @@ export function deleteMedia(mediaId) {
   const m = one('SELECT * FROM media WHERE id=?', mediaId);
   if (!m) throw err(404, 'not_found', 'Media tidak ditemukan');
   if (mediaInActiveUse(mediaId)) throw err(409, 'media_in_use', 'Media dipakai post terjadwal');
-  if (m.path) fs.rmSync(m.path, { force: true });
+  if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});
   run('DELETE FROM media WHERE id=?', mediaId);
 }
 
@@ -236,8 +238,8 @@ export function purgePublishedMedia() {
       WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?`, like, like, like);
     if (!uses.some(u => u.status === 'published')) continue;
     if (uses.some(u => !['published', 'cancelled'].includes(u.status))) continue;
-    if (m.path) fs.rmSync(m.path, { force: true });
-    run("UPDATE media SET path=NULL, size_bytes=0, status='purged', in_library=0 WHERE id=?", m.id);
+    if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});
+    run("UPDATE media SET path=NULL,source_path=NULL,source_size_bytes=0, size_bytes=0, status='purged', in_library=0 WHERE id=?", m.id);
     removed++;
   }
   return removed;
@@ -255,11 +257,11 @@ export function gcMedia() {
     if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND (media_ids LIKE ? OR targets LIKE ?)", like, like)) continue;
     const uses = all('SELECT t.status, t.published_at, p.updated_at FROM post_targets t JOIN posts p ON p.id=t.post_id WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?', like, like, like);
     const busy = uses.some((u) => ['pending', 'publishing'].includes(u.status) || (u.published_at || u.updated_at) > monthAgo);
-    if (!busy) { if (m.path) fs.rmSync(m.path, { force: true }); run('DELETE FROM media WHERE id=?', m.id); }
+    if (!busy) { if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true}); run('DELETE FROM media WHERE id=?', m.id); }
   }
   // stale chunked uploads
   for (const m of all("SELECT * FROM media WHERE status='uploading' AND created_at < ?", new Date(Date.now() - 864e5).toISOString())) {
-    fs.rmSync(path.join(config.mediaDir, `${m.id}.parts`), { recursive: true, force: true });
+    fs.rmSync(path.join(config.mediaDir, `${m.id}.parts`), { recursive: true, force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});
     run('DELETE FROM media WHERE id=?', m.id);
   }
 }
@@ -279,8 +281,8 @@ export function listParts(mediaId) {
 }
 
 export function usage() {
-  const r = one("SELECT COUNT(*) files, COALESCE(SUM(size_bytes),0) bytes FROM media WHERE status='ready'");
-  const lib = one("SELECT COUNT(*) files, COALESCE(SUM(size_bytes),0) bytes FROM media WHERE status='ready' AND in_library=1");
+  const r = one("SELECT COUNT(*) files, COALESCE(SUM(size_bytes+source_size_bytes),0) bytes FROM media WHERE status='ready'");
+  const lib = one("SELECT COUNT(*) files, COALESCE(SUM(size_bytes+source_size_bytes),0) bytes FROM media WHERE status='ready' AND in_library=1");
   return { files: r.files, used_bytes: r.bytes, library_files: lib.files, library_bytes: lib.bytes };
 }
 
