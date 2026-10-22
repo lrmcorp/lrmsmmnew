@@ -30,10 +30,10 @@ export function mockRouter() {
       const back = (u) => `${redirect_uri}?code=mockcode_${encodeURIComponent(u)}&state=${encodeURIComponent(st)}`;
       if (req.query.auto) return res.redirect(back(req.query.auto));
       res.type('html').send(`<!doctype html><meta name=viewport content="width=device-width"><body style="font-family:system-ui;max-width:420px;margin:60px auto;padding:0 16px">
-        <h2>${name} (MOCK)</h2><p>Ini layar login tiruan untuk mode development. Pilih akun yang mau disambungkan:</p>
+        <h2>${name} (MOCK)</h2><p>This is a simulated development login. Choose an account to connect:</p>
         <form onsubmit="location.href='${back('')}'.replace('mockcode_','mockcode_'+encodeURIComponent(this.u.value));return false">
         <input name=u value="${plat === 'ig' ? 'kopisenja' : 'kopisenja.threads'}" style="padding:8px;width:100%"><br><br>
-        <button style="padding:10px 16px">Izinkan</button></form>`);
+        <button style="padding:10px 16px">Allow</button></form>`);
     });
   }
 

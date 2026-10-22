@@ -43,14 +43,14 @@ export const mediaUrl = (m) => `${config.publicUrl}/m/${m.public_token}.${m.mime
 async function finalize(mediaId, filePath) {
   const fd = fs.openSync(filePath, 'r'); const head = Buffer.alloc(16); fs.readSync(fd, head, 0, 16, 0); fs.closeSync(fd);
   const t = sniff(head);
-  if (!t) { fs.rmSync(filePath, { force: true }); throw err(400, 'media_invalid_format', 'Format tidak didukung. Pakai JPEG, PNG, MP4, atau MOV.'); }
+  if (!t) { fs.rmSync(filePath, { force: true }); throw err(400, 'media_invalid_format', "Unsupported format. Use JPEG, PNG, MP4 or MOV."); }
   let size = fs.statSync(filePath).size;
   let { mime, kind, ext } = t;
   let width = null, height = null, duration = null;
   let finalPath = `${filePath}.${ext}`;
 
   if (kind === 'image') {
-    if (size > LIMITS.image) { fs.rmSync(filePath, { force: true }); throw err(400, 'image_too_large', 'Gambar terlalu besar (maksimal 8 MB)'); }
+    if (size > LIMITS.image) { fs.rmSync(filePath, { force: true }); throw err(400, 'image_too_large', "Image is too large. Maximum size is 8 MB."); }
     if (mime === 'image/png') {
       // Instagram only accepts JPEG — convert once on ingest.
       finalPath = `${filePath}.jpg`;
@@ -65,7 +65,7 @@ async function finalize(mediaId, filePath) {
     const meta = await sharp(finalPath).metadata();
     width = meta.width; height = meta.height;
   } else {
-    if (size > LIMITS.video) { fs.rmSync(filePath, { force: true }); throw err(400, 'video_too_large', 'Video terlalu besar (maksimal 300 MB)'); }
+    if (size > LIMITS.video) { fs.rmSync(filePath, { force: true }); throw err(400, 'video_too_large', "Video is too large. Maximum size is 300 MB."); }
     fs.renameSync(filePath, finalPath);
     if (await ffmpegAvailable()) {
       try {
@@ -94,7 +94,7 @@ function newRow(userId, { originalName, inLibrary = true, status = 'uploading' }
 
 export async function saveBuffer(userId, buf, opts = {}) {
   if (!buf?.length) throw err(400, 'validation_failed', 'File kosong');
-  if (buf.length > LIMITS.direct) throw err(400, 'validation_failed', 'Upload langsung maksimal 100 MB. Pakai upload terpotong untuk video besar.');
+  if (buf.length > LIMITS.direct) throw err(400, 'validation_failed', "Direct uploads are limited to 100 MB. Use chunked uploads for larger videos.");
   const mid = newRow(userId, opts);
   const p = path.join(config.mediaDir, mid);
   fs.writeFileSync(p, buf);
@@ -117,12 +117,12 @@ function isPrivateIp(ip) {
 
 export async function fromUrl(userId, rawUrl, opts = {}) {
   let u;
-  try { u = new URL(rawUrl); } catch { throw err(400, 'validation_failed', 'URL tidak valid'); }
-  if (!['http:', 'https:'].includes(u.protocol)) throw err(400, 'validation_failed', 'Hanya http/https');
-  if (u.port && !['80', '443'].includes(u.port)) throw err(400, 'validation_failed', 'Hanya port 80/443');
+  try { u = new URL(rawUrl); } catch { throw err(400, 'validation_failed', "Invalid URL."); }
+  if (!['http:', 'https:'].includes(u.protocol)) throw err(400, 'validation_failed', "Only http/https URLs are supported.");
+  if (u.port && !['80', '443'].includes(u.port)) throw err(400, 'validation_failed', "Only ports 80 and 443 are supported.");
   if (!config.mock) {
     const addrs = await dns.lookup(u.hostname, { all: true }).catch(() => []);
-    if (!addrs.length) throw err(400, 'media_fetch_failed', 'Host tidak ditemukan');
+    if (!addrs.length) throw err(400, 'media_fetch_failed', "Host not found.");
     if (addrs.some((a) => isPrivateIp(a.address))) throw err(400, 'validation_failed', 'URL mengarah ke jaringan privat');
   }
   let res;
@@ -152,8 +152,8 @@ export async function fromUrl(userId, rawUrl, opts = {}) {
 // ---- chunked uploads ----
 export function createUpload(userId, { mime_type, size_bytes, original_name, in_library = true }) {
   const size = Number(size_bytes);
-  if (!size || size > LIMITS.video) throw err(400, 'validation_failed', 'size_bytes wajib dan maksimal 300 MB');
-  if (!/^(image\/(jpeg|png)|video\/(mp4|quicktime))$/.test(String(mime_type))) throw err(400, 'media_invalid_format', 'mime_type harus image/jpeg, image/png, video/mp4, atau video/quicktime');
+  if (!size || size > LIMITS.video) throw err(400, 'validation_failed', "size_bytes is required and must not exceed 300 MB.");
+  if (!/^(image\/(jpeg|png)|video\/(mp4|quicktime))$/.test(String(mime_type))) throw err(400, 'media_invalid_format', "mime_type must be image/jpeg, image/png, video/mp4 or video/quicktime.");
   const mid = newRow(userId, { originalName: original_name, inLibrary: in_library });
   const partCount = Math.ceil(size / LIMITS.part);
   run('UPDATE media SET part_size=?, part_count=?, size_bytes=? WHERE id=?', LIMITS.part, partCount, size, mid);
@@ -163,22 +163,22 @@ export function createUpload(userId, { mime_type, size_bytes, original_name, in_
 
 export function putPart(mediaId, n, buf) {
   const m = one("SELECT * FROM media WHERE id=? AND status='uploading'", mediaId);
-  if (!m) throw err(404, 'not_found', 'Upload tidak ditemukan');
+  if (!m) throw err(404, 'not_found', "Upload not found.");
   n = Number(n);
-  if (!Number.isInteger(n) || n < 1 || n > m.part_count) throw err(400, 'validation_failed', `Nomor part harus 1..${m.part_count}`);
+  if (!Number.isInteger(n) || n < 1 || n > m.part_count) throw err(400, 'validation_failed', `Part number must be 1..${m.part_count}`);
   const last = n === m.part_count;
   const expected = last ? m.size_bytes - m.part_size * (m.part_count - 1) : m.part_size;
-  if (buf.length !== expected) throw err(400, 'validation_failed', `Part ${n} harus tepat ${expected} byte (diterima ${buf.length})`);
+  if (buf.length !== expected) throw err(400, 'validation_failed', `Part ${n} must contain exactly ${expected} bytes (received ${buf.length})`);
   fs.writeFileSync(path.join(config.mediaDir, `${mediaId}.parts`, String(n)), buf);
 }
 
 export async function completeUpload(mediaId) {
   const m = one("SELECT * FROM media WHERE id=? AND status='uploading'", mediaId);
-  if (!m) throw err(404, 'not_found', 'Upload tidak ditemukan');
+  if (!m) throw err(404, 'not_found', "Upload not found.");
   const dir = path.join(config.mediaDir, `${mediaId}.parts`);
   const missing = [];
   for (let i = 1; i <= m.part_count; i++) if (!fs.existsSync(path.join(dir, String(i)))) missing.push(i);
-  if (missing.length) throw err(400, 'validation_failed', 'Part belum lengkap', { missing_parts: missing });
+  if (missing.length) throw err(400, 'validation_failed', "Upload parts are incomplete.", { missing_parts: missing });
   const p = path.join(config.mediaDir, mediaId);
   const fd = fs.openSync(p, 'w');
   for (let i = 1; i <= m.part_count; i++) fs.writeSync(fd, fs.readFileSync(path.join(dir, String(i))));
@@ -189,14 +189,14 @@ export async function completeUpload(mediaId) {
 }
 
 export function setAlt(mediaId, alt) {
-  if (alt != null && String(alt).length > 1000) throw err(400, 'validation_failed', 'alt_text maksimal 1.000 karakter');
-  if (!run('UPDATE media SET alt_text=? WHERE id=?', alt ?? null, mediaId).changes) throw err(404, 'not_found', 'Media tidak ditemukan');
+  if (alt != null && String(alt).length > 1000) throw err(400, 'validation_failed', "alt_text must not exceed 1,000 characters.");
+  if (!run('UPDATE media SET alt_text=? WHERE id=?', alt ?? null, mediaId).changes) throw err(404, 'not_found', "Media not found.");
   return publicMedia(one('SELECT * FROM media WHERE id=?', mediaId));
 }
 
 export function getMedia(mediaId) {
   const m = one("SELECT * FROM media WHERE id=? AND status='ready'", mediaId);
-  if (!m) throw err(404, 'not_found', `Media ${mediaId} tidak ditemukan`, { media_id: mediaId });
+  if (!m) throw err(404, 'not_found', `Media ${mediaId} not found`, { media_id: mediaId });
   return m;
 }
 
@@ -220,8 +220,8 @@ function mediaInActiveUse(mediaId) {
 
 export function deleteMedia(mediaId) {
   const m = one('SELECT * FROM media WHERE id=?', mediaId);
-  if (!m) throw err(404, 'not_found', 'Media tidak ditemukan');
-  if (mediaInActiveUse(mediaId)) throw err(409, 'media_in_use', 'Media dipakai post terjadwal');
+  if (!m) throw err(404, 'not_found', "Media not found.");
+  if (mediaInActiveUse(mediaId)) throw err(409, 'media_in_use', 'Media is used by a scheduled post or active draft.');
   if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});
   run('DELETE FROM media WHERE id=?', mediaId);
 }
@@ -273,7 +273,7 @@ export { parseJSON };
 /** Which parts of a chunked upload already arrived — lets clients resume after a dropped connection. */
 export function listParts(mediaId) {
   const m = one('SELECT * FROM media WHERE id=?', mediaId);
-  if (!m) throw err(404, 'not_found', 'Upload tidak ditemukan');
+  if (!m) throw err(404, 'not_found', "Upload not found.");
   if (m.status === 'ready') return { id: m.id, status: 'ready', part_size: m.part_size, part_count: m.part_count, received: [] };
   const dir = path.join(config.mediaDir, `${mediaId}.parts`);
   const received = fs.existsSync(dir) ? fs.readdirSync(dir).map(Number).filter(Boolean).sort((a, b) => a - b) : [];

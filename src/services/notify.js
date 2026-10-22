@@ -16,11 +16,15 @@ function recipients(account) {
 export async function notify(kind, data) {
   let subject, text;
   if (kind === 'account_expired') {
-    subject = `Akun @${data.account.username} perlu disambungkan ulang`;
-    text = `Token ${data.account.platform} untuk @${data.account.username} sudah tidak berlaku. Post terjadwal ke akun ini akan gagal.\n\nSambungkan ulang: ${config.publicUrl}/#/accounts`;
+    subject = `Account @${data.account.username} needs to be reconnected`;
+    text = `Token ${data.account.platform} for @${data.account.username} has expired. Scheduled posts for this account will fail.
+
+Reconnect: ${config.publicUrl}/#/accounts`;
   } else if (kind === 'post_failed') {
-    subject = `Post gagal terbit di @${data.account?.username}`;
-    text = `Alasan: ${data.code} — ${data.message}\n\nCek dan coba ulang: ${config.publicUrl}/#/posts/${data.post?.id}`;
+    subject = `Post failed to publish to @${data.account?.username}`;
+    text = `Reason: ${data.code} — ${data.message}
+
+Review and retry: ${config.publicUrl}/#/posts/${data.post?.id}`;
   } else return;
   console.log(`[notify] ${subject}`);
   if (!transport) return;

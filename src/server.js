@@ -62,8 +62,8 @@ auth.use(express.json());
 auth.get('/state', (req, res) => res.json({ user: publicUser(sessionUser(req)), needs_setup: config.allowInitialSetup && userCount() === 0, signup_open: config.allowSignup, mock: config.mock }));
 auth.post('/register', (req, res) => {
   const first = userCount() === 0;
-  if (first && !config.allowInitialSetup) throw err(403, 'signup_closed', 'Hubungi pengelola untuk membuat akun Owner.');
-  if (!first && !config.allowSignup) throw err(403, 'signup_closed', 'Pendaftaran ditutup. Minta Owner menambahkan akunmu.');
+  if (first && !config.allowInitialSetup) throw err(403, 'signup_closed', "Contact your administrator to create an Owner account.");
+  if (!first && !config.allowSignup) throw err(403, 'signup_closed', "Registration is closed. Ask an Owner to add your account.");
   const u = createUser({ ...req.body, role: first ? 'owner' : 'rep' });
   startSession(res, req, u.id);
   res.status(201).json({ user: u });
@@ -73,8 +73,8 @@ auth.post('/logout', (req, res) => { endSession(req, res); res.json({ ok: true }
 auth.post('/password', (req, res) => {
   const u = sessionUser(req);
   if (!u) throw err(401, 'unauthenticated', 'Login dulu');
-  if (!verifyPassword(req.body?.current || '', u.password_hash)) throw err(400, 'invalid_credentials', 'Password lama salah');
-  if (!req.body?.next || req.body.next.length < 8) throw err(400, 'validation_failed', 'Password baru minimal 8 karakter');
+  if (!verifyPassword(req.body?.current || '', u.password_hash)) throw err(400, 'invalid_credentials', "Current password is incorrect.");
+  if (!req.body?.next || req.body.next.length < 8) throw err(400, 'validation_failed', "New password must contain at least 8 characters.");
   run('UPDATE users SET password_hash=? WHERE id=?', hashPassword(req.body.next), u.id);
   run('DELETE FROM sessions WHERE user_id=?', u.id);
   revokeAllMachineAccess(u.id); // password change revokes all API keys and AI app access
@@ -111,10 +111,10 @@ app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['htm
 
 // ---- errors ----
 app.use((e, req, res, _next) => {
-  if (e?.type === 'entity.too.large') e = err(413, 'payload_too_large', 'File/body terlalu besar');
-  if (e?.type === 'entity.parse.failed') e = err(400, 'validation_failed', 'JSON tidak valid');
+  if (e?.type === 'entity.too.large') e = err(413, 'payload_too_large', "File or request body is too large.");
+  if (e?.type === 'entity.parse.failed') e = err(400, 'validation_failed', "Invalid JSON.");
   const isApi = req.path.startsWith('/v1') || req.path.startsWith('/auth') || req.path.startsWith('/oauth');
-  if (!(e instanceof ApiError)) { console.error(e); e = err(500, 'internal_error', 'Terjadi kesalahan di server'); }
+  if (!(e instanceof ApiError)) { console.error(e); e = err(500, 'internal_error', "A server error occurred."); }
   if (isApi || req.accepts(['json', 'html']) === 'json') {
     return res.status(e.status).json({ error: { code: e.code, message: e.message, ...(e.details ? { details: e.details } : {}) } });
   }
@@ -127,8 +127,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log(`  MCP endpoint: ${config.publicUrl}/mcp`);
     if (!config.mock) {
       const e = process.env;
-      console.log(`  Instagram: ${e.IG_APP_ID && e.IG_APP_SECRET ? 'terkonfigurasi' : 'WARNING: IG_APP_ID / IG_APP_SECRET belum diisi'}`);
-      console.log(`  Threads:   ${e.THREADS_APP_ID && e.THREADS_APP_SECRET ? 'terkonfigurasi' : 'belum diisi (opsional)'}`);
+      console.log(`  Instagram: ${e.IG_APP_ID && e.IG_APP_SECRET ? 'configured' : 'WARNING: IG_APP_ID / IG_APP_SECRET not configured'}`);
+      console.log(`  Threads:   ${e.THREADS_APP_ID && e.THREADS_APP_SECRET ? 'configured' : 'not configured (optional)'}`);
     }
     startWorker();
   });

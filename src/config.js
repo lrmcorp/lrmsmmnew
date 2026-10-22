@@ -17,7 +17,7 @@ const PUBLIC_URL = (env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/,
 const MOCK = env.META_MOCK === '1';
 
 if (!env.ENCRYPTION_KEY && !MOCK && env.NODE_ENV === 'production') {
-  throw new Error('ENCRYPTION_KEY wajib diisi di production (64 hex char). Buat dengan: openssl rand -hex 32');
+  throw new Error("ENCRYPTION_KEY is required in production (64 hexadecimal characters). Generate one with: openssl rand -hex 32");
 }
 
 export const config = {

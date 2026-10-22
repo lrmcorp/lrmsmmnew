@@ -38,6 +38,6 @@ for (const p of ['instagram', 'threads']) {
 metaCb.get('/data-deletion', (req, res) => {
   const r = req.query.code ? kvGet(`deletion:${req.query.code}`) : null;
   const d = r && JSON.parse(r);
-  res.type('html').send(`<!doctype html><meta name=viewport content="width=device-width"><link rel=stylesheet href="/app.css"><body class="center-page"><div class="card"><h1>Penghapusan data</h1>
-  <p>${d ? `Permintaan dari ${d.platform} diterima ${new Date(d.at).toLocaleString('id-ID')}. Status: <b>selesai</b> — token, komentar, dan statistik akun sudah dihapus.` : 'Masukkan kode konfirmasi dari Meta di URL (?code=...).'}</p></div>`);
+  res.type('html').send(`<!doctype html><meta name=viewport content="width=device-width"><link rel=stylesheet href="/app.css"><body class="center-page"><div class="card"><h1>Data deletion</h1>
+  <p>${d ? `Request from ${d.platform} received on ${new Date(d.at).toLocaleString('en-GB')}. Status: <b>completed</b> — account tokens, comments and statistics have been deleted.` : "Enter the Meta confirmation code in the URL (?code=...)."}</p></div>`);
 });

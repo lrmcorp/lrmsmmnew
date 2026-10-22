@@ -8,9 +8,9 @@ const SESSION_DAYS = 30;
 // ---------- users ----------
 export function createUser({ email, password, name, role = 'rep' }) {
   email = String(email || '').trim().toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(email)) throw err(400, 'validation_failed', 'Email tidak valid');
-  if (!password || password.length < 8) throw err(400, 'validation_failed', 'Password minimal 8 karakter');
-  if (one('SELECT 1 FROM users WHERE email=?', email)) throw err(409, 'email_taken', 'Email sudah terdaftar');
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw err(400, 'validation_failed', "Invalid email address.");
+  if (!password || password.length < 8) throw err(400, 'validation_failed', "Password must contain at least 8 characters.");
+  if (one('SELECT 1 FROM users WHERE email=?', email)) throw err(409, 'email_taken', "Email address is already registered.");
   const uid = id('u');
   run('INSERT INTO users(id,email,name,password_hash,role) VALUES(?,?,?,?,?)', uid, email, name || null, hashPassword(password), role);
   return publicUser(one('SELECT * FROM users WHERE id=?', uid));
@@ -20,7 +20,7 @@ export const publicUser = (u) => u && ({ id: u.id, email: u.email, name: u.name,
 
 export function checkLogin(email, password) {
   const u = one('SELECT * FROM users WHERE email=?', String(email || '').trim().toLowerCase());
-  if (!u || !verifyPassword(password || '', u.password_hash)) throw err(401, 'invalid_credentials', 'Email atau password salah');
+  if (!u || !verifyPassword(password || '', u.password_hash)) throw err(401, 'invalid_credentials', "Incorrect email or password.");
   return u;
 }
 
@@ -49,9 +49,9 @@ export function sessionUser(req) {
 
 // ---------- API keys ----------
 export function createApiKey(userId, name, scope) {
-  if (!['read', 'write'].includes(scope)) throw err(400, 'validation_failed', 'scope harus read atau write');
+  if (!['read', 'write'].includes(scope)) throw err(400, 'validation_failed', "scope must be read or write.");
   const active = one('SELECT COUNT(*) n FROM api_keys WHERE user_id=? AND revoked_at IS NULL', userId).n;
-  if (active >= 25) throw err(400, 'too_many_keys', 'Maksimal 25 API key aktif');
+  if (active >= 25) throw err(400, 'too_many_keys', "A maximum of 25 active API keys is allowed.");
   const key = `lrm_live_${randomToken(24)}`;
   const kid = id('key');
   run('INSERT INTO api_keys(id,user_id,name,prefix,key_hash,scope) VALUES(?,?,?,?,?,?)',
@@ -74,12 +74,12 @@ export function resolveBearer(token) {
   const h = sha256(token);
   if (token.startsWith('lrm_live_')) {
     const k = one('SELECT * FROM api_keys WHERE key_hash=? AND revoked_at IS NULL', h);
-    if (!k) throw err(401, 'invalid_api_key', 'API key tidak valid atau sudah dicabut');
+    if (!k) throw err(401, 'invalid_api_key', "API key is invalid or has been revoked.");
     run('UPDATE api_keys SET last_used_at=? WHERE id=?', now(), k.id);
     return { user: one('SELECT * FROM users WHERE id=?', k.user_id), scope: k.scope, via: 'api_key', credentialId: k.id };
   }
   const t = one('SELECT * FROM oauth_tokens WHERE access_hash=? AND revoked_at IS NULL', h);
-  if (!t || t.access_expires_at < now()) throw err(401, 'invalid_token', 'Token tidak valid atau kedaluwarsa');
+  if (!t || t.access_expires_at < now()) throw err(401, 'invalid_token', "Token is invalid or expired.");
   run('UPDATE oauth_tokens SET last_used_at=? WHERE id=?', now(), t.id);
   return { user: one('SELECT * FROM users WHERE id=?', t.user_id), scope: t.scope.includes('write') ? 'write' : 'read', via: 'oauth', credentialId: t.id, clientId: t.client_id };
 }
@@ -94,11 +94,11 @@ export function authenticate(req, _res, next) {
       const u = sessionUser(req);
       if (u) req.auth = { user: u, scope: 'write', via: 'session' };
     }
-    if (!req.auth?.user) throw err(401, 'unauthenticated', 'Login atau kirim header Authorization: Bearer <key>');
+    if (!req.auth?.user) throw err(401, 'unauthenticated', "Sign in or send an Authorization: Bearer <key> header.");
     next();
   } catch (e) { next(e); }
 }
 export const requireWrite = (req, _res, next) =>
-  req.auth?.scope === 'write' ? next() : next(err(403, 'insufficient_scope', 'Akses ini hanya baca (read). Butuh scope write.'));
+  req.auth?.scope === 'write' ? next() : next(err(403, 'insufficient_scope', "This access is read-only. The write scope is required."));
 export const requireOwner = (req, _res, next) =>
-  req.auth?.user?.role === 'owner' ? next() : next(err(403, 'forbidden', 'Hanya Owner'));
+  req.auth?.user?.role === 'owner' ? next() : next(err(403, 'forbidden', "Owner access required."));

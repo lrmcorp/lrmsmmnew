@@ -700,7 +700,7 @@ await step('Meta data-deletion callback (signed_request) disconnects account', a
   assert.ok(r.confirmation_code);
   assert.ok(!(await http('GET', '/v1/accounts')).json.data.some((a) => a.id === ig.id));
   const page = await fetch(r.url).then((x) => x.text());
-  assert.match(page, /selesai/);
+  assert.match(page, /completed/);
 });
 
 

@@ -45,15 +45,15 @@ function refreshConversation(convId) {
   const lastIn = one("SELECT sent_at FROM messages WHERE conversation_id=? AND direction='in' ORDER BY sent_at DESC LIMIT 1", convId);
   if (!last) return;
   run('UPDATE conversations SET last_message_at=?, last_message_text=?, last_direction=?, last_inbound_at=?, updated_at=? WHERE id=?',
-    last.sent_at, (last.text || (last.attachments ? '[lampiran]' : '')).slice(0, 300), last.direction, lastIn?.sent_at || null, now(), convId);
+    last.sent_at, (last.text || (last.attachments ? "[attachment]" : '')).slice(0, 300), last.direction, lastIn?.sent_at || null, now(), convId);
 }
 
 function syncErrorMessage(code) {
-  if (code === 'invalid_response') return 'Respons DM dari Instagram tidak memiliki daftar percakapan/pesan yang valid. Sinkronisasi belum berhasil.';
-  if (code === 'permission_missing') return 'Izin DM belum diberikan. Sambungkan ulang Instagram dan izinkan instagram_business_manage_messages. Di Instagram aktifkan Messages → Connected tools → Allow access to messages.';
-  if (code === 'account_expired') return 'Token Instagram kedaluwarsa. Sambungkan ulang akun ini.';
-  if (code === 'rate_limited') return 'Batas permintaan Instagram tercapai. Tunggu lalu coba lagi.';
-  return 'Instagram gagal menyinkronkan DM. Periksa izin pesan dan koneksi akun, lalu coba lagi.';
+  if (code === 'invalid_response') return "Instagram returned an invalid conversation or message list. Synchronization has not succeeded.";
+  if (code === 'permission_missing') return "DM permission has not been granted. Reconnect Instagram and allow instagram_business_manage_messages. In Instagram enable Messages > Connected tools > Allow access to messages.";
+  if (code === 'account_expired') return "Instagram token has expired. Reconnect this account.";
+  if (code === 'rate_limited') return "Instagram request limit reached. Wait and try again.";
+  return "Instagram could not synchronize DMs. Check messaging permissions and the account connection, then try again.";
 }
 
 export function messageSyncStatus(user) {
@@ -88,7 +88,7 @@ export async function syncAccountMessages(acc, { onlyConversationIds, throwOnErr
     kvSet(`messages-sync:${acc.id}`, JSON.stringify({
       status: empty ? 'empty' : 'ok', last_attempt: attempted, last_success: now(), new_messages: n,
       conversations_found: convs.length, messages_fetched: fetched, messages_stored: stored,
-      ...(empty ? { message: `Meta mengembalikan ${convs.length} percakapan; ${stored} pesan tersimpan. Jika ada DM di Instagram, periksa Connected tools → Allow access to messages, izin aplikasi, dan coba pesan masuk baru.` } : {}),
+      ...(empty ? { message: `Meta returned ${convs.length} conversations; ${stored} messages saved. If Instagram has DMs, check Connected tools > Allow access to messages and app permissions, then try receiving a new message.` } : {}),
     }));
   } catch (e) {
     if (e.code === 'account_expired') markExpired(acc.id, syncErrorMessage('account_expired'));
@@ -103,7 +103,7 @@ export async function syncAccountMessages(acc, { onlyConversationIds, throwOnErr
 }
 
 export async function syncUserMessages(user, accountId) {
-  if (accountId !== undefined && (typeof accountId !== 'string' || !accountId.trim())) throw err(400, 'validation_failed', 'account_id harus ID akun Instagram.');
+  if (accountId !== undefined && (typeof accountId !== 'string' || !accountId.trim())) throw err(400, 'validation_failed', "account_id must be an Instagram account ID.");
   if (accountId) assertAccount(user, accountId);
   const [where, params] = scopeSql(user, 'id');
   const rows = all(`SELECT * FROM accounts WHERE platform='instagram' AND status!='disconnected' AND ${where}${accountId ? ' AND id=?' : ''}`, ...params, ...(accountId ? [accountId] : []));
@@ -158,7 +158,7 @@ export function listConversations(user, { account_id, filter = 'needs_reply', li
 
 function getConv(user, convId) {
   const c = one('SELECT * FROM conversations WHERE id=?', convId);
-  if (!c) throw err(404, 'not_found', `Percakapan ${convId} tidak ditemukan`);
+  if (!c) throw err(404, 'not_found', `Conversation ${convId} not found`);
   assertAccount(user, c.account_id);
   return c;
 }
@@ -174,20 +174,20 @@ export function getConversation(user, convId, { limit = 100 } = {}) {
 
 export async function sendMessage(user, convId, text) {
   text = String(text || '').trim();
-  if (!text) throw err(400, 'validation_failed', 'Pesan tidak boleh kosong');
-  if ([...text].length > 1000) throw err(400, 'validation_failed', 'Pesan Instagram maksimal 1.000 karakter');
+  if (!text) throw err(400, 'validation_failed', "Message must not be empty.");
+  if ([...text].length > 1000) throw err(400, 'validation_failed', "Instagram messages must not exceed 1,000 characters.");
   const c = getConv(user, convId);
   const acc = getAccount(c.account_id);
-  if (acc.status !== 'active') throw err(422, 'account_expired', `Akun @${acc.username} perlu disambungkan ulang`, { account_id: acc.id });
+  if (acc.status !== 'active') throw err(422, 'account_expired', `Account @${acc.username} needs to be reconnected`, { account_id: acc.id });
   if (!c.last_inbound_at || Date.now() - new Date(c.last_inbound_at) > WINDOW_MS) {
-    throw err(422, 'messaging_window_closed', 'Instagram hanya mengizinkan balasan dalam 24 jam sejak pesan terakhir dari pelanggan. Balas langsung dari aplikasi Instagram.', { conversation_id: c.id });
+    throw err(422, 'messaging_window_closed', "Instagram only allows replies within 24 hours of the customer's last message. Reply directly in the Instagram app.", { conversation_id: c.id });
   }
   let r;
   try { r = await clients.instagram.sendMessage(acc.platform_user_id, c.participant_id, text, tokenOf(acc)); }
   catch (e) {
-    if (e.code === 'account_expired') { markExpired(acc.id, e.message); throw err(422, 'account_expired', `Akun @${acc.username} perlu disambungkan ulang`); }
+    if (e.code === 'account_expired') { markExpired(acc.id, e.message); throw err(422, 'account_expired', `Account @${acc.username} needs to be reconnected`); }
     if (e.code === 'messaging_window_closed') throw err(422, 'messaging_window_closed', 'Di luar jendela 24 jam Instagram. Balas langsung dari aplikasi Instagram.');
-    if (e.code === 'permission_missing') throw err(422, 'permission_missing', `Izin pesan Instagram belum diberikan: ${e.message}`);
+    if (e.code === 'permission_missing') throw err(422, 'permission_missing', `Instagram messaging permission has not been granted: ${e.message}`);
     throw err(502, 'platform_error', e.message);
   }
   run('INSERT OR IGNORE INTO messages(id,conversation_id,platform_message_id,direction,text,sent_at,sent_by) VALUES(?,?,?,?,?,?,?)', id('msg'), c.id, r.id, 'out', text, now(), user.id);
@@ -197,7 +197,7 @@ export async function sendMessage(user, convId, text) {
 }
 
 export function setConversationStatus(user, convId, status) {
-  if (!['open', 'done'].includes(status)) throw err(400, 'validation_failed', 'status harus open atau done');
+  if (!['open', 'done'].includes(status)) throw err(400, 'validation_failed', "status must be open or done.");
   const c = getConv(user, convId);
   run('UPDATE conversations SET status=? WHERE id=?', status, c.id);
   emit('message.status', { account_id: c.account_id, conversation_id: c.id });

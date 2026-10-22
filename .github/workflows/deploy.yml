@@ -40,7 +40,7 @@ jobs:
       - name: Browser workflow and responsive checks
         run: |
           npm install --prefix "$RUNNER_TEMP/lrmsmm-browser-tools" --no-save --ignore-scripts playwright@1.56.1
-          PLAYWRIGHT_MODULE="$RUNNER_TEMP/lrmsmm-browser-tools/node_modules/playwright" CHROMIUM_PATH="$(command -v google-chrome)" node --no-warnings test/deploy-browser.cjs
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/lrmsmm-browser-tools/node_modules/playwright" CHROMIUM_PATH="$(command -v google-chrome)" node --no-warnings test/redesign-browser.cjs
       - name: Upload browser review screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -51,7 +51,7 @@ jobs:
       - name: Deployment boundary and closed initial setup tests
         run: |
           python3 -m unittest discover -s deploy/tests -v
-          node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js
+          node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js test/account-specialist-session.js
 
   deploy:
     needs: test
@@ -87,7 +87,7 @@ jobs:
           IMAGE: ghcr.io/lrmcorp/lrmsmmnew:${{ github.sha }}
         run: |
           docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings test/e2e.js
-          docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js
+          docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js test/account-specialist-session.js
       - name: Publish tested image
         id: publish
         env:

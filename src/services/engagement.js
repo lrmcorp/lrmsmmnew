@@ -77,18 +77,18 @@ export function listComments({ account_id, post_id, reply_status, include_own = 
 
 function getComment(cid, user) {
   const c = one('SELECT * FROM comments WHERE id=?', cid);
-  if (!c) throw err(404, 'not_found', `Komentar ${cid} tidak ditemukan`);
+  if (!c) throw err(404, 'not_found', `Comment ${cid} not found`);
   if (user) assertAccount(user, c.account_id);
   return c;
 }
 
 export async function replyToComment(cid, message, user) {
-  if (!message || !String(message).trim()) throw err(400, 'validation_failed', 'Teks balasan wajib diisi');
+  if (!message || !String(message).trim()) throw err(400, 'validation_failed', "Reply text is required.");
   const c = getComment(cid, user);
   const acc = getAccount(c.account_id);
-  if (acc.status !== 'active') throw err(422, 'account_expired', `Akun @${acc.username} perlu disambungkan ulang`);
+  if (acc.status !== 'active') throw err(422, 'account_expired', `Account @${acc.username} needs to be reconnected`);
   const token = tokenOf(acc);
-  if (c.platform === 'threads' && [...message].length > 500) throw err(400, 'caption_too_long', 'Threads maksimal 500 karakter');
+  if (c.platform === 'threads' && [...message].length > 500) throw err(400, 'caption_too_long', "Threads text must not exceed 500 characters.");
   let r;
   try {
     r = acc.platform === 'instagram'
@@ -115,15 +115,15 @@ export async function hideComment(cid, hidden, user) {
 
 export function setCommentStatus(cid, status, user) {
   if (status === 'done') status = 'ignored';
-  if (!['unreplied', 'replied', 'ignored'].includes(status)) throw err(400, 'validation_failed', 'reply_status harus unreplied, replied, atau ignored');
+  if (!['unreplied', 'replied', 'ignored'].includes(status)) throw err(400, 'validation_failed', "reply_status must be unreplied, replied or ignored.");
   getComment(cid, user);
   run('UPDATE comments SET reply_status=? WHERE id=?', status, cid);
   return publicComment(one('SELECT * FROM comments WHERE id=?', cid));
 }
 
 function platformToApi(e, acc) {
-  if (e.code === 'account_expired') { markExpired(acc.id, e.message); return err(422, 'account_expired', `Akun @${acc.username} perlu disambungkan ulang`, { account_id: acc.id }); }
-  if (e.code === 'permission_missing') return err(422, 'permission_missing', `Izin Meta belum diberikan: ${e.message}`, { account_id: acc.id });
+  if (e.code === 'account_expired') { markExpired(acc.id, e.message); return err(422, 'account_expired', `Account @${acc.username} needs to be reconnected`, { account_id: acc.id }); }
+  if (e.code === 'permission_missing') return err(422, 'permission_missing', `Meta permission has not been granted: ${e.message}`, { account_id: acc.id });
   if (e.code === 'rate_limited') return err(429, 'rate_limited', e.message);
   return err(502, 'platform_error', e.message, { account_id: acc.id });
 }
@@ -166,6 +166,6 @@ export function accountInsights(accountId, { from, to } = {}) {
 
 export function postInsights(postId) {
   const ts = all('SELECT t.id, t.account_id, t.platform, i.metrics, i.updated_at FROM post_targets t LEFT JOIN post_insights i ON i.target_id=t.id WHERE t.post_id=?', postId);
-  if (!ts.length) throw err(404, 'not_found', 'Post tidak ditemukan');
+  if (!ts.length) throw err(404, 'not_found', "Post not found.");
   return { post_id: postId, targets: ts.map((t) => ({ target_id: t.id, account_id: t.account_id, platform: t.platform, metrics: parseJSON(t.metrics, null), updated_at: t.updated_at })) };
 }

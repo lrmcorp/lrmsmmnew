@@ -11,9 +11,9 @@ export function listCompanies(user) {
   }).filter(company => scope === null || assigned.includes(company.id) || company.accounts_count > 0);
 }
 export function saveCompany(companyId, name) {
-  if (typeof name !== 'string' || !name.trim() || name.trim().length > 100) throw err(400, 'validation_failed', 'Nama perusahaan wajib diisi, maksimal 100 karakter.');
+  if (typeof name !== 'string' || !name.trim() || name.trim().length > 100) throw err(400, 'validation_failed', "Company name is required and must not exceed 100 characters.");
   if (companyId) {
-    if (!one('SELECT 1 FROM companies WHERE id=?', companyId)) throw err(404, 'not_found', 'Perusahaan tidak ditemukan.');
+    if (!one('SELECT 1 FROM companies WHERE id=?', companyId)) throw err(404, 'not_found', "Company not found.");
     run('UPDATE companies SET name=? WHERE id=?', name.trim(), companyId);
   } else {
     companyId = id('co');
@@ -22,13 +22,13 @@ export function saveCompany(companyId, name) {
   return one('SELECT * FROM companies WHERE id=?', companyId);
 }
 export function moveAccount(accountId, companyId) {
-  if (!one("SELECT 1 FROM accounts WHERE id=? AND status!='disconnected'", accountId)) throw err(404, 'not_found', 'Akun tidak ditemukan.');
-  if (companyId !== null && (typeof companyId !== 'string' || !one('SELECT 1 FROM companies WHERE id=?', companyId))) throw err(400, 'validation_failed', 'Perusahaan tidak ditemukan.');
+  if (!one("SELECT 1 FROM accounts WHERE id=? AND status!='disconnected'", accountId)) throw err(404, 'not_found', "Account not found.");
+  if (companyId !== null && (typeof companyId !== 'string' || !one('SELECT 1 FROM companies WHERE id=?', companyId))) throw err(400, 'validation_failed', "Company not found.");
   run('UPDATE accounts SET company_id=? WHERE id=?', companyId, accountId);
 }
 
 export function deleteCompany(companyId) {
- if (!one('SELECT 1 FROM companies WHERE id=?',companyId)) throw err(404,'not_found','Perusahaan tidak ditemukan.');
- if (one("SELECT 1 FROM accounts WHERE company_id=? AND status!='disconnected'",companyId)) throw err(409,'company_not_empty','Pindahkan atau putuskan semua akun sebelum menghapus perusahaan.');
+ if (!one('SELECT 1 FROM companies WHERE id=?',companyId)) throw err(404,'not_found',"Company not found.");
+ if (one("SELECT 1 FROM accounts WHERE company_id=? AND status!='disconnected'",companyId)) throw err(409,'company_not_empty',"Move or disconnect all accounts before deleting the company.");
  run('UPDATE accounts SET company_id=NULL WHERE company_id=?',companyId);run('DELETE FROM companies WHERE id=?',companyId);
 }

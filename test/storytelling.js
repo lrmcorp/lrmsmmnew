@@ -18,7 +18,7 @@ const user=createUser({email:'story@fixture.id',password:'fixture-password',name
 for(const aid of ['story-account','outside-account'])run("INSERT INTO accounts(id,platform,platform_user_id,username,token_enc) VALUES(?,'instagram',?,?,?)",aid,aid,aid,encrypt('fixture-token'));
 setAssignments(user.id,['story-account']);setAssignments(other.id,[]);
 for(const provider of ['openai','anthropic','gemini'])gen.saveKey(user,provider,'fixture-story-private-key');
-const real=global.fetch;let calls=[],rejectManager=false,badProduct=false,badSchedule=false,shortStoryOnce=false,schedulerHttp=0,hold=null,entered=null;
+const real=global.fetch;let calls=[],rejectManager=false,badProduct=false,badSchedule=false,shortStoryReplies=0,schedulerHttp=0,hold=null,entered=null;
 global.fetch=async(url,opts)=>{
  if(!['https://api.openai.com','https://api.anthropic.com','https://generativelanguage.googleapis.com'].includes(new URL(url).origin))return real(url,opts);
  const body=opts.body instanceof FormData?Object.fromEntries(opts.body.entries()):JSON.parse(opts.body);calls.push({url,body});
@@ -29,10 +29,10 @@ global.fetch=async(url,opts)=>{
  let result;
  if(schema?.properties?.bible&&!schema.properties.approved){
   if(hold){entered?.();await hold;}
-  const context=JSON.parse(prompt),n=Number(system.match(/exactly (\d+) episodes/)?.[1]||1),product=context.product_catalog[0]?.id;
-  const returnedCount=shortStoryOnce?n-1:n;shortStoryOnce=false;
+  const context=JSON.parse(prompt.split('\nREPAIR THE PREVIOUS RESPONSE:')[0]),n=Number(system.match(/exactly (\d+) episodes/)?.[1]||1),product=context.product_catalog[0]?.id;
+  const returnedCount=shortStoryReplies>0?n-1:n;if(shortStoryReplies>0)shortStoryReplies--;
   result={bible:context.bible||'Brand foundation: quiet confidence',memory:'Cumulative story through episode '+(context.next_episode+n-1),episodes:Array.from({length:returnedCount},(_,i)=>({title:'Episode '+(context.next_episode+i),brief:'Introduce the real product and build on the previous chapter.',caption:'Ready caption '+(context.next_episode+i),content_type:context.uploaded_videos.length&&i===n-1?'reel':'image',video_asset_id:context.uploaded_videos.length&&i===n-1?context.uploaded_videos[0].id:null,product_ids:badProduct?['not-in-catalog']:product?[product]:[]}))};
- }else if(schema?.properties?.approved){result={...JSON.parse(prompt.split('\nPROPOSED SESSION:\n')[1]),approved:!rejectManager,notes:rejectManager?'Story is inconsistent; revise the foundation.':'Continuity and brand facts checked.'};}
+ }else if(schema?.properties?.approved){result={...JSON.parse(prompt.split('\nPROPOSED SESSION:\n')[1].split('\nREPAIR THE PREVIOUS RESPONSE:')[0]),approved:!rejectManager,notes:rejectManager?'Story is inconsistent; revise the foundation.':'Continuity and brand facts checked.'};}
  else if(schema?.properties?.slots){if(schedulerHttp)return Response.json({error:{message:'PRIVATE provider details'}},{status:schedulerHttp});const context=JSON.parse(prompt);result={discussion:'Manager continuity notes accepted; keep chronological order. Timing is a contextual suggestion, not measured account analytics.',slots:context.episodes.map((e,i)=>({episode_index:i,slot_index:badSchedule?0:i,reason:'Chapter '+(i+1)+' follows the previous episode at an available audience-friendly WIB slot.'}))};}
  else if(schema?.properties?.slides){const n=Number(system.match(/Exactly (\d+) slides/)?.[1]||1);result={title:'Production concept',caption:'Production caption',slides:Array.from({length:n},()=>({prompt:'Product on white background'}))};}
  else result='Numbered slide checklist: verify brand and claims.';
@@ -51,15 +51,15 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
   story.saveProfile(user,'story-account',{seed:'Start from zero: tell a truthful wellness story that evolves every episode.',brand_notes:'Use green and cream. Never invent benefits.'});
   for(const [category,name] of [['logo','Brand logo'],['visual','Soft palette'],['product','Serum product']]){const m=await media.saveBuffer(user.id,image,{inLibrary:false});story.saveAsset(user,'story-account',{media_id:m.id,category,name,description:'Real '+name});}
   const p=story.profile(user,'story-account');assert.equal(p.assets.length,3);
-  for(const a of p.assets){run("UPDATE media SET created_at='2000-01-01T00:00:00.000Z' WHERE id=?",a.media_id);assert.throws(()=>media.deleteMedia(a.media_id),/dipakai/);}
+  for(const a of p.assets){run("UPDATE media SET created_at='2000-01-01T00:00:00.000Z' WHERE id=?",a.media_id);assert.throws(()=>media.deleteMedia(a.media_id),/Media is used by a scheduled post or active draft/);}
   media.gcMedia();assert.ok(p.assets.every(a=>one('SELECT id FROM media WHERE id=?',a.media_id)));
   assert.equal((await http('GET','/accounts/story-account/brand',undefined,otherSid)).status,404);
-  assert.throws(()=>story.saveProfile(user,'outside-account',{seed:'No',brand_notes:''}),/tidak ditemukan/);
-  const m=await media.saveBuffer(other.id,image,{inLibrary:false});assert.throws(()=>story.saveAsset(user,'story-account',{media_id:m.id,category:'product',name:'Stolen'}),/unggah sendiri/);
+  assert.throws(()=>story.saveProfile(user,'outside-account',{seed:'No',brand_notes:''}),/not found/);
+  const m=await media.saveBuffer(other.id,image,{inLibrary:false});assert.throws(()=>story.saveAsset(user,'story-account',{media_id:m.id,category:'product',name:'Stolen'}),/uploaded yourself/);
   const key=createApiKey(user.id,'machine','write').key;const denied=await real(base+'/v1/generator/accounts/story-account/brand',{headers:{authorization:'Bearer '+key}});assert.equal(denied.status,403);
  });
  await t.test('three agents select catalog products and continue stored seed without another prompt',async()=>{
-  const request=body({});const queued=gen.queueStory(user,request);assert.equal(gen.queueStory(user,request).id,queued.id);assert.throws(()=>gen.queueStory(user,body({})),/aktif/);
+  const request=body({});const queued=gen.queueStory(user,request);assert.equal(gen.queueStory(user,request).id,queued.id);assert.throws(()=>gen.queueStory(user,body({})),/active/);
   const done=await execute(queued);assert.equal(done.status,'completed',done.error);assert.equal(Object.values(done.steps).filter(s=>s.status==='done').length,3);for(const call of calls){const system=call.body.system||call.body.messages?.[0]?.content||call.body.systemInstruction?.parts?.[0]?.text||'';if(system)assert.match(system,/MANDATORY ASSET PRESERVATION/,'all planning agents preserve originals');}
   const p=story.profile(user,'story-account');assert.equal(p.next_episode,3);assert.equal(p.episodes.length,2);assert.ok(p.memory.includes('2'));
   const rows=gen.listRuns(user).filter(r=>r.story_job_id===done.id);assert.equal(rows.length,2);assert.ok(rows.every(r=>r.status==='planned'&&r.schedule_reason&&r.caption&&r.reference_media_ids.length===3));assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);
@@ -77,14 +77,26 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
   assert.equal(story.profile(user,'story-account').next_episode,episode);assert.equal(one('SELECT COUNT(*) n FROM generator_plans').n,plans);
   const callsBefore=calls.length;story.retry(user,bad.id);assert.equal((await execute(bad)).status,'completed');assert.equal(calls.length-callsBefore,1,'retry preserves storyteller and manager output');
  });
- await t.test('incomplete six-episode Storyteller response is retried before creating drafts',async()=>{
-  shortStoryOnce=true;const before=calls.length;
-  const queued=gen.queueStory(user,body({content_count:6}));const done=await execute(queued);
+ await t.test('incomplete six-episode response is repaired once with the precise validation issue',async()=>{
+  shortStoryReplies=1;const before=calls.length;
+  const queued=gen.queueStory(user,body({content_count:6})),done=await execute(queued);
   assert.equal(done.status,'completed',done.error);
   assert.equal(gen.listRuns(user).filter(r=>r.story_job_id===queued.id).length,6);
   const attempts=calls.slice(before).filter(c=>c.body.response_format?.json_schema?.schema?.properties?.bible&&!c.body.response_format.json_schema.schema.properties.approved);
-  assert.equal(attempts.length,2,'only the invalid Storyteller reply is retried');
-  assert.ok(attempts[1].body.messages[0].content.includes('previous response failed validation'));
+  assert.equal(attempts.length,2);
+  assert.equal(attempts[0].body.response_format.json_schema.schema.properties.episodes.minItems,6);
+  assert.equal(attempts[0].body.response_format.json_schema.schema.properties.episodes.maxItems,6);
+  assert.match(attempts[1].body.messages[1].content[0].text,/returned 5 episodes; this session requires exactly 6/);
+  assert.equal(done.steps.storyteller.repair_attempt,1);
+ });
+ await t.test('repeated malformed story stops without creating drafts or advancing memory',async()=>{
+  shortStoryReplies=2;const before=calls.length,profileBefore=story.profile(user,'story-account');
+  const queued=gen.queueStory(user,body({content_count:6})),failed=await execute(queued);
+  assert.equal(failed.status,'failed');assert.match(failed.error,/returned 5 episodes.*requires exactly 6.*Automatic repair also failed/);
+  assert.equal(calls.length-before,2,'one repair only');
+  assert.equal(gen.listRuns(user).filter(r=>r.story_job_id===queued.id).length,0);
+  assert.equal(story.profile(user,'story-account').next_episode,profileBefore.next_episode);
+  story.retry(user,queued.id);assert.equal((await execute(queued)).status,'completed');
  });
  await t.test('Gemini Scheduler 404 uses a transparent valid rules schedule and preserves completed QC on retry',async()=>{
   const preset=structuredClone(gen.DEFAULT_AGENTS);preset.scheduler={...preset.scheduler,provider:'gemini',model:'gemini-2.5-flash'};
@@ -92,7 +104,7 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
   schedulerHttp=429;const queued=gen.queueStory(user,body({agents:preset}));const failed=await execute(queued);assert.equal(failed.status,'failed');assert.ok(failed.error.includes('Scheduler'));assert.equal(failed.steps.storyteller.status,'done');assert.equal(failed.steps.manager.status,'done');assert.equal(story.profile(user,'story-account').next_episode,start);
   const afterQc=calls.length;schedulerHttp=404;gen.retryStory(user,queued.id,{agents:preset});const done=await execute(queued);schedulerHttp=0;
   assert.equal(done.status,'completed',done.error);assert.equal(calls.length-afterQc,1,'retry calls only Scheduler; completed concept and manager are not billed twice');assert.equal(done.steps.scheduler.source,'rules');assert.ok(done.steps.scheduler.warning.includes('HTTP 404'));assert.ok(!JSON.stringify(done).includes('PRIVATE provider details'));
-  const rows=gen.listRuns(user).filter(r=>r.story_job_id===queued.id).sort((a,b)=>a.story_episode-b.story_episode);assert.equal(rows.length,2);assert.ok(rows.every(r=>r.schedule_reason.includes('berbasis aturan')));assert.ok(Date.parse(rows[0].scheduled_at)<Date.parse(rows[1].scheduled_at));assert.equal(story.profile(user,'story-account').next_episode,start+2);assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);
+  const rows=gen.listRuns(user).filter(r=>r.story_job_id===queued.id).sort((a,b)=>a.story_episode-b.story_episode);assert.equal(rows.length,2);assert.ok(rows.every(r=>r.schedule_reason.includes('Rules-based schedule: episode ')));assert.ok(Date.parse(rows[0].scheduled_at)<Date.parse(rows[1].scheduled_at));assert.equal(story.profile(user,'story-account').next_episode,start+2);assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);
   const direct=await execute(gen.queueStory(user,body({agents:preset,content_count:1})));assert.equal(direct.status,'completed',direct.error);
  });
  await t.test('legacy sessions restore missing agent presets without undefined access',async()=>{
@@ -135,7 +147,7 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
  await t.test('account lock and revoked grants checked across paid calls',async()=>{
   let release;hold=new Promise(r=>release=r);const started=new Promise(r=>entered=r);
   const j=gen.queueStory(user,body({}));gen.runGeneratorTick();await started;
-  assert.throws(()=>story.saveProfile(user,'story-account',{seed:'Changed',brand_notes:''}),/Tunggu/);assert.throws(()=>story.deleteMemorySession(user,'story-account',story.profile(user,'story-account').memory_session_id),/Tunggu/);
+  assert.throws(()=>story.saveProfile(user,'story-account',{seed:'Changed',brand_notes:''}),/Wait for the active story session/);assert.throws(()=>story.deleteMemorySession(user,'story-account',story.profile(user,'story-account').memory_session_id),/Wait for the active story process to finish before changing memory/);
   setAssignments(user.id,[]);release();await gen.waitGenerator();hold=null;entered=null;setAssignments(user.id,['story-account']);assert.equal(story.job(user,j.id).status,'failed');
  });
 }finally{hold=null;global.fetch=real;await gen.waitGenerator();await new Promise(r=>server.close(r));fs.rmSync(tmp,{recursive:true,force:true});}});

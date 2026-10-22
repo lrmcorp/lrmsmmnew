@@ -96,14 +96,14 @@ export async function generatorWorkspace(ctx, workspace) {
     brief = h('textarea', {
       rows: 5,
       maxlength: 10000,
-      placeholder: 'For example: an end of year nail care campaign for new customers.',
-      'aria-label': 'Content brief',
+      placeholder: 'For example: a year-end nail care campaign for new customers.',
+      'aria-label': 'Content direction',
       oninput: update
     }),
     captionLanguage = h('select', {
       'aria-label': 'Caption language',
       onchange: update
-    }, [['account', 'Use Brand Kit'], ['id', 'Indonesian'], ['en', 'English'], ['mixed', 'Mixed']].map(([value, text]) => h('option', {
+    }, [['account', 'From Brand Kit'], ['id', 'Indonesian'], ['en', 'English'], ['mixed', 'Mixed']].map(([value, text]) => h('option', {
       value
     }, text))),
     format = h('select', {
@@ -113,7 +113,7 @@ export async function generatorWorkspace(ctx, workspace) {
         if (slides.disabled) slides.value = 1;else if (Number(slides.value) < 2) slides.value = 3;
         update();
       }
-    }, [['single', 'Single image'], ['carousel', 'Carousel']].map(([value, text]) => h('option', {
+    }, [['single', 'Single photo'], ['carousel', 'Carousel']].map(([value, text]) => h('option', {
       value
     }, text))),
     slides = h('input', {
@@ -130,20 +130,20 @@ export async function generatorWorkspace(ctx, workspace) {
       onchange: update
     }, h('option', {
       value: 'ai'
-    }, 'Generate images with AI'), h('option', {
+    }, 'AI creates images'), h('option', {
       value: 'manual'
     }, 'I will upload my own photos'));
   const start = h('input', {
       type: 'date',
       value: new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0, 10),
       min: new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0, 10),
-      'aria-label': 'Start date (Jakarta time)',
+      'aria-label': 'Start date in WIB',
       oninput: update
     }),
     end = h('input', {
       type: 'date',
       value: new Date(Date.now() + 14 * 864e5 + 7 * 3600000).toISOString().slice(0, 10),
-      'aria-label': 'End date (Jakarta time)',
+      'aria-label': 'End date in WIB',
       oninput: update
     }),
     count = h('input', {
@@ -156,7 +156,7 @@ export async function generatorWorkspace(ctx, workspace) {
     }),
     times = h('input', {
       value: '09:00, 12:15, 19:15',
-      'aria-label': 'Posting times (Jakarta time)',
+      'aria-label': 'Posting times in WIB',
       oninput: update
     }),
     submit = B('Generate', generate, 'btn primary rd-generate');
@@ -182,7 +182,6 @@ export async function generatorWorkspace(ctx, workspace) {
         images,
         captionLanguage
       })) if (saved[name] !== undefined) input.value = saved[name];
-      if (saved.times === '12:15, 19:15') times.value = '09:00, 12:15, 19:15';
       mode = q.get('story_account') ? 'story' : saved.mode || mode;
     }
   } catch {}
@@ -236,7 +235,7 @@ export async function generatorWorkspace(ctx, workspace) {
       mode = id;
       selection = selection.slice(0, mode === 'story' ? 1 : selection.length);
       brief.value = '';
-      brief.placeholder = mode === 'story' ? 'Optional direction for this session. Leave blank to continue the saved story.' : 'For example: introduce a new product, its benefits, and why customers should try it.';
+      brief.placeholder = mode === 'story' ? 'Optional: direction for this session. Leave empty to continue the story foundation and memory.' : 'For example: a new product campaign, its benefits and why customers should try it.';
       drawAccounts();
       drawStory();
       update();
@@ -248,14 +247,14 @@ export async function generatorWorkspace(ctx, workspace) {
         p = state.brandProfiles[a?.id];
       storyInfo.append(h('div', {
         class: 'gf-story-position'
-      }, p?.seed ? h('div', {}, memorySessionPicker(ctx,p,next=>{state.brandProfiles[a.id]=next;drawStory();update();}),h('b', {}, `@${a.username} · Next episode ${p.next_episode || 1}`), h('p', {}, 'The story continues from the selected session memory. This account’s Brand Kit remains the foundation.'), B('View Story Bible', () => storyBible(a, p), 'btn ghost sm'), storyArc(p), h('p', {
+      }, p?.seed ? h('div', {}, memorySessionPicker(ctx,p,next=>{state.brandProfiles[a.id]=next;drawStory();update();}),h('b', {}, `@${a.username} · Next episode ${p.next_episode || 1}`), h('p', {}, 'The story continues the selected session memory. The account Brand Kit remains the shared foundation.'), B('View Story Bible', () => storyBible(a, p), 'btn ghost sm'), storyArc(p), h('p', {
         class: 'gf-story-next'
-      }, `This session continues episodes ${p.next_episode || 1}–${(p.next_episode || 1) + Math.max(1, Number(count.value) || 1) - 1}. Storyteller uses the saved story memory.`)) : h('p', {}, 'Select one account and complete its Brand Kit to continue the story.')));
+      }, `This session continues episodes ${p.next_episode || 1}–${(p.next_episode || 1) + Math.max(1, Number(count.value) || 1) - 1}. Storyteller uses saved story memory.`)) : h('p', {}, 'Select one account and complete its brand foundation to continue the story.')));
     }
   }
   function languageFor(a) {
     if (captionLanguage.value !== 'account') return captionLanguage.value;
-    return /Caption language:\s*(id|en|mixed)/i.exec(state.brandProfiles[a.id]?.brand_notes || '')?.[1] || 'en';
+    return /Caption language:\s*(id|en|mixed)/i.exec(state.brandProfiles[a.id]?.brand_notes || '')?.[1] || 'id';
   }
   function instructionsFor(a) {
     const p = state.brandProfiles[a.id],
@@ -277,22 +276,22 @@ export async function generatorWorkspace(ctx, workspace) {
     });
     for (const a of selected()) {
       if (a.platform === 'instagram' && !brandReadiness(state.brandProfiles[a.id]).ok) items.push({
-        text: `@${a.username}: complete the Brand Kit first.`,
+        text: `@${a.username}: Brand Kit foundation is missing.`,
         fix: () => quickBrand(a),
         account: a
       });
       if (a.status && a.status !== 'active') items.push({
-        text: `@${a.username}: reconnect this account.`,
+        text: `@${a.username}: reconnect the account.`,
         url: '/accounts/' + a.id
       });
     }
     if (mode === 'campaign' && !brief.value.trim()) items.push({
-      text: 'Write a campaign brief.',
+      text: 'Write a campaign direction.',
       fix: () => brief.focus()
     });
     const activeRoles = mode === 'story' ? ['storyteller', 'manager', 'scheduler'] : images.value === 'manual' ? [] : ['concept', 'revision'];
     for (const p of [...new Set(activeRoles.map(role => agents[role]?.provider))]) if (p && !config.keys.some(k => k.provider === p)) items.push({
-      text: `Add an API key for ${p} in Personal settings.`,
+      text: `Add an API key for ${p} in personal settings.`,
       url: '/settings?from=generator'
     });
     const n = Number(count.value);
@@ -305,25 +304,24 @@ export async function generatorWorkspace(ctx, workspace) {
       fix: () => slides.focus()
     });
     if (!start.value || start.value <= today() || !end.value || end.value < start.value) items.push({
-      text: 'Start tomorrow or later; the end cannot be before the start.',
+      text: 'Start at least tomorrow; the end date cannot be earlier.',
       fix: () => start.focus()
     });
     if (Date.parse(end.value) - Date.parse(start.value) > 90 * 864e5) items.push({
-      text: 'The schedule can span at most 90 days.',
+      text: 'Schedule range must not exceed 90 days.',
       fix: () => end.focus()
     });
     const ts = times.value.split(',').map(s => s.trim()).filter(Boolean);
-    if (!ts.length || ts.length > 8 || ts.some(s => !/^([01]\d|2[0-3]):[0-5]\d$/.test(s))) items.push({
-      text: 'Enter 1–8 Jakarta times as HH:MM, separated by commas.',
+    if (!ts.length || ts.length > 12 || ts.some(s => !/^([01]\d|2[0-3]):[0-5]\d$/.test(s))) items.push({
+      text: 'Enter WIB times as HH:MM, separated by commas, up to 12 times.',
       fix: () => times.focus()
     });
-    else if (start.value && end.value && end.value >= start.value && Number.isInteger(n) && n > 0) {
-      const days = Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1;
-      if (days * new Set(ts).size < n) items.push({
-        text: `${n} posts need at least ${n} available slots. Add a posting time or extend the date range.`,
-        fix: () => times.focus()
-      });
-    }
+    const inclusiveDays = Math.floor((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1;
+    const validTimes = ts.length && ts.length <= 12 && ts.every(value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value));
+    if (validTimes && Number.isFinite(inclusiveDays) && inclusiveDays > 0 && Number.isInteger(n) && n > inclusiveDays * new Set(ts).size) items.push({
+      text: `Schedule capacity is ${inclusiveDays * new Set(ts).size} posts per account, but ${n} are requested. Add unique posting times, extend the dates or reduce the count.`,
+      fix: () => schedulePopover('times')
+    });
     return items;
   }
   function shortDate(value) {
@@ -331,7 +329,7 @@ export async function generatorWorkspace(ctx, workspace) {
       day: 'numeric',
       month: 'short',
       timeZone: 'Asia/Jakarta'
-    }).format(new Date(value + 'T12:00:00+07:00')) : 'Select a date';
+    }).format(new Date(value + 'T12:00:00+07:00')) : 'Choose a date';
   }
   function storyArc(p) {
     const text = String(p.bible || ''),
@@ -361,7 +359,7 @@ export async function generatorWorkspace(ctx, workspace) {
       }
     }, 'btn sm', {
       disabled: slides.disabled,
-      'aria-label': 'Remove a slide'
+      'aria-label': 'Decrease slides'
     }), slides, B('+', () => {
       if (!slides.disabled) {
         slides.value = Math.min(10, Number(slides.value) + 1);
@@ -369,14 +367,14 @@ export async function generatorWorkspace(ctx, workspace) {
       }
     }, 'btn sm', {
       disabled: slides.disabled,
-      'aria-label': 'Add a slide'
+      'aria-label': 'Increase slides'
     }), h('span', {
       class: 'gf-format-divider'
     }), h('span', {
       class: 'small'
     }, 'Image source'), h('div', {
       class: 'rd-tabs'
-    }, [['ai', 'AI generated'], ['manual', 'My photos']].map(([v, label]) => B(label, () => {
+    }, [['ai', 'AI creates'], ['manual', 'My photos']].map(([v, label]) => B(label, () => {
       images.value = v;
       update();
       drawFormats();
@@ -384,13 +382,13 @@ export async function generatorWorkspace(ctx, workspace) {
   }
   function drawSchedule() {
     const ts = times.value.split(',').map(x => x.trim()).filter(Boolean);
-    replace(scheduleSentence, mode === 'story' ? 'Continue ' : 'Create ', B(`${count.value || 0} ${mode === 'story' ? 'episodes' : 'posts'}`, () => schedulePopover('count'), 'gf-inline'), mode === 'story' ? ' from ' : ' per account, from ', B(shortDate(start.value), () => schedulePopover('start'), 'gf-inline'), ' to ', B(shortDate(end.value), () => schedulePopover('end'), 'gf-inline'), ', posting at ', ...ts.map((time, index) => h('span', {
+    replace(scheduleSentence, mode === 'story' ? 'Continue ' : 'Create ', B(`${count.value || 0} ${mode === 'story' ? 'episode' : 'posts'}`, () => schedulePopover('count'), 'gf-inline'), mode === 'story' ? ' from ' : ' per account, from ', B(shortDate(start.value), () => schedulePopover('start'), 'gf-inline'), ' to ', B(shortDate(end.value), () => schedulePopover('end'), 'gf-inline'), ', posting at ', ...ts.map((time, index) => h('span', {
       class: 'gf-time-token'
     }, B(time.replace(':', '.'), () => schedulePopover('times'), 'gf-inline'), B('×', () => {
       times.value = ts.filter((_, i) => i !== index).join(', ');
       update();
     }, 'gf-remove-time', {
-      'aria-label': 'Hapus jam ' + time
+      'aria-label': 'Remove time ' + time
     }))), B('+ time', () => schedulePopover('times'), 'gf-inline'), ' WIB.');
   }
   function schedulePopover(focus) {
@@ -451,7 +449,7 @@ export async function generatorWorkspace(ctx, workspace) {
           'aria-pressed': String(date >= start.value && date <= end.value)
         });
       })));
-      rhythm.textContent = `${count.value} posts across ${Math.max(1, Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1)} days per account. Jakarta slots: ${times.value}. Posts are spread evenly in sequence.`;
+      rhythm.textContent = `${count.value} posts across ${Math.max(1, Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1)} days per account. WIB slots: ${times.value}. Content is distributed evenly in order.`;
     }
     function presetRange(days, nextMonday = false) {
       let date = new Date(Date.now() + 864e5 + 7 * 3600000);
@@ -466,11 +464,11 @@ export async function generatorWorkspace(ctx, workspace) {
       update();
       refreshCalendar();
     }
-    const d = modal('Plan and schedule', h('div', {}, h('div', {
+    const d = modal('Plan & schedule', h('div', {}, h('div', {
       class: 'gf-date-presets'
     }, B('2 weeks', () => presetRange(14), 'btn sm'), B('1 month', () => presetRange(30), 'btn sm'), B('This week', () => presetRange(Math.max(1, 7 - new Date(Date.now() + 7 * 3600000).getUTCDay())), 'btn sm'), B('Start next Monday', () => presetRange(14, true), 'btn sm')), h('div', {
       class: 'gf-schedule-fields'
-    }, field('Posts per account', count), field('Start date (Jakarta)', start), field('End date (Jakarta)', end), field('Posting times (Jakarta, comma separated)', times)), calendar, rhythm), [B('Apply', () => {
+    }, field('Posts per account', count), field('Start date (WIB)', start), field('End date (WIB)', end), field('Posting times (WIB, comma-separated)', times)), calendar, rhythm), [B('Apply', () => {
       update();
       d.close();
     }, 'btn primary')]);
@@ -503,7 +501,7 @@ export async function generatorWorkspace(ctx, workspace) {
       img = mode === 'story' || images.value === 'ai' ? total * Number(slides.value) : 0,
       days = Math.max(1, Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1 || 1),
       missing = readyItems();
-    submit.textContent = submitting ? 'Preparing session…' : mode === 'story' ? `Plan ${selection.length ? n : 0} episodes` : `Generate ${total} posts`;
+    submit.textContent = submitting ? 'Preparing session…' : mode === 'story' ? `Plan ${selection.length ? n : 0} episode` : `Generate ${total} posts`;
     submit.disabled = submitting || missing.length > 0;
     mobileSubmit.textContent = submit.textContent;
     mobileSubmit.disabled = submit.disabled;
@@ -517,12 +515,12 @@ export async function generatorWorkspace(ctx, workspace) {
       update();
     }, 'ui-text-button') : h('span', {}, 'One account per session'));
     for(const button of accountRow.querySelectorAll('[data-account-control^="chip-"]')){const id=button.dataset.accountControl.slice(5),account=state.accounts.find(a=>a.id===id),label=button.querySelector('span:not(.ui-avatar):not(.ui-dot)');if(account&&label)label.textContent='@'+account.username+(mode==='story'&&selection.includes(id)?' · Ep. '+(state.brandProfiles[id]?.next_episode||1):'');}
-    const stepReady=[selection.length>0&&selected().every(a=>!!state.brandProfiles[a.id]?.seed),mode==='story'?!!state.brandProfiles[selected()[0]?.id]?.seed:!!brief.value.trim(),!missing.some(x=>/date|times|slots|posts per account|slides/.test(x.text))];composer.querySelectorAll('.rd-step-number').forEach((el,i)=>{replace(el,stepReady[i]?icon('check'):String(i+1));el.classList.toggle('done',stepReady[i]);});
+    const stepReady=[selection.length>0&&selected().every(a=>!!state.brandProfiles[a.id]?.seed),mode==='story'?!!state.brandProfiles[selected()[0]?.id]?.seed:!!brief.value.trim(),!missing.some(x=>/date|time|posts per account|slide|capacity/i.test(x.text))];composer.querySelectorAll('.rd-step-number').forEach((el,i)=>{replace(el,stepReady[i]?icon('check'):String(i+1));el.classList.toggle('done',stepReady[i]);});
     drawSchedule();
     const nextStory = storyInfo.querySelector('.gf-story-next');
     if (nextStory) {
       const profile = state.brandProfiles[selected()[0]?.id];
-      nextStory.textContent = `This session continues episodes ${profile?.next_episode || 1}–${(profile?.next_episode || 1) + n - 1}. Storyteller uses the saved story memory.`;
+      nextStory.textContent = `This session continues episodes ${profile?.next_episode || 1}–${(profile?.next_episode || 1) + n - 1}. Storyteller uses saved story memory.`;
     }
     const a = selected()[0],
       p = state.brandProfiles[a?.id],
@@ -539,27 +537,27 @@ export async function generatorWorkspace(ctx, workspace) {
       class: 'gf-summary-header'
     }, h('h2', {}, 'Session summary'), ui.chip(mode === 'story' ? 'Storyline' : 'Campaign', mode === 'story' ? 'concept' : 'info')), h('div', {
       class: 'rd-summary-total'
-    }, total, h('span', {}, mode === 'story' ? 'episodes' : 'posts')), h('p', {
+    }, total, h('span', {}, mode === 'story' ? 'episode' : 'posts')), h('p', {
       class: 'small muted'
-    }, mode === 'story' ? a ? `@${a.username} · episode ${episode}–${episode + n - 1}` : 'Select a story account' : `${selection.length} accounts × ${n} posts`), h('div', {
+    }, mode === 'story' ? a ? `@${a.username} · episode ${episode}–${episode + n - 1}` : 'Choose a story account' : `${selection.length} accounts × ${n} posts`), h('div', {
       class: 'gf-summary-rows'
-    }, summaryRow('Format', mode === 'story' ? 'Follow the story arc' : format.value === 'single' ? 'Single' : `Carousel · ${slides.value} slide`, h('span', {
+    }, summaryRow('Format', mode === 'story' ? 'Sesuai alur cerita' : format.value === 'single' ? 'Single' : `Carousel · ${slides.value} slide`, h('span', {
       class: 'muted'
     }, `${img} images`)), summaryRow('Period', `${shortDate(start.value)} – ${shortDate(end.value)}`, h('span', {
       class: 'muted'
-    }, `${days} days`)), summaryRow('Pace', `±${(n / days).toFixed(1)} posts/day/account`), summaryRow('Language', captionLanguage.selectedOptions[0]?.textContent), summaryRow('AI team', teamSummary.textContent, B('Change', teamDrawer, 'ui-text-button'))), mode === 'story' && a ? summaryRow('Assets', `${(p?.assets || []).filter(x => x.category === 'logo').length} logo · ${(p?.assets || []).filter(x => x.category === 'visual').length} references · ${(p?.assets || []).filter(x => x.category === 'product').length} products`, B('Manage', () => quickBrand(a), 'ui-text-button')) : null, mode === 'story' && a && !(p?.assets || []).some(x => x.category === 'product') ? h('div', {
+    }, `${days} days`)), summaryRow('Rhythm', `±${(n / days).toFixed(1)} posts/day/account`), summaryRow('Language', captionLanguage.selectedOptions[0]?.textContent), summaryRow('AI team', teamSummary.textContent, B('Change', teamDrawer, 'ui-text-button'))), mode === 'story' && a ? summaryRow('Assets', `${(p?.assets || []).filter(x => x.category === 'logo').length} logo · ${(p?.assets || []).filter(x => x.category === 'visual').length} references · ${(p?.assets || []).filter(x => x.category === 'product').length} products`, B('Manage', () => quickBrand(a), 'ui-text-button')) : null, mode === 'story' && a && !(p?.assets || []).some(x => x.category === 'product') ? h('div', {
       class: 'rd-callout warn small'
-    }, 'No product photos yet. Storyteller cannot choose a specific product. ', B('Add product photos', () => quickBrand(a), 'ui-text-button')) : null, h('div',{class:'gf-brand-completeness'},selected().filter(a=>a.platform==='instagram').map(a=>{const ready=brandReadiness(state.brandProfiles[a.id]);return h('div',{class:'small'},B('@'+a.username+' · Brand Kit '+ready.completeness+'%',()=>quickBrand(a),'ui-text-button'),ready.ok&&ready.missing.length?h('span',{class:'muted'},' · Recommended: '+ready.missing.map(x=>x.label).join(', ')):null);})),h('h3', {}, missing.length ? 'Complete these items' : 'Ready to generate'), h('div', {
+    }, 'No product photos yet. Storyteller cannot select specific products. ', B('Add product photos', () => quickBrand(a), 'ui-text-button')) : null, h('div',{class:'gf-brand-completeness'},selected().filter(a=>a.platform==='instagram').map(a=>{const ready=brandReadiness(state.brandProfiles[a.id]);return h('div',{class:'small'},B('@'+a.username+' · Brand Kit '+ready.completeness+'%',()=>quickBrand(a),'ui-text-button'),ready.ok&&ready.missing.length?h('span',{class:'muted'},' · Recommended: '+ready.missing.map(x=>x.label).join(', ')):null);})),h('h3', {}, missing.length ? 'What needs attention' : 'Ready to generate'), h('div', {
       class: 'rd-readiness'
     }, ...(missing.length ? missing.map(item => h('div', {
       class: 'rd-check-item warn'
-    }, icon('warn'), h('span', {}, item.text), item.fix ? B('Complete', item.fix, 'ui-text-button') : link('Open', item.url, 'ui-text-button'), item.account ? B('Skip', () => {
+    }, icon('warn'), h('span', {}, item.text), item.fix ? B('Lengkapi', item.fix, 'ui-text-button') : link('Open', item.url, 'ui-text-button'), item.account ? B('Lewati', () => {
       selection = selection.filter(id => id !== item.account.id);
       drawAccounts();
       update();
-    }, 'ui-text-button') : null)) : [check(`${selection.length} accounts, all Brand Kits ready`), check(mode === 'story' ? 'Story foundation saved' : 'Brief written'), check(images.value === 'manual' && mode === 'campaign' ? 'Photos uploaded manually' : 'Agent API key connected')])), submit, h('p', {
+    }, 'ui-text-button') : null)) : [check(`${selection.length} accounts, all Brand Kits ready`), check(mode === 'story' ? 'Story foundation saved' : 'Direction written'), check(images.value === 'manual' && mode === 'campaign' ? 'Photos uploaded manually' : 'Agent team API keys connected')])), submit, h('p', {
       class: 'small muted gf-cta-note'
-    }, mode === 'story' ? 'Plans and concepts appear in Drafts. Images are charged only after you approve the concepts.' : 'First, review the concepts. Images are generated after your approval. Publishing requires final approval.'));
+    }, mode === 'story' ? 'Plans and proposals appear in Drafts. No image charges apply until you approve the concept.' : 'Stage 1 creates concepts only. Images follow concept approval. Publishing requires final approval.'));
   }
   async function quickBrand(a) {
     let p = state.brandProfiles[a.id] || {
@@ -578,7 +576,7 @@ export async function generatorWorkspace(ctx, workspace) {
       notes = h('textarea', {
         rows: 4,
         maxlength: 5500,
-        'aria-label': 'Brand rules'
+        'aria-label': 'Aturan brand'
       }, (p.brand_notes || '').replace(/\n?Caption language:.*|\n?Emoji in captions:.*/g, '')),
       language = h('select', {
         'aria-label': 'Account caption language'
@@ -599,7 +597,7 @@ export async function generatorWorkspace(ctx, workspace) {
       }),
       category = h('select', {
         'aria-label': 'Asset category'
-      }, [['logo', 'Logo'], ['visual', 'Visual reference'], ['product', 'Product photo'], ['video', 'Video / Reel']].map(([value, text]) => h('option', {
+      }, [['logo', 'Logo'], ['visual', 'Visual references'], ['product', 'Product photos'], ['video', 'Video / Reel']].map(([value, text]) => h('option', {
         value
       }, text))),
       assetName = h('input', {
@@ -653,7 +651,7 @@ export async function generatorWorkspace(ctx, workspace) {
         }
       }
       assetsDraw();
-      toast(`${file.files.length - failed} aset ditambahkan${failed ? ' · ' + failed + ' gagal' : ''}`);
+      toast(`${file.files.length - failed} assets added${failed ? ' · ' + failed + ' failed' : ''}`);
       file.value = '';
     };
     const stageTabs = h('div', {
@@ -661,26 +659,26 @@ export async function generatorWorkspace(ctx, workspace) {
       }),
       identity = h('section', {
         class: 'gf-brand-page'
-      }, field('What does this brand sell, and to whom?', seed), h('h3', {}, 'Brand tone'), h('div', {
+      }, field('What does this brand sell, and to whom?', seed), h('h3', {}, 'Tone bicara'), h('div', {
         class: 'gf-tone-chips'
-      }, ['Friendly', 'Professional', 'Direct', 'Playful', 'Premium'].map(tone => B(tone, e => {
+      }, ['Ramah', 'Profesional', 'To the point', 'Playful', 'Mewah'].map(tone => B(tone, e => {
         const line = 'Tone: ' + tone;
         if (!notes.value.includes(line)) {
           notes.value += (notes.value ? '\n' : '') + line;
           saver.schedule();
         }
-        toast('Tone ' + tone + ' ditambahkan ke aturan brand.');
+        toast('Tone ' + tone + ' added to brand rules.');
       }, 'btn sm'))), field('Caption language', language), h('label', {
         class: 'gf-notify'
       }, emoji, 'Allow emoji in captions')),
       rulesPage = h('section', {
         class: 'gf-brand-page'
-      }, field('Brand rules: do and do not', notes), h('p', {
+      }, field('Rules: do / do not', notes), h('p', {
         class: 'small muted'
-      }, 'Preserve the logo and product details. Describe the palette, voice, and claims to avoid.')),
+      }, 'Preserve the logo and product details. Describe colors, tone and claims to avoid.')),
       assetPage = h('section', {
         class: 'gf-brand-page'
-      }, h('h3', {}, 'Logos, visual references, and products'), assets, h('div', {
+      }, h('h3', {}, 'Logo, visual references & products'), assets, h('div', {
         class: 'row'
       }, category, assetName, file, B('Upload assets', () => file.click())));
     let brandStep = 0;
@@ -698,11 +696,11 @@ export async function generatorWorkspace(ctx, workspace) {
       [identity, rulesPage, assetPage].forEach((el, i) => el.hidden = i !== brandStep);
       next.textContent = ['Next: Rules', 'Next: Assets', 'Done'][brandStep];
     }
-    const d = modal('Brand Kit cepat · @' + a.username, h('div', {}, h('p', {
+    const d = modal('Quick Brand Kit · @' + a.username, h('div', {}, h('p', {
       class: 'muted small'
-    }, 'This account’s foundation is saved for future sessions.'), stageTabs, identity, rulesPage, assetPage, saveStatus, h('p', {
+    }, 'The same foundation is saved to the account and reused in future sessions.'), stageTabs, identity, rulesPage, assetPage, saveStatus, h('p', {
       class: 'small muted'
-    }, 'You can complete this later in Companies & Accounts → Brand Kit.')), [link('Brand Kit details', '/accounts/' + a.id + '?tab=brand'), B('Later', () => d.close()), next]);
+    }, 'Complete it anytime in Companies & Accounts > Brand Kit.')), [link('Brand Kit details', '/accounts/' + a.id + '?tab=brand'), B('Later', () => d.close()), next]);
     d.classList.add('rd-drawer', 'gf-brand-drawer');
     drawBrandSteps();
     const close = d.close.bind(d);
@@ -733,7 +731,7 @@ export async function generatorWorkspace(ctx, workspace) {
       }, h('h3', {}, lines[0].replace(/[*#]/g, '')), h('p', {
         class: 'rd-prose'
       }, lines.slice(1).join('\n').replace(/^#+\s*/gm, '')));
-    })), [B('Edit fondasi brand', () => quickBrand(a))]);
+    })), [B('Edit brand foundation', () => quickBrand(a))]);
   }
   async function teamDrawer() {
     const table = h('div', {
@@ -741,7 +739,7 @@ export async function generatorWorkspace(ctx, workspace) {
       }),
       description = h('p', {
         class: 'muted small'
-      }, 'Models come from each provider’s catalog. Availability depends on your API key and quota.'),
+      }, 'Every agent specializes in the selected account using its Brand Kit, references and content history. Model choices come from the provider catalog; availability depends on your API key and quota.'),
       draft = structuredClone(agents),
       activeRoles = mode === 'story' ? ['storyteller', 'manager', 'scheduler', 'concept', 'revision', 'visual', 'image', 'final'] : ['concept', 'revision', 'visual', 'image', 'final'];
     let selectedPreset = preset;
@@ -753,7 +751,7 @@ export async function generatorWorkspace(ctx, workspace) {
       const textProvider = keys.has('openai') ? 'openai' : keys.has('anthropic') ? 'anthropic' : keys.has('gemini') ? 'gemini' : null,
         imageProvider = keys.has('openai') ? 'openai' : keys.has('gemini') ? 'gemini' : null;
       if (!textProvider) {
-        toast('Add an API key first.', true);
+        toast('Add an API key for terlebih dahulu.', true);
         return;
       }
       for (const role of Object.keys(draft)) {
@@ -781,14 +779,14 @@ export async function generatorWorkspace(ctx, workspace) {
           }, Object.entries(config.providers).filter(([p, c]) => role !== 'image' || c.image).map(([value, c]) => h('option', {
             value,
             selected: value === draft[role].provider
-          }, c.name + (keys.has(value) ? '' : ' · key missing')))),
+          }, c.name + (keys.has(value) ? '' : ' · no key saved')))),
           model = h('select', {
             'aria-label': 'Model ' + roles[role]
           }),
           instructions = h('textarea', {
             rows: 3,
             maxlength: 4000,
-            'aria-label': 'Instructions for ' + roles[role]
+            'aria-label': 'Instructions ' + roles[role]
           }, draft[role].instructions);
         function drawModels() {
           const list = models(provider.value, role);
@@ -796,19 +794,19 @@ export async function generatorWorkspace(ctx, workspace) {
             if(role!=='image'&&/transcribe|computer.?use|tts|embedding|image|imagen|nano.?banana|veo|audio/i.test(draft[role].model))draft[role].model=list[0]?.id||'';
             else list.push({id:draft[role].model,name:draft[role].model+' · saved'});
           }
-          const groups=[['Recommended',list.slice(0,3)],['Other compatible models',list.slice(3)]];
+          const groups=[['Disarankan',list.slice(0,3)],['Model lain yang sesuai',list.slice(3)]];
           replace(model,...groups.filter(([,items])=>items.length).map(([label,items])=>h('optgroup',{label},items.map(m=>h('option',{value:m.id,selected:m.id===draft[role].model},m.name)))));
 
         }
         provider.onchange = () => {
           draft[role].provider = provider.value;
           draft[role].model = models(provider.value, role)[0]?.id || '';
-          selectedPreset = 'Custom';
+          selectedPreset = 'Kustom';
           drawModels();
         };
         model.onchange = () => {
           draft[role].model = model.value;
-          selectedPreset = 'Custom';
+          selectedPreset = 'Kustom';
         };
         instructions.oninput = () => draft[role].instructions = instructions.value;
         drawModels();
@@ -816,12 +814,12 @@ export async function generatorWorkspace(ctx, workspace) {
         return row;
       }));
     }
-    const d = modal('Agent team and models', h('div', {}, h('div', {
+    const d = modal('Agent team & models', h('div', {}, h('div', {
       class: 'gf-presets'
     }, ['Economy', 'Balanced', 'Quality'].map(n => B(h('span', {}, h('b', {}, n), h('small', {}, {
-      Economy: 'Lightweight models for ideas and testing.',
-      Balanced: 'Detailed concepts with a light review. Recommended.',
-      Quality: 'Best available models for each step. Slower.'
+      Economy: 'Lightweight models for ideas and experiments.',
+      Balanced: 'Detailed concepts with lightweight review. Recommended.',
+      Quality: 'Higher-quality models at each stage. Slower.'
     }[n])), () => {
       applyPreset(n);
       d.querySelectorAll('.gf-presets .btn').forEach((el, i) => el.classList.toggle('on', ['Economy', 'Balanced', 'Quality'][i] === n));
@@ -859,11 +857,11 @@ export async function generatorWorkspace(ctx, workspace) {
         stage = (name, amount, when, tone) => h('tr', {}, h('td', {}, name), h('td', {}, amount), h('td', {}, ui.chip(when, tone))),
         d = modal(mode === 'story' ? `Plan ${n} episodes?` : `Create ${n * chosen.length} content ideas?`, h('div', {}, ui.chip(mode === 'story' ? 'Storyline' : 'Campaign', 'info'), h('table', {
           class: 'gf-stage-table'
-        }, h('thead', {}, h('tr', {}, ['Step', 'Amount', 'When'].map(x => h('th', {}, x)))), h('tbody', {}, stage(mode === 'story' ? 'Storyteller + Manager + Scheduler' : 'Concept + caption + review', `${n * chosen.length} posts`, 'Now', 'ok'), stage('Images · ' + agents.image.model, `${n * chosen.length * Number(slides.value)} images`, 'After concept approval'), stage('Publish', '0', 'Only after your approval'))), h('div', {
+        }, h('thead', {}, h('tr', {}, ['Stage', 'Count', 'When'].map(x => h('th', {}, x)))), h('tbody', {}, stage(mode === 'story' ? 'Storyteller + Manager + Scheduler' : 'Concept + caption + review', `${n * chosen.length} posts`, 'Now', 'ok'), stage('Images · ' + agents.image.model, `${n * chosen.length * Number(slides.value)} images`, 'After concept approval'), stage('Publish', '0', 'Only after your approval'))), h('div', {
           class: 'rd-callout'
-        }, 'Your personal API keys are billed at provider rates. Images need separate approval and cost confirmation. Nothing publishes automatically.'), h('details', {}, h('summary', {}, 'Models used for this run'), h('ul', {}, (mode === 'story' ? ['storyteller', 'manager', 'scheduler'] : ['concept', 'revision']).map(role => h('li', {}, roles[role] + ' · ' + agents[role].provider + ' / ' + agents[role].model)))), h('label', {
+        }, 'Charges apply to your personal API key at provider rates. Story stages may make one additional repair call if their response is invalid. Images require separate approval and cost confirmation. Nothing is published automatically.'), h('details', {}, h('summary', {}, 'Current models'), h('ul', {}, (mode === 'story' ? ['storyteller', 'manager', 'scheduler'] : ['concept', 'revision']).map(role => h('li', {}, roles[role] + ' · ' + agents[role].provider + ' / ' + agents[role].model)))), h('label', {
           class: 'gf-notify'
-        }, notify, 'Notify me in the app when concepts are ready')), [B('Back', () => d.close()), B('Start session', () => {
+        }, notify, 'Notify me in the app when concepts are ready to review')), [B('Back', () => d.close()), B('Start session', () => {
           accepted = true;
           notifyReady = notify.checked;
           d.close();
@@ -1012,16 +1010,15 @@ export async function generatorWorkspace(ctx, workspace) {
       }, h('b', {}, `${[...batch.results.values()].filter(r => r.started || r.story || manual).length} accounts ready · ${failures.length} need retry`), ...failures.map(({
         a,
         e
-      }) => h('p', {}, '@' + a.username + ': ' + errMsg(e))), B('Retry failed accounts', generate)));else if (mode === 'campaign') {
-        const results = [...batch.results.values()];
-        toast(manual ? 'Plan created. Upload media in Drafts.' : 'Session started. Review its concepts in Drafts.');
-      } else {
-        toast('Storyline planning started. Opening its Drafts session.');
+      }) => h('p', {}, '@' + a.username + ': ' + errMsg(e))), B('Retry failed items', generate)));else {
+        const result=[...batch.results.values()][0];
+        if(result?.id){
+          toast(mode==='story'?'Your story session is preparing in Drafts.':manual?'Plan created. Upload media in Drafts.':'Session started. Review concepts in Drafts.');
+          go('/generator/drafts/'+encodeURIComponent(result.id));
+          return;
+        }
       }
-      if (!failures.length && batch.results.size) {
-        const result = [...batch.results.values()][0];
-        go('/generator/drafts/' + encodeURIComponent(result.id));
-      } else await refresh();
+      await refresh();
     } finally {
       submitting = false;
       update();
@@ -1044,30 +1041,30 @@ export async function generatorWorkspace(ctx, workspace) {
       class: 'panel gf-live-card'
     }, h('div', {
       class: 'gf-live-heading'
-    }, ui.chip(failed.length ? 'Terhenti' : 'Sedang dibuat', failed.length ? 'bad' : 'info'), h('h2', {}, s.title), h('span', {
+    }, ui.chip(failed.length ? 'Stopped' : 'Creating', failed.length ? 'bad' : 'info'), h('h2', {}, s.title), h('span', {
       class: 'small muted'
     }, `${new Set(s.runs.flatMap(r => (r.targets || []).map(target => target.account_id))).size} accounts · ${s.runs.length} posts`)), ui.progressPipeline(steps), failed.length ? h('div', {
       class: 'rd-callout warn'
-    }, h('b', {}, `${failed.length} posts failed. ${s.runs.length - failed.length} other posts remain saved.`), errorBox(failed[0].error || 'The provider step did not finish. Check the model and quota, then retry.')) : null, h('div', {
+    }, h('b', {}, `${failed.length} posts failed. ${s.runs.length - failed.length} other posts are unaffected.`), errorBox(failed[0].error || 'Provider stage is incomplete. Check the model and quota, then retry.')) : null, h('div', {
       class: 'gf-live-actions'
-    }, concepts.length ? link(`Review ${concepts.length} concepts now`, '/generator/drafts/' + s.id, 'ui-text-button') : ready.length ? link(`Review ${ready.length} completed posts`, '/generator/drafts/' + s.id, 'ui-text-button') : h('span', {
+    }, concepts.length ? link(`Review ${concepts.length} concepts now`, '/generator/drafts/' + s.id, 'ui-text-button') : ready.length ? link(`Review ${ready.length} successful items`, '/generator/drafts/' + s.id, 'ui-text-button') : h('span', {
       class: 'small muted'
     }, 'Progress updates automatically.'), h('span', {
       class: 'gf-grow'
-    }), failed.length ? B('Retry ' + failed.length, async () => {
+    }), failed.length ? B('Try again ' + failed.length, async () => {
       if (!(await ui.confirmDialog({
         title: `Retry ${failed.length} posts?`,
         tone: 'cost',
-        body: 'Only failed posts are retried. The next step may use your personal API key.'
+        body: 'Only failed content is retried. Subsequent stages may use your personal API key.'
       }))) return;
       for (const r of failed) await api('POST', `/v1/generator/runs/${r.id}/retry`);
       await refresh();
-    }) : B('Jeda', async () => {
+    }) : B('Pause', async () => {
       if (!(await ui.confirmDialog({
         title: 'Stop this session?',
         tone: 'danger',
-        body: 'Completed paid steps cannot be undone.',
-        confirmLabel: 'Hentikan'
+        body: 'Charges for stages already run cannot be reversed.',
+        confirmLabel: 'Stop'
       }))) return;
       for (const r of s.runs.filter(r => ['queued', 'running'].includes(r.status))) await api('DELETE', `/v1/generator/runs/${r.id}`);
       await refresh();
@@ -1096,26 +1093,26 @@ export async function generatorWorkspace(ctx, workspace) {
       }
       replace(running, ...latestJobs.filter(j => ['queued', 'running', 'failed'].includes(j.status)).map(j => h('section', {
         class: 'panel rd-live-session gf-live-card'
-      }, h('h2', {}, (j.memory_session_title||'Sesi Storyline')+' · @' + (state.accounts.find(a => a.id === j.account_id)?.username || '')), ui.progressPipeline(['storyteller', 'manager', 'scheduler'].map(role => ({
+      }, h('h2', {}, (j.memory_session_title||'Storyline session')+' · @' + (state.accounts.find(a => a.id === j.account_id)?.username || '')), ui.progressPipeline(['storyteller', 'manager', 'scheduler'].map(role => ({
         label: roles[role],
         status: j.steps?.[role]?.status || 'waiting'
       }))), j.error ? errorBox(j.error) : null, j.status === 'failed' ? B('Retry session', async () => {
         if (!(await ui.confirmDialog({
           title: 'Retry Storyline?',
           tone: 'cost',
-          body: 'Incomplete steps are retried using your personal API key.'
+          body: 'Unfinished stages will be retried using your personal API key.'
         }))) return;
         await api('POST', `/v1/generator/story-jobs/${j.id}/retry`, {
           agents,
           confirm_cost: true
         });
         await refresh();
-      }) : B('Hentikan', async () => {
+      }) : B('Stop', async () => {
         if (await ui.confirmDialog({
           title: 'Stop this story session?',
           tone: 'danger',
-          body: 'Completed paid steps cannot be undone.',
-          confirmLabel: 'Hentikan'
+          body: 'Charges for stages already run cannot be reversed.',
+          confirmLabel: 'Stop'
         })) {
           await api('DELETE', `/v1/generator/story-jobs/${j.id}`);
           await refresh();
@@ -1127,10 +1124,10 @@ export async function generatorWorkspace(ctx, workspace) {
         class: 'gf-recent-row'
       }, ui.chip({
         action: 'Needs review',
-        running: 'Sedang dibuat',
+        running: 'Creating',
         done: 'Done',
-        plan: 'Planned',
-        expired: 'Kedaluwarsa'
+        plan: 'Plan',
+        expired: 'Expired'
       }[workspace.stateOf(s)] || 'Needs review', workspace.stateOf(s) === 'done' ? 'ok' : workspace.stateOf(s)==='action'?'warn':'info'), h('b', {}, s.title), h('span', {
         class: 'small muted'
       }, `${new Set(s.runs.flatMap(r => (r.targets || []).map(target => target.account_id))).size} accounts · ${s.runs.length} posts`), link('Open', '/generator/drafts/' + s.id, 'btn sm'))), !sessions.length ? h('p', {
@@ -1158,25 +1155,25 @@ export async function generatorWorkspace(ctx, workspace) {
     class: 'row rd-quick-ideas'
   }, h('span', {
     class: 'small muted'
-  }, 'Quick ideas:'), [['Promo', 'Promotion'], ['Edukasi produk', 'Product education'], ['Testimoni', 'Testimonials'], ['Di balik layar', 'Behind the scenes']].map(([kind, label]) => B(label, async () => {
-    const ids=selected().map(a=>a.id);if(!ids.length){toast('Select an account so the idea uses its Brand Kit and history.',true);return;}
-    if(!await ui.confirmDialog({title:'Create a prompt for '+label+'?',tone:'cost',body:'Conceptor uses your personal API key to read this account’s Brand Kit, story memory, and previous sessions. This creates a detailed prompt without images or publishing.',confirmLabel:'Create prompt'}))return;
+  }, 'Quick ideas:'), [['Promo','Promotion'], ['Edukasi produk','Product education'], ['Testimoni','Testimonials'], ['Di balik layar','Behind the scenes']].map(([kind,x]) => B(x, async () => {
+    const ids=selected().map(a=>a.id);if(!ids.length){toast('Choose accounts first so ideas reflect their Brand Kits and history.',true);return;}
+    if(!await ui.confirmDialog({title:'Create prompt '+x+'?',tone:'cost',body:'Conceptor will use your personal API key to read Brand Kits, story memory and previous sessions, then prepare a detailed prompt. No images or published posts are created yet.',confirmLabel:'Create prompt'}))return;
     const before=brief.value;quickIdeas.inert=true;quickIdeas.setAttribute('aria-busy','true');const progress=h('span',{class:'small muted',role:'status'},'Conceptor is preparing a prompt…');quickIdeas.append(progress);
     try{const result=await api('POST','/v1/generator/quick-idea',{account_ids:ids,kind,direction:before,agents,memory_sessions:Object.fromEntries(ids.map(id=>[id,state.brandProfiles[id]?.memory_session_id])),confirm_cost:true});
       if(stopped)return;
-      if(brief.value!==before||JSON.stringify(selected().map(a=>a.id))!==JSON.stringify(ids)){const text=h('textarea',{rows:12,'aria-label':'Conceptor prompt'},result.prompt);const d=modal('Prompt: '+label,h('div',{},h('p',{},'The brief or selected accounts changed during generation. Review the prompt before using it.'),text),[B('Use prompt',()=>{brief.value=text.value;d.close();update();})]);}
-      else{brief.value=result.prompt;brief.focus();update();toast('Conceptor’s detailed prompt is ready to edit.');}
+      if(brief.value!==before||JSON.stringify(selected().map(a=>a.id))!==JSON.stringify(ids)){const text=h('textarea',{rows:12,'aria-label':'Prompt Conceptor'},result.prompt);const d=modal('Prompt '+x,h('div',{},h('p',{},'Direction or account selection changed during generation. Review the prompt before using it.'),text),[B('Use prompt',()=>{brief.value=text.value;d.close();update();})]);}
+      else{brief.value=result.prompt;brief.focus();update();toast('A detailed Conceptor prompt is ready. You can edit it.');}
     }catch(e){toast(errMsg(e),true);}finally{quickIdeas.inert=false;quickIdeas.removeAttribute('aria-busy');progress.remove();}
   }, 'btn sm'))), briefCounter);
   const composer = h('section', {
     class: 'panel rd-generator-composer'
-  }, step('1', 'Which account?', h('div', {}, accountRow, h('p', {
+  }, step('1', 'Which accounts?', h('div', {}, accountRow, h('p', {
     class: 'small muted gf-account-hint'
   }, h('span', {
     class: 'ui-dot warn'
-  }), ' = Brand Kit missing. See the session summary for details.')), accountMeta), step('2', 'What would you like to create?', h('div', {}, storyInfo, field('Session brief', brief), quickIdeas, formatOptions, field('Caption language', captionLanguage)), modeControl), step('3', 'When should it post?', h('div', {}, scheduleSentence, h('p', {
+  }), ' = Brand Kit missing. See the session summary for details and fixes.')), accountMeta), step('2', 'What would you like to create?', h('div', {}, storyInfo, field('Session direction', brief), quickIdeas, formatOptions, field('Caption language', captionLanguage)), modeControl), step('3', 'When should it post?', h('div', {}, scheduleSentence, h('p', {
     class: 'small muted'
-  }, 'Posts use the selected date range and time slots. Times are not based on account performance.'))));
+  }, 'Distribution follows the selected date range and slots. Times are not based on account performance analysis.'))));
   format.classList.add('gf-native-control');
   images.classList.add('gf-native-control');
   slides.classList.add('gf-slide-count');
@@ -1186,11 +1183,11 @@ export async function generatorWorkspace(ctx, workspace) {
     class: 'rd-page gf-generator'
   }, h('div', {
     class: 'pagehead'
-  }, h('div', {}, h('h1', {}, 'Content Generator'), h('p', {}, 'Select an account and write a brief. AI will prepare drafts for your review.')), link('Drafts', '/generator/drafts', 'btn')), running, error, h('div', {
+  }, h('div', {}, h('h1', {}, 'Content Generator'), h('p', {}, 'Choose accounts and write a direction. AI prepares drafts for your review.')), link('Drafts', '/generator/drafts', 'btn')), running, error, h('div', {
     class: 'rd-generator-layout'
   }, composer, summary), h('div', {
     class: 'rd-advanced'
-  }, B('Agent team and models · Advanced', teamDrawer, 'ui-text-button'), teamSummary), recent, mobileFooter);
+  }, B('Agent team & models · Advanced', teamDrawer, 'ui-text-button'), teamSummary), recent, mobileFooter);
   drawAccounts();
   drawStory();
   update();
@@ -1206,7 +1203,7 @@ export async function generatorWorkspace(ctx, workspace) {
       clearTimeout(timer);
       for (const saver of openSavers) {
         await saver.flush();
-        if (saver.error) throw new Error('Brand Kit was not saved. Try saving again.');
+        if (saver.error) throw new Error('Brand Kit has not been saved. Try saving again.');
       }
       document.querySelectorAll('dialog.rd-drawer[open]').forEach(d => d.close());
     }

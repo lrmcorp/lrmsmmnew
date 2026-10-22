@@ -45,11 +45,11 @@ async function waitContainer(token, containerId, { timeoutMs = 5 * 60_000 } = {}
     const r = await gget(G(`/${containerId}`), { fields: 'status_code,status', access_token: token });
     if (r.status_code === 'FINISHED' || r.status_code === 'PUBLISHED') return;
     if (r.status_code === 'ERROR' || r.status_code === 'EXPIRED') {
-      throw new PlatformError('media_invalid_format', `Instagram gagal memproses media: ${r.status || r.status_code}`);
+      throw new PlatformError('media_invalid_format', `Instagram could not process the media: ${r.status || r.status_code}`);
     }
     await sleep(delay); delay = Math.min(delay * 1.5, 15000);
   }
-  throw new PlatformError('platform_error', 'Instagram masih memproses media terlalu lama', { transient: true });
+  throw new PlatformError('platform_error', "Instagram media processing timed out.", { transient: true });
 }
 
 /**
@@ -57,7 +57,7 @@ async function waitContainer(token, containerId, { timeoutMs = 5 * 60_000 } = {}
  * @param {{igUserId:string, token:string, caption:string, media:{kind:string,url:string,alt_text?:string}[], options:object, onContainer?:(id:string)=>void}} p
  */
 export async function publish({ igUserId, token, caption, media, options = {}, onContainer }) {
-  if (!media?.length) throw new PlatformError('media_required', 'Instagram wajib minimal 1 foto atau video');
+  if (!media?.length) throw new PlatformError('media_required', "Instagram requires at least one photo or video.");
   const fmt = options.format || 'feed';
   let containerId;
 
@@ -153,7 +153,7 @@ export async function recentMedia(igUserId, token, limit = 15) {
 // ---------------- Direct messages (instagram_business_manage_messages) ----------------
 export async function listConversations(igUserId, token, limit = 25) {
   const r = await gget(G(`/${igUserId}/conversations`), { platform: 'instagram', fields: 'id,updated_time,participants', limit, access_token: token });
-  if (!Array.isArray(r.data)) throw new PlatformError('invalid_response', 'Instagram tidak mengembalikan daftar percakapan yang valid.');
+  if (!Array.isArray(r.data)) throw new PlatformError('invalid_response', "Instagram did not return a valid conversation list.");
   return r.data.map((c) => ({
     id: c.id, updated_time: c.updated_time,
     participants: (c.participants?.data || []).map((p) => ({ id: String(p.id), username: p.username, name: p.name })),
@@ -162,7 +162,7 @@ export async function listConversations(igUserId, token, limit = 25) {
 
 export async function conversationMessages(conversationId, token, limit = 25) {
   const r = await gget(G(`/${conversationId}`), { fields: `messages.limit(${limit}){id,created_time,from,to,message,attachments}`, access_token: token });
-  if (!Array.isArray(r.messages?.data)) throw new PlatformError('invalid_response', 'Instagram tidak mengembalikan daftar pesan yang valid.');
+  if (!Array.isArray(r.messages?.data)) throw new PlatformError('invalid_response', "Instagram did not return a valid message list.");
   return r.messages.data.map((m) => ({
     id: m.id, created_time: m.created_time, from_id: String(m.from?.id || ''), from_username: m.from?.username,
     text: m.message || '', attachments: m.attachments?.data?.map((a) => ({ type: a.mime_type || a.type || 'file', url: a.image_data?.url || a.video_data?.url || a.file_url || null })) || [],

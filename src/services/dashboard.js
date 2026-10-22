@@ -8,8 +8,8 @@ const numeric=x=>typeof x==='number'&&Number.isFinite(x);
 export function dashboardSummary(user,query={},clock=Date.now()){
  const accessible=listAccounts(user),allowed=new Set(accessible.map(a=>a.id));
  let selected=query.account_ids?String(query.account_ids).split(',').filter(Boolean):[...allowed];
- for(const id of selected){assertAccount(user,id);if(!allowed.has(id))throw err(404,'not_found','Akun tidak tersedia. Muat ulang daftar akun.');}
- if(query.company_id&&query.company_id!=='none'&&!one('SELECT 1 FROM companies WHERE id=?',query.company_id))throw err(404,'not_found','Perusahaan tidak ditemukan.');
+ for(const id of selected){assertAccount(user,id);if(!allowed.has(id))throw err(404,'not_found',"Account unavailable. Reload the account list.");}
+ if(query.company_id&&query.company_id!=='none'&&!one('SELECT 1 FROM companies WHERE id=?',query.company_id))throw err(404,'not_found',"Company not found.");
  const ids=new Set(selected),accounts=accessible.filter(a=>ids.has(a.id)&&(!query.company_id||(a.company_id||'none')===query.company_id)),scope=new Set(accounts.map(a=>a.id)),date=day(clock),from=clock-7*DAY,to=clock+7*DAY,midnight=Date.parse(date+'T00:00:00+07:00');
  const rows=scope.size?all(`SELECT p.id,p.status AS post_status,p.content,p.scheduled_at,p.created_at,p.updated_at,t.id AS target_id,t.account_id,t.content AS target_content,t.status,t.published_at,t.error_code,t.error_message FROM posts p JOIN post_targets t ON t.post_id=p.id WHERE p.removed_at IS NULL AND t.account_id IN (${accounts.map(()=>'?').join(',')}) AND (t.status='failed' OR t.status='publishing' OR p.scheduled_at BETWEEN ? AND ? OR t.published_at BETWEEN ? AND ?)`,...scope,new Date(Math.min(clock,midnight)).toISOString(),new Date(to).toISOString(),new Date(Math.min(from,midnight)).toISOString(),new Date(clock).toISOString()):[];
  const scheduled=new Set(rows.filter(r=>r.status==='pending'&&r.post_status==='scheduled'&&Date.parse(r.scheduled_at)>=clock&&Date.parse(r.scheduled_at)<to).map(r=>r.id));
@@ -25,8 +25,8 @@ export function dashboardSummary(user,query={},clock=Date.now()){
  return {generated_at:new Date(clock).toISOString(),date,total_accounts:accessible.length,accounts,stats:{accounts:accounts.length,instagram:accounts.filter(a=>a.platform==='instagram').length,threads:accounts.filter(a=>a.platform==='threads').length,scheduled:scheduled.size,scheduled_accounts:new Set(rows.filter(r=>scheduled.has(r.id)&&r.status==='pending').map(r=>r.account_id)).size,published:published.size,failed:new Set(failedRows.filter(r=>Date.parse(r.updated_at)>=from&&Date.parse(r.updated_at)<=clock).map(r=>r.id)).size,unanswered_comments:unanswered,followers:known.length?known.reduce((sum,a)=>sum+a.followers_count,0):accounts.length?null:0,followers_known_accounts:known.length,followers_change:changes[0]||null},failed_posts:[...failed.values()].sort((a,b)=>b.updated_at.localeCompare(a.updated_at)),today,waiting,plans,runs:allRuns,reconnect_requests:accounts.map(a=>({account_id:a.id,...parseJSON(kvGet('reconnect-request:'+a.id),{})})).filter(r=>r.at)};
 }
 export function requestReconnect(user,accountId,clock=Date.now()){
- assertAccount(user,accountId);const account=listAccounts(user).find(a=>a.id===accountId);if(!account)throw err(404,'not_found','Akun tidak tersedia.');
- if(account.status==='active'&&(!account.token_expires_at||Date.parse(account.token_expires_at)>clock+2*DAY))throw err(409,'account_active','Koneksi akun masih aktif.');
+ assertAccount(user,accountId);const account=listAccounts(user).find(a=>a.id===accountId);if(!account)throw err(404,'not_found',"Account unavailable.");
+ if(account.status==='active'&&(!account.token_expires_at||Date.parse(account.token_expires_at)>clock+2*DAY))throw err(409,'account_active',"Account connection is still active.");
  const previous=parseJSON(kvGet('reconnect-request:'+accountId),null);if(previous&&Date.parse(previous.at)>clock-300000)return{requested:true,replayed:true,...previous};
  const value={at:new Date(clock).toISOString(),user_id:user.id,name:user.name||user.email};kvSet('reconnect-request:'+accountId,JSON.stringify(value));return{requested:true,...value};
 }

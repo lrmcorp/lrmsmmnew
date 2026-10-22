@@ -28,7 +28,7 @@ export function listAccounts(user) {
 
 export function getAccount(accountId) {
   const a = one("SELECT * FROM accounts WHERE id=? AND status != 'disconnected'", accountId);
-  if (!a) throw err(404, 'not_found', `Akun ${accountId} tidak ditemukan`, { account_id: accountId });
+  if (!a) throw err(404, 'not_found', `Account ${accountId} not found`, { account_id: accountId });
   return a;
 }
 export const tokenOf = (a) => decrypt(a.token_enc);
@@ -36,7 +36,7 @@ export const tokenOf = (a) => decrypt(a.token_enc);
 export async function refreshAccountProfile(accountId) {
   const account = getAccount(accountId);
   const profile = await clients[account.platform].me(tokenOf(account));
-  if (profile.platformUserId !== account.platform_user_id) throw err(422, 'profile_mismatch', 'Profil tidak cocok. Sambungkan ulang akun.');
+  if (profile.platformUserId !== account.platform_user_id) throw err(422, 'profile_mismatch', "Profile does not match. Reconnect the account.");
   run('UPDATE accounts SET username=COALESCE(?,username),name=COALESCE(?,name),avatar_url=COALESCE(?,avatar_url),followers_count=COALESCE(?,followers_count),updated_at=? WHERE id=?',
     profile.username ?? null, profile.name ?? null, profile.avatarUrl ?? null, profile.followers ?? null, now(), accountId);
   return publicAccount(getAccount(accountId));
@@ -55,10 +55,10 @@ export function platformConfigured(platform) {
 }
 
 export function beginConnect(platform, userId, returnTo = '/#/accounts') {
-  if (!clients[platform]) throw err(400, 'validation_failed', 'Platform tidak dikenal');
+  if (!clients[platform]) throw err(400, 'validation_failed', "Unknown platform.");
   if (!platformConfigured(platform)) {
     const k = platform === 'instagram' ? 'IG_APP_ID / IG_APP_SECRET' : 'THREADS_APP_ID / THREADS_APP_SECRET';
-    throw err(503, 'meta_not_configured', `Integrasi ${platform === 'instagram' ? 'Instagram' : 'Threads'} belum dikonfigurasi di server: isi ${k} di file .env server (/opt/lrmsmmnew/.env), lalu restart aplikasi.`);
+    throw err(503, 'meta_not_configured', `Integration for ${platform === 'instagram' ? 'Instagram' : 'Threads'} is not configured on the server: set ${k} in the server .env file (/opt/lrmsmmnew/.env), then restart the app.`);
   }
   const st = randomToken(18);
   kvSet(`connect:${st}`, JSON.stringify({ platform, userId, returnTo, exp: Date.now() + 15 * 60_000 }));
@@ -69,7 +69,7 @@ export async function finishConnect(platform, code, st) {
   const raw = kvGet(`connect:${st}`);
   run('DELETE FROM kv WHERE k=?', `connect:${st}`);
   const s = raw && JSON.parse(raw);
-  if (!s || s.platform !== platform || s.exp < Date.now()) throw err(400, 'invalid_state', 'Sesi penyambungan kedaluwarsa. Coba lagi.');
+  if (!s || s.platform !== platform || s.exp < Date.now()) throw err(400, 'invalid_state', "Connection session has expired. Try again.");
   const c = clients[platform];
   const { accessToken, expiresIn } = await c.exchangeCode(String(code).replace(/#_$/, ''), redirectUri(platform));
   const profile = await c.me(accessToken);
