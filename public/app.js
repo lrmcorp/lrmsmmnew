@@ -264,10 +264,10 @@ function modal(title, body, actions = []) {
     nativeClose(...args);
     // Remove immediately: the native close event is queued and may run after navigation.
     d.remove();
+    if (trigger?.isConnected && !document.querySelector('dialog[open]')) trigger.focus({preventScroll: true});
   };
   d.addEventListener('close', () => {
     d.remove();
-    if (trigger?.isConnected) trigger.focus();
   });
   d.addEventListener('click', e => {
     const r = d.getBoundingClientRect();
