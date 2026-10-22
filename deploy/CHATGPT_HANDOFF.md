@@ -1,8 +1,10 @@
 # ChatGPT → Tulis Post
 
+> Specialized external ChatGPT/MCP guide. For coding-agent continuity, start at [docs/llm/README.md](../docs/llm/README.md). Current navigation/design rules are documented there.
+
 ## Representative
 
-Sidebar hanya menampilkan **Operasional** (Beranda, Tulis Post, Kalender) dan **Interaksi** (DM, Komentar, Insights). Bookmark halaman administrasi dialihkan ke Tulis Post. Pengelolaan perusahaan, akun sosial, anggota dan kredensial server tetap milik Owner. Representative dapat mengunggah media melalui composer; tidak memerlukan akses halaman Pustaka Media.
+Sidebar Representative memakai area **Konten** dan **Interaksi**. Bookmark halaman administrasi dialihkan ke Tulis Post. Pengelolaan perusahaan, akun sosial, anggota dan kredensial server tetap milik Owner. Representative dapat mengunggah media melalui composer; tidak memerlukan akses halaman Pustaka Media.
 
 ## Hubungkan akun AI pribadi
 
@@ -26,7 +28,7 @@ Setelah pengguna menyetujui gambar/caption final di ChatGPT, minta konektor menj
 }
 ```
 
-Alternatif untuk setiap gambar adalah `{"base64":"..."}` (JPEG/PNG, boleh data URL). Media LRMsmm milik pengguna yang sama dapat dikirim dengan `media_ids`. Maksimal 10 media, 8 MB per gambar baru, dan 20 MB total gambar baru. PNG dikonversi ke JPEG. URL sementara/signed dapat digunakan selama dapat diunduh server lewat HTTPS tanpa header login. Token URL tidak disimpan dalam draf; gambar disalin ke penyimpanan LRMsmm. Redirect dan hasil DNS diperiksa agar tidak mengakses jaringan privat.
+Alternatif untuk setiap gambar adalah `{"base64":"..."}` (JPEG/PNG, boleh data URL). Media LRMsmm milik pengguna yang sama dapat dikirim dengan `media_ids`. Maksimal 10 media, 8 MB per gambar baru, dan 20 MB total gambar baru. PNG memiliki turunan JPEG untuk publikasi; unggahan PNG baru juga mempertahankan sumber asli privat untuk komposisi aset. URL sementara/signed dapat digunakan selama dapat diunduh server lewat HTTPS tanpa header login. Token URL tidak disimpan dalam draf; gambar disalin ke penyimpanan LRMsmm. Redirect dan hasil DNS diperiksa agar tidak mengakses jaringan privat.
 
 ChatGPT tidak selalu menyediakan file hasil gambar kepada konektor sebagai URL unduh/base64. Tautan `sandbox:/mnt/data/...`, file di ChatGPT Projects, dan halaman percakapan bukan URL unduh publik. Jangan mengaku gambar sudah dikirim jika tool gagal. Jika file tidak tersedia ke konektor, pengguna mengunduhnya dari ChatGPT dan mengunggahnya melalui composer LRMsmm. Tidak ada integrasi otomatis dengan seluruh isi ChatGPT Projects.
 

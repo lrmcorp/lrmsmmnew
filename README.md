@@ -1,6 +1,8 @@
-> **Alur ChatGPT terbaru:** setiap pengguna menambahkan konektor MCP `https://lrmsosmed.playgo.id/mcp` di akun ChatGPT masing-masing dan memberi OAuth memakai login LRMsmm sendiri. OAuth mengirim caption/gambar sebagai draf pribadi ke **Tulis Post**, bukan menerbitkan post langsung. Lihat [panduan handoff](deploy/CHATGPT_HANDOFF.md). Representative hanya memiliki menu Operasional dan Interaksi.
+> **Alur ChatGPT terbaru:** setiap pengguna menambahkan konektor MCP `https://lrmsosmed.playgo.id/mcp` di akun ChatGPT masing-masing dan memberi OAuth memakai login LRMsmm sendiri. OAuth mengirim caption/gambar sebagai draf pribadi ke **Tulis Post**, bukan menerbitkan post langsung. Lihat [panduan handoff](deploy/CHATGPT_HANDOFF.md). Representative memakai area Konten dan Interaksi; administrasi tetap dibatasi Owner.
 
 # LRMsmm
+
+**For coding agents / LLMs:** start with [AGENTS.md](AGENTS.md) and the [engineering handoff](docs/llm/README.md) for current architecture, product rules, API flows and the verification/deployment runbook.
 
 **Shared VPS deployment:** use [deploy/SHARED_VPS.md](deploy/SHARED_VPS.md). The active GitHub workflow uses the dedicated Docker receiver and the existing Nginx Proxy Manager; the older standalone installer below is not used for this VPS.
 
@@ -34,7 +36,7 @@ Mode lokal memakai Instagram/Threads **tiruan** — tidak ada yang benar-benar t
 ```bash
 npm install
 npm run dev          # META_MOCK=1, buka http://localhost:3000
-npm test             # 38 tes end-to-end terhadap Meta tiruan
+npm test             # suite end-to-end terhadap Meta tiruan
 ```
 
 Di mode mock, layar login Instagram/Threads adalah tiruan dan tidak ada yang benar-benar terposting. Caption berisi `#fail-expired`, `#fail-transient`, atau `#fail-permission` mensimulasikan error Meta.
