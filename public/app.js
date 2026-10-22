@@ -396,7 +396,7 @@ function badgeEl(key) {
 
 // Navigation grouped like the HRD sidebar
 function navGroups() {
-  return [[t('nav.group.content'), [['/', 'home', t('nav.home')], ['/generator', 'bolt', t('nav.generator')], ['/generator/drafts', 'pen', t('nav.drafts'), 'drafts'], ['/compose', 'pen', t('nav.compose')], ['/calendar', 'cal', t('nav.calendar')]]], [t('nav.group.engagement'), [['/messages', 'chat', t('nav.messages'), 'messages'], ['/inbox', 'inbox', t('nav.comments'), 'comments'], ['/insights', 'chart', t('nav.insights')]]], ...(isOwner() ? [[t('nav.group.workspace'), [['/accounts', 'users', t('nav.accounts')], ['/media', 'img', t('nav.media')], ['/team', 'team', t('nav.team')], ['/developer', 'key', t('nav.developer')], ['/admin', 'shield', t('nav.audit')]]]] : [])];
+  return [[t('nav.group.content'), [['/', 'home', t('nav.home')], ['/generator', 'bolt', t('nav.generator')], ['/generator/drafts', 'pen', t('nav.drafts'), 'drafts'], ['/compose', 'pen', t('nav.compose')], ['/calendar', 'cal', t('nav.calendar')]]], [t('nav.group.engagement'), [['/messages', 'chat', t('nav.messages'), 'messages'], ['/inbox', 'inbox', t('nav.comments'), 'comments'], ['/insights', 'chart', t('nav.insights')]]], ...(isOwner() ? [[t('nav.group.workspace'), [['/accounts', 'users', t('nav.accounts')], ['/media', 'img', t('nav.media')], ['/team', 'team', t('nav.team')], ['/developer', 'key', t('nav.developer')], ['/admin', 'shield', t('nav.audit')]]]] : []), [t('ui.copy.0023'), [['/settings', 'key', t('nav.settings')]]]];
 }
 const PAGE_LABEL = () => Object.fromEntries(navGroups().flatMap(([g, items]) => items.map(([p,, l]) => [p, {
   label: l,
@@ -409,12 +409,7 @@ async function openMenuSearch() {
     path,
     ic,
     label
-  }))), {
-    group: t("ui.copy.0023"),
-    path: '/settings',
-    ic: 'key',
-    label: t("settings.title")
-  }];
+  })))];
   const plans = await api('GET', '/v1/generator/plans').then(r => r.data).catch(() => []);
   items.push(...state.accounts.map(a => ({
     group: t('nav.accounts'),

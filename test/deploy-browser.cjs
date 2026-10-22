@@ -33,6 +33,7 @@ const path=require('node:path');
     await page.goto(base+'/#/settings?tab=ai');
     await page.getByRole('heading',{name:'Your AI connections'}).waitFor();
     await page.getByRole('heading',{name:'OpenAI (ChatGPT & Codex)'}).waitFor();
+    await page.locator('#main-navigation a[href="#/settings"]').waitFor();
     assert.equal(await page.locator('html').getAttribute('lang'),'en');
     await page.goto(base+'/#/generator');
     await page.getByRole('heading',{name:'Content Generator'}).waitFor();
