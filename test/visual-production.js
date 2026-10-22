@@ -27,11 +27,11 @@ const request=async(body,cred=cookie,machine=false)=>real(base+'/v1/generator/dr
 try{
  await test('one click produces a full reviewed proposal using reference and connected Instagram visuals',async()=>{
   const asset=await media.saveBuffer(user.id,image,{inLibrary:false});
-  const r=gen.createRun(user,{request_id:'one-click',brief:'Brand launch',account_ids:['visual-brand'],produce_media:true,reference_media_ids:[asset.id],slide_count:1,confirm_cost:true});
+  const r=gen.createRun(user,{request_id:'one-click',brief:'Brand launch',account_ids:['visual-brand'],produce_media:true,reference_media_ids:[asset.id],reference_roles:{[asset.id]:'logo'},slide_count:1,confirm_cost:true});
   gen.runGeneratorTick();await gen.waitGenerator();const result=gen.getRun(user,r.id);
   assert.equal(result.status,'review',JSON.stringify({error:result.error,steps:result.steps}));assert.equal(result.caption,'Caption kept intact');assert.equal(result.steps.visual.status,'done');assert.equal(result.steps.visual.profile_context.accounts[0].status,'available');assert.equal(result.steps.visual.profile_context.accounts[0].posts.length,1,'private/non-Meta URLs are never downloaded');
   const visual=calls.find(c=>c.system.includes('Final visual concept only'));assert.equal(visual.body.messages[1].content.filter(p=>p.type==='image_url').length,2,'uploaded reference and real feed thumbnail reach visual agent');
-  const generation=calls.find(c=>c.url.includes('/images/'));assert.match(generation.body.prompt,/REFINED white green layout/);assert.match(generation.body.prompt,/MANDATORY ASSET PRESERVATION/);assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);assert.equal(graphCalls,1);
+  const generation=calls.find(c=>c.url.includes('/images/'));assert.match(generation.body.prompt,/REFINED white green layout/);assert.match(generation.body.prompt,/MANDATORY ASSET PRESERVATION/);assert.equal(generation.body['image[]'].type,'image/png','protected logo keeps PNG rather than lossy JPEG');for(const call of calls.filter(c=>c.system))assert.match(call.system,/MANDATORY ASSET PRESERVATION/);const finalReview=calls.find(c=>c.system.includes('Review the actual supplied images'));const finalParts=finalReview.body.messages?.find(m=>m.role==='user')?.content||finalReview.body.contents?.[0]?.parts||[];assert.equal(finalParts.filter(p=>p.type==='image_url'||p.type==='image'||p.inlineData).length,2,'QC receives generated slide plus immutable original logo');assert.match(finalReview.system,/blocking issue/);assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);assert.equal(graphCalls,1);
  });
  await test('one click campaign queues every proposal without an intermediate concept approval',async()=>{
   const d=new Date(Date.now()+864e5+7*3600000).toISOString().slice(0,10);

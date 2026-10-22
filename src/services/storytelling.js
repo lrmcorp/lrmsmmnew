@@ -1,3 +1,5 @@
+import {ASSET_PRESERVATION} from './brand-asset-policy.js';
+import {identityMetadata,validateIdentity,saveIdentity,compileBrandNotes,assetMetadata,validateAssetMetadata,saveAssetMetadata} from './brand-metadata.js';
 import sharp from 'sharp';
 import {all,one,run,id,now,sha256,tx} from '../db.js';
 import {err,parseJSON} from '../util.js';
@@ -16,16 +18,19 @@ export function profile(user,aid) {
  const p=one('SELECT * FROM account_story_profiles WHERE account_id=?',aid)||{account_id:aid,seed:'',brand_notes:'',bible:'',memory:'',next_episode:1,revision:0};
  const assets=all('SELECT * FROM account_brand_assets WHERE account_id=? ORDER BY created_at,id',aid).map(a=>({...a,media:media.publicMedia(one('SELECT * FROM media WHERE id=?',a.media_id))}));
  const episodes=all('SELECT * FROM story_episodes WHERE account_id=? ORDER BY episode_number DESC LIMIT 60',aid).map(e=>({...e,product_ids:parseJSON(e.product_ids,[]),status:one('SELECT status FROM generator_runs WHERE id=?',e.run_id)?.status||'deleted',current_caption:one('SELECT caption FROM generator_runs WHERE id=?',e.run_id)?.caption||'',current_brief:one('SELECT brief FROM generator_runs WHERE id=?',e.run_id)?.brief||''}));
- return {...p,assets,episodes};
+ return {...p,identity:identityMetadata(aid,p),assets:assets.map(a=>({...a,...assetMetadata(a.id)})),episodes};
 }
 export function saveProfile(user,aid,body) {
  account(user,aid);
+ const identity=validateIdentity(body.identity);
+ body={...body,brand_notes:typeof body.brand_notes==='string'?compileBrandNotes(body.brand_notes,identity):body.brand_notes};
  if(typeof body.seed!=='string'||body.seed.length>10000||typeof body.brand_notes!=='string'||body.brand_notes.length>6000)throw err(400,'validation_failed','Prompt awal maksimal 10.000 karakter; aturan brand maksimal 6.000.');
  if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND status IN ('queued','running')",aid))throw err(409,'story_busy','Tunggu sesi cerita aktif selesai sebelum mengubah prompt awal.');
  const p=profile(user,aid);
- if(p.seed===body.seed.trim()&&p.brand_notes===body.brand_notes.trim())return p;
+ if(p.seed===body.seed.trim()&&p.brand_notes===body.brand_notes.trim()){saveIdentity(aid,identity);return profile(user,aid);}
  // Editing the foundation never silently deletes existing canon or restarts episode numbering.
  run(`INSERT INTO account_story_profiles(account_id,seed,brand_notes,updated_at) VALUES(?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET seed=excluded.seed,brand_notes=excluded.brand_notes,revision=account_story_profiles.revision+1,updated_at=excluded.updated_at`,aid,body.seed.trim(),body.brand_notes.trim(),now());
+ saveIdentity(aid,identity);
  return profile(user,aid);
 }
 export function saveAsset(user,aid,body,assetId=null) {
@@ -34,6 +39,7 @@ export function saveAsset(user,aid,body,assetId=null) {
  if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND status IN ('queued','running')",aid))throw err(409,'story_busy','Tunggu sesi aktif selesai sebelum mengubah katalog.');
  const old=assetId?one('SELECT * FROM account_brand_assets WHERE id=? AND account_id=?',assetId,aid):null;
  if(assetId&&!old)throw err(404,'not_found','Aset akun tidak ditemukan.');
+ const metadata=validateAssetMetadata(body,old?assetMetadata(old.id):{});
  const mid=old?.media_id||body.media_id,m=media.getMedia(mid);
  if(!old&&m.user_id!==user.id)throw err(404,'not_found','Gunakan foto yang Anda unggah sendiri.');
  if(body.category==='video'?m.kind!=='video':m.kind!=='image')throw err(400,'validation_failed','Logo/referensi/produk berupa foto; kategori Video/Reel berupa video.');
@@ -41,6 +47,7 @@ export function saveAsset(user,aid,body,assetId=null) {
  if(!old&&one('SELECT COUNT(*) n FROM account_brand_assets WHERE account_id=?',aid).n>=250)throw err(409,'catalog_limit','Maksimal 250 aset per akun.');
  if(old)run('UPDATE account_brand_assets SET name=?,description=?,category=? WHERE id=?',body.name.trim(),body.description||'',body.category,old.id);
  else run('INSERT INTO account_brand_assets(id,account_id,media_id,category,name,description,created_by,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(account_id,media_id) DO UPDATE SET category=excluded.category,name=excluded.name,description=excluded.description',id('asset'),aid,mid,body.category,body.name.trim(),body.description||'',user.id,now());
+ const saved=one('SELECT id FROM account_brand_assets WHERE account_id=? AND media_id=?',aid,mid);saveAssetMetadata(saved.id,metadata);
  run('UPDATE account_story_profiles SET revision=revision+1,updated_at=? WHERE account_id=?',now(),aid);
  return profile(user,aid);
 }
@@ -110,19 +117,19 @@ export async function processJob(user,jid,{generateText,keyOf,slotsFor,normalize
  try{
   body.agents=normalizeAgents(body.agents||{});
   checkpoint();const p=profile(user,body.account_id),assets=p.assets;if(body.base_revision!==p.revision)throw err(409,'story_changed','Fondasi/memori akun berubah. Buat sesi baru agar cerita tetap konsisten.');
-  const catalogue=assets.filter(a=>a.category==='product').map((a,i)=>({sheet:Math.floor(i/30)+1,row:Math.floor((i%30)/6)+1,column:(i%6)+1,id:a.id,name:a.name,description:a.description.slice(0,500)}));
+  const catalogue=assets.filter(a=>a.category==='product').map((a,i)=>({sheet:Math.floor(i/30)+1,row:Math.floor((i%30)/6)+1,column:(i%6)+1,id:a.id,name:a.name,description:a.description.slice(0,500),collection:a.collection,tags:a.tags}));
   const recent=p.episodes.slice(0,30).reverse().map(e=>({number:e.episode_number,title:e.title,brief:(e.current_brief||e.brief).slice(0,2000),caption:e.current_caption.slice(0,2200),products:e.product_ids,status:e.status}));
   const context=JSON.stringify({first_prompt:p.seed,brand_rules:p.brand_notes,bible:p.bible,memory:p.memory,next_episode:p.next_episode,recent_episodes:recent,product_catalog:catalogue,uploaded_videos:assets.filter(a=>a.category==='video').map(a=>({id:a.id,name:a.name,description:a.description})),requested_slides:body.slide_count,session_direction:body.direction});
   let proposal=steps.storyteller?.output;
   if(!proposal){
    stage('storyteller',{status:'running',started_at:now()});const a=body.agents.storyteller;
-   const response=await generateText({...a,key:keyOf(user.id,a.provider),jsonSchema:sessionSchema,maxTokens:Math.min(16000,3000+body.content_count*450),images:await catalogImages(assets),system:a.instructions+`\nYou are a world-class Instagram storyteller. Continue the same brand story from its initial foundation; do not restart it. For a new account start with brand introduction and develop a coherent progression. Return structured bible, cumulative memory and exactly ${body.content_count} episodes, starting at episode ${p.next_episode}. Use carousel only when requested_slides is at least two; otherwise choose image or an available reel. Each episode includes a ready-to-review caption <=2200 characters and content_type image/carousel/reel. Reels must use an existing uploaded video_asset_id; for images/carousels video_asset_id=null. Never claim to generate a video. Choose 0–2 product_ids per episode only from the provided catalogue. Product contact sheets have six columns and up to five rows; match catalogue sheet/row/column coordinates (one-based). Explain product choice in each brief. Preserve known facts, avoid repetitive plots and invented product claims. Distinguish published, scheduled, draft and deleted episodes; do not claim a draft has already been published. Keep title <=200 and brief <=2000 characters; bible and memory each <=10000.`,prompt:context});
+   const response=await generateText({...a,key:keyOf(user.id,a.provider),jsonSchema:sessionSchema,maxTokens:Math.min(16000,3000+body.content_count*450),images:await catalogImages(assets),system:a.instructions+'\n'+ASSET_PRESERVATION+`\nYou are a world-class Instagram storyteller. Continue the same brand story from its initial foundation; do not restart it. For a new account start with brand introduction and develop a coherent progression. Return structured bible, cumulative memory and exactly ${body.content_count} episodes, starting at episode ${p.next_episode}. Use carousel only when requested_slides is at least two; otherwise choose image or an available reel. Each episode includes a ready-to-review caption <=2200 characters and content_type image/carousel/reel. Reels must use an existing uploaded video_asset_id; for images/carousels video_asset_id=null. Never claim to generate a video. Choose 0–2 product_ids per episode only from the provided catalogue. Product contact sheets have six columns and up to five rows; match catalogue sheet/row/column coordinates (one-based). Explain product choice in each brief. Preserve known facts, avoid repetitive plots and invented product claims. Distinguish published, scheduled, draft and deleted episodes; do not claim a draft has already been published. Keep title <=200 and brief <=2000 characters; bible and memory each <=10000.`,prompt:context});
    checkpoint();proposal=validate(parse(response.text),body.content_count,assets,body.slide_count);stage('storyteller',{status:'done',output:proposal,usage:response.usage,completed_at:now()});
   }
   let review=steps.manager?.output;
   if(!review){
    stage('manager',{status:'running',started_at:now()});const a=body.agents.manager;
-   const response=await generateText({...a,key:keyOf(user.id,a.provider),jsonSchema:qcSchema,maxTokens:Math.min(16000,3000+body.content_count*450),system:a.instructions+`\nYou are the Social Media Manager. QC and improve the storyteller's proposed ${body.content_count} episodes against the initial prompt, established canon, brand facts and prior episodes. Check continuity, repetition, progression, tone, product identity and unsupported claims. Current saved captions/briefs and statuses are authoritative; earlier memory can describe plans that were never published. Keep the original story foundation. Use only supplied catalogue product IDs, max two per episode. Return approved boolean, actionable notes, corrected bible/memory/episodes. If consistency cannot be resolved set approved=false and explain; never approve publication.`,prompt:context+'\nPROPOSED SESSION:\n'+JSON.stringify(proposal)});
+   const response=await generateText({...a,key:keyOf(user.id,a.provider),jsonSchema:qcSchema,maxTokens:Math.min(16000,3000+body.content_count*450),system:a.instructions+'\n'+ASSET_PRESERVATION+`\nYou are the Social Media Manager. QC and improve the storyteller's proposed ${body.content_count} episodes against the initial prompt, established canon, brand facts and prior episodes. Check continuity, repetition, progression, tone, product identity and unsupported claims. Current saved captions/briefs and statuses are authoritative; earlier memory can describe plans that were never published. Keep the original story foundation. Use only supplied catalogue product IDs, max two per episode. Return approved boolean, actionable notes, corrected bible/memory/episodes. If consistency cannot be resolved set approved=false and explain; never approve publication.`,prompt:context+'\nPROPOSED SESSION:\n'+JSON.stringify(proposal)});
    checkpoint();review=validate(parse(response.text),body.content_count,assets,body.slide_count);
    if(typeof review.approved!=='boolean'||typeof review.notes!=='string'||review.notes.length>6000)throw err(422,'story_format','Hasil QC manager tidak valid.');
    stage('manager',{status:'done',output:review,usage:response.usage,completed_at:now()});
@@ -135,7 +142,7 @@ export async function processJob(user,jid,{generateText,keyOf,slotsFor,normalize
    const scheduleSchema={type:'object',additionalProperties:false,required:['discussion','slots'],properties:{discussion:{type:'string'},slots:{type:'array',items:{type:'object',additionalProperties:false,required:['episode_index','slot_index','reason'],properties:{episode_index:{type:'integer'},slot_index:{type:'integer'},reason:{type:'string'}}}}}};
    let source='ai',warning='';
    try{
-   const response=await generateText({...a,key:keyOf(user.id,a.provider),jsonSchema:scheduleSchema,maxTokens:Math.min(12000,2000+body.content_count*250),system:a.instructions+'\nRespond to the Social Media Manager QC notes. Assign each episode exactly once to a distinct available slot (zero-based indexes). Choose among the available slots; spread the campaign across the requested date range with a sensible cadence instead of simply taking the earliest slots. Preserve continuous chronological story progression: episode 0 must occur before episode 1, etc. Explain date/time choice for each post using storyline, content type and audience context. Slots are generic candidate times in Asia/Jakarta; no account performance analytics are supplied, so do not claim statistically best times. Return discussion and slots.',prompt:JSON.stringify({manager:review.notes,episodes:review.episodes,available_slots:available.map((at,i)=>({slot_index:i,utc:at,wib:new Date(Date.parse(at)+7*3600000).toISOString().slice(0,16)}))})});
+   const response=await generateText({...a,key:keyOf(user.id,a.provider),jsonSchema:scheduleSchema,maxTokens:Math.min(12000,2000+body.content_count*250),system:a.instructions+'\n'+ASSET_PRESERVATION+'\nRespond to the Social Media Manager QC notes. Assign each episode exactly once to a distinct available slot (zero-based indexes). Choose among the available slots; spread the campaign across the requested date range with a sensible cadence instead of simply taking the earliest slots. Preserve continuous chronological story progression: episode 0 must occur before episode 1, etc. Explain date/time choice for each post using storyline, content type and audience context. Slots are generic candidate times in Asia/Jakarta; no account performance analytics are supplied, so do not claim statistically best times. Return discussion and slots.',prompt:JSON.stringify({manager:review.notes,episodes:review.episodes,available_slots:available.map((at,i)=>({slot_index:i,utc:at,wib:new Date(Date.parse(at)+7*3600000).toISOString().slice(0,16)}))})});
    checkpoint();schedule=parse(response.text);validateSchedule(schedule,body.content_count,available);stage('scheduler',{status:'done',source,output:schedule,available,usage:response.usage,completed_at:now()});
    }catch(error){
     if(error.code!=='provider_model_unavailable')throw error;

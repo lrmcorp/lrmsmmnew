@@ -1,0 +1,25 @@
+import {db,one,run} from '../db.js';
+import {err,parseJSON} from '../util.js';
+// Additive tables retain compatibility with every existing Brand Kit/profile API.
+function ensure(){db.exec(`CREATE TABLE IF NOT EXISTS brand_identity_metadata(account_id TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,data TEXT NOT NULL DEFAULT '{}');CREATE TABLE IF NOT EXISTS brand_asset_metadata(asset_id TEXT PRIMARY KEY REFERENCES account_brand_assets(id) ON DELETE CASCADE,collection TEXT NOT NULL DEFAULT '',tags TEXT NOT NULL DEFAULT '[]');`);}
+function narrativeSection(text,names){
+ const lines=String(text||'').split('\n');
+ for(let i=0;i<lines.length;i++){
+  const clean=lines[i].replace(/^[#*\s]+|[*\s]+$/g,'');
+  for(const name of names){const match=new RegExp('^'+name+'(?:\\s*[:—–-]\\s*(.*))?$','i').exec(clean);if(!match)continue;if(match[1])return match[1].trim();const result=[];for(let j=i+1;j<lines.length&&!/^\s*#{1,6}\s/.test(lines[j]);j++){if(lines[j].trim())result.push(lines[j].trim());if(result.length>=4)break;}return result.join('\n');}
+ }
+ return '';
+}
+export function identityMetadata(aid,profile={}){
+ ensure();const stored=one('SELECT data FROM brand_identity_metadata WHERE account_id=?',aid);if(stored)return parseJSON(stored.data,{});
+ const seed=profile.seed||'',rules=profile.brand_notes||'',source=seed+'\n'+rules;
+ const essence=narrativeSection(source,['Esensi(?: brand)?','Brand essence','Essence','Inti brand'])||seed.split('\n').map(x=>x.trim()).find(x=>x&&!/^#|^[-*]|Caption language:|Emoji in captions:/i.test(x))||'';
+ const tone=narrativeSection(source,['Tone(?: of voice)?','Karakter(?: brand)?']);
+ return {essence:essence.slice(0,1000),tones:tone.split(/[,·|\n]/).map(x=>x.replace(/^[-*]\s*/,'').trim()).filter(Boolean).slice(0,12).map(x=>x.slice(0,60)),do_rules:narrativeSection(source,['Boleh','Do','Do rules','Yang boleh']).slice(0,1800),dont_rules:narrativeSection(source,["Jangan","Don't","Do not","Yang dilarang"]).slice(0,1800),caption_language:/Caption language:\s*(id|en|mixed)/i.exec(rules)?.[1]||'id',emoji:!/Emoji in captions:\s*off/i.test(rules)};
+}
+export function validateIdentity(value){if(value===undefined)return null;if(!value||typeof value!=='object'||Array.isArray(value))throw err(400,'validation_failed','Identitas brand tidak valid.');const v={essence:value.essence||'',tones:value.tones||[],do_rules:value.do_rules||'',dont_rules:value.dont_rules||'',caption_language:value.caption_language||'id',emoji:value.emoji!==false};for(const k of ['essence','do_rules','dont_rules'])if(typeof v[k]!=='string'||v[k].length>(k==='essence'?1000:1800))throw err(400,'validation_failed','Esensi maksimal 1.000; setiap aturan maksimal 1.800 karakter.');if(!Array.isArray(v.tones)||v.tones.length>12||v.tones.some(t=>typeof t!=='string'||!t.trim()||t.length>60)||!['id','en','mixed'].includes(v.caption_language)||typeof (value.emoji??true)!=='boolean')throw err(400,'validation_failed','Tone, bahasa atau pilihan emoji tidak valid.');return v;}
+export function saveIdentity(aid,value){if(!value)return;ensure();run('INSERT INTO brand_identity_metadata(account_id,data) VALUES(?,?) ON CONFLICT(account_id) DO UPDATE SET data=excluded.data',aid,JSON.stringify(value));}
+export function compileBrandNotes(notes,v){if(!v)return notes;const base=notes.replace(/\n?\[LRM BRAND IDENTITY\][\s\S]*?\[\/LRM BRAND IDENTITY\]/g,'').replace(/\n?Caption language:.*|\n?Emoji in captions:.*/g,'').trim();const language={id:'Bahasa Indonesia',en:'English',mixed:'Indonesian and English'}[v.caption_language];return [base,'[LRM BRAND IDENTITY]',`Essence: ${v.essence}`,`Tone: ${v.tones.join(', ')}`,`Do: ${v.do_rules}`,`Do not: ${v.dont_rules}`,`Write captions and on-image text in ${language}.`,v.emoji?'Emoji in captions are allowed.':'Do not use emoji in captions. The Final Reviewer must flag emoji.',`The Final Reviewer must flag captions in the wrong language (${language}).`,'[/LRM BRAND IDENTITY]',`Caption language: ${v.caption_language}`,`Emoji in captions: ${v.emoji?'on':'off'}`].filter(Boolean).join('\n');}
+export function assetMetadata(assetId){ensure();const row=one('SELECT collection,tags FROM brand_asset_metadata WHERE asset_id=?',assetId);return {collection:row?.collection||'',tags:parseJSON(row?.tags,[])};}
+export function validateAssetMetadata(body,old={}){const collection=body.collection??old.collection??'',tags=body.tags??old.tags??[];if(typeof collection!=='string'||collection.length>120||!Array.isArray(tags)||tags.length>20||tags.some(t=>typeof t!=='string'||!t.trim()||t.length>60))throw err(400,'validation_failed','Koleksi maksimal 120 karakter; maksimal 20 tag, masing-masing 60 karakter.');return {collection:collection.trim(),tags:[...new Set(tags.map(t=>t.trim()))]};}
+export function saveAssetMetadata(assetId,value){ensure();run('INSERT INTO brand_asset_metadata(asset_id,collection,tags) VALUES(?,?,?) ON CONFLICT(asset_id) DO UPDATE SET collection=excluded.collection,tags=excluded.tags',assetId,value.collection,JSON.stringify(value.tags));}

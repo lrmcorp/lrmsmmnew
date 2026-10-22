@@ -59,7 +59,7 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
  });
  await t.test('three agents select catalog products and continue stored seed without another prompt',async()=>{
   const request=body({});const queued=gen.queueStory(user,request);assert.equal(gen.queueStory(user,request).id,queued.id);assert.throws(()=>gen.queueStory(user,body({})),/aktif/);
-  const done=await execute(queued);assert.equal(done.status,'completed',done.error);assert.equal(Object.values(done.steps).filter(s=>s.status==='done').length,3);
+  const done=await execute(queued);assert.equal(done.status,'completed',done.error);assert.equal(Object.values(done.steps).filter(s=>s.status==='done').length,3);for(const call of calls){const system=call.body.system||call.body.messages?.[0]?.content||call.body.systemInstruction?.parts?.[0]?.text||'';if(system)assert.match(system,/MANDATORY ASSET PRESERVATION/,'all planning agents preserve originals');}
   const p=story.profile(user,'story-account');assert.equal(p.next_episode,3);assert.equal(p.episodes.length,2);assert.ok(p.memory.includes('2'));
   const rows=gen.listRuns(user).filter(r=>r.story_job_id===done.id);assert.equal(rows.length,2);assert.ok(rows.every(r=>r.status==='planned'&&r.schedule_reason&&r.caption&&r.reference_media_ids.length===3));assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);
   const before=calls.length;assert.equal(gen.queueStory(user,request).id,queued.id);assert.equal(calls.length,before);

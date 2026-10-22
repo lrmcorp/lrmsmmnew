@@ -10,7 +10,7 @@ import * as msgs from '../services/messages.js';
 import { RULES } from '../services/rules.js';
 import { runPublisherTick } from '../services/publisher.js';
 import { assertAccount, assertPostView, assertPostEdit, scopeSql, scopeOf, setAssignments, assignedAccounts, assignedCompanies, setCompanyAssignments, ROLES, isOwner } from '../services/scope.js';
-import { listCompanies, saveCompany, moveAccount } from '../services/companies.js';
+import { listCompanies, saveCompany, moveAccount, deleteCompany } from '../services/companies.js';
 import { audit, listAudit } from '../services/audit.js';
 import { bus } from '../services/events.js';
 import { stats as webhookStats } from './webhooks.js';
@@ -18,6 +18,8 @@ import { config } from '../config.js';
 import * as storytelling from '../services/storytelling.js';
 import * as generator from '../services/generator.js';
 import * as aiDrafts from '../services/ai-drafts.js';
+import {moveCalendarItem,duplicateCalendarPost} from '../services/calendar-workspace.js';
+import {listAuditWorkspace} from '../services/audit-workspace.js';
 
 export const api = express.Router();
 
@@ -72,8 +74,8 @@ const kick = () => setImmediate(() => runPublisherTick().catch(() => {}));
 api.get('/generator/accounts/:id/brand',sessionOnly,(req,res)=>res.json(storytelling.profile(U(req),req.params.id)));
 api.put('/generator/accounts/:id/brand',sessionOnly,(req,res)=>{const p=storytelling.saveProfile(U(req),req.params.id,req.body||{});audit(req.auth,'brand.save','account',req.params.id);res.json(p);});
 api.post('/generator/accounts/:id/assets',sessionOnly,(req,res)=>{const p=storytelling.saveAsset(U(req),req.params.id,req.body||{});audit(req.auth,'brand.asset.save','account',req.params.id);res.json(p);});
-api.patch('/generator/accounts/:id/assets/:asset',sessionOnly,(req,res)=>res.json(storytelling.saveAsset(U(req),req.params.id,req.body||{},req.params.asset)));
-api.delete('/generator/accounts/:id/assets/:asset',sessionOnly,(req,res)=>res.json(storytelling.removeAsset(U(req),req.params.id,req.params.asset)));
+api.patch('/generator/accounts/:id/assets/:asset',sessionOnly,(req,res)=>{const result=storytelling.saveAsset(U(req),req.params.id,req.body||{},req.params.asset);audit(req.auth,'brand.asset.update','account',req.params.id,{asset_id:req.params.asset});res.json(result);});
+api.delete('/generator/accounts/:id/assets/:asset',sessionOnly,(req,res)=>{const result=storytelling.removeAsset(U(req),req.params.id,req.params.asset);audit(req.auth,'brand.asset.delete','account',req.params.id,{asset_id:req.params.asset});res.json(result);});
 api.get('/generator/accounts/:id/story-jobs',sessionOnly,(req,res)=>res.json({data:storytelling.jobs(U(req),req.params.id)}));
 api.get('/generator/story-jobs/:id',sessionOnly,(req,res)=>res.json(storytelling.job(U(req),req.params.id)));
 api.post('/generator/story-jobs',sessionOnly,(req,res)=>{const result=generator.queueStory(U(req),req.body||{});audit(req.auth,'story.start','story_job',result.id);setImmediate(()=>generator.runGeneratorTick());res.status(result.replayed?200:201).json(result);});
@@ -165,6 +167,7 @@ api.get('/agent/drafts/:id', (req, res) => res.json(aiDrafts.getDraft(U(req), re
 // ---- me / accounts ----
 api.get('/me', (req, res) => res.json({ user: publicUser(U(req)), access: { via: req.auth.via, scope: req.auth.scope }, account_ids: scopeOf(U(req)), integrations: { instagram: accounts.platformConfigured('instagram'), threads: accounts.platformConfigured('threads') } }));
 api.get('/accounts', (req, res) => res.json({ data: accounts.listAccounts(U(req)) }));
+api.delete('/companies/:id',sessionOnly,requireOwner,(req,res)=>{deleteCompany(req.params.id);audit(req.auth,'company.delete','company',req.params.id);res.status(204).end();});
 api.get('/companies', (req, res) => res.json({ data: listCompanies(U(req)) }));
 api.post('/companies', sessionOnly, requireOwner, (req, res) => {
   const company = saveCompany(null, req.body?.name);
@@ -220,6 +223,8 @@ api.post('/posts', W, (req, res) => {
   res.status(replayed ? 200 : 201).set('Idempotent-Replayed', String(replayed)).json(post);
 });
 api.get('/posts', (req, res) => res.json(posts.listPosts(req.query, U(req))));
+api.post('/calendar/move',sessionOnly,(req,res)=>{const result=moveCalendarItem(U(req),req.body||{});audit(req.auth,'calendar.move',req.body?.kind==='generator'?'generator_run':'post',result.id,{scheduled_at:result.scheduled_at,account_ids:result.targets.map(t=>t.account_id)});res.json(result);});
+api.post('/posts/:id/duplicate',sessionOnly,(req,res)=>{const result=duplicateCalendarPost(U(req),req.params.id,req.body?.request_id);if(!result.replayed)audit(req.auth,'post.duplicate','post',req.params.id,{draft_id:result.id});res.status(result.replayed?200:201).json(result);});
 api.get('/calendar', (req, res) => {
   if (!req.query.from || !req.query.to) throw err(400, 'validation_failed', 'from dan to wajib (ISO 8601)');
   res.json({ data: posts.calendar(new Date(req.query.from).toISOString(), new Date(req.query.to).toISOString(), U(req)) });
@@ -407,7 +412,7 @@ api.delete('/users/:id', sessionOnly, requireOwner, (req, res) => {
 });
 
 // ---- admin (Owner only): audit log, failed posts, system ----
-api.get('/admin/audit', requireOwner, (req, res) => res.json(listAudit({ ...req.query, before: req.query.cursor })));
+api.get('/admin/audit', requireOwner, (req, res) => res.json(listAuditWorkspace(req.query)));
 api.get('/admin/failed-posts', requireOwner, (req, res) => res.json({
   data: all(`SELECT t.id AS target_id, t.post_id, t.platform, t.error_code, t.error_message, t.attempts, p.content, p.updated_at, a.username
              FROM post_targets t JOIN posts p ON p.id=t.post_id LEFT JOIN accounts a ON a.id=t.account_id

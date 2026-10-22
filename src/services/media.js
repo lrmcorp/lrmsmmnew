@@ -211,7 +211,7 @@ function mediaInActiveUse(mediaId) {
   if(one('SELECT 1 FROM account_brand_assets WHERE media_id=?',mediaId))return true;
   const like = `%"${mediaId}"%`;
   if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ? OR media_versions LIKE ?)", like, like, like)) return true;
-  if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) return true;
+  if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND (media_ids LIKE ? OR targets LIKE ?)", like, like)) return true;
   return !!one(`SELECT 1 FROM post_targets t JOIN posts p ON p.id=t.post_id
     WHERE t.status IN ('pending','publishing') AND (p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?)`, like, like, like);
 }
@@ -231,7 +231,7 @@ export function purgePublishedMedia() {
     if(one('SELECT 1 FROM account_brand_assets WHERE media_id=?',m.id))continue;
     const like = `%"${m.id}"%`;
     if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ? OR media_versions LIKE ?)", like, like, like)) continue;
-    if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) continue;
+    if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND (media_ids LIKE ? OR targets LIKE ?)", like, like)) continue;
     const uses = all(`SELECT t.status FROM post_targets t JOIN posts p ON p.id=t.post_id
       WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?`, like, like, like);
     if (!uses.some(u => u.status === 'published')) continue;
@@ -252,7 +252,7 @@ export function gcMedia() {
     if(one('SELECT 1 FROM account_brand_assets WHERE media_id=?',m.id))continue;
     const like = `%"${m.id}"%`;
     if (one("SELECT 1 FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed') AND (media_ids LIKE ? OR reference_media_ids LIKE ? OR media_versions LIKE ?)", like, like, like)) continue;
-    if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND media_ids LIKE ?", like)) continue;
+    if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND (media_ids LIKE ? OR targets LIKE ?)", like, like)) continue;
     const uses = all('SELECT t.status, t.published_at, p.updated_at FROM post_targets t JOIN posts p ON p.id=t.post_id WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?', like, like, like);
     const busy = uses.some((u) => ['pending', 'publishing'].includes(u.status) || (u.published_at || u.updated_at) > monthAgo);
     if (!busy) { if (m.path) fs.rmSync(m.path, { force: true }); run('DELETE FROM media WHERE id=?', m.id); }

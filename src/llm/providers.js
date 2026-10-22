@@ -82,7 +82,7 @@ export async function generateImage({ provider, model, key, prompt, references =
     if (references.length) {
       const form = new FormData();
       for (const [k,v] of Object.entries({ model, prompt, n: '1', size: '1024x1024', output_format: 'png', input_fidelity:'high' })) form.append(k,v);
-      references.forEach((ref,i) => form.append('image[]',new Blob([ref.buffer],{type:ref.mime}),`reference-${i+1}.jpg`));
+      references.forEach((ref,i) => form.append('image[]',new Blob([ref.buffer],{type:ref.mime}),`reference-${i+1}.${ref.mime==='image/png'?'png':'jpg'}`));
       result = await jsonRequest('https://api.openai.com/v1/images/edits', { Authorization: `Bearer ${key}` }, form);
     } else {
       result = await jsonRequest('https://api.openai.com/v1/images/generations', { Authorization: `Bearer ${key}` }, { model, prompt, n: 1, size: '1024x1024', output_format: 'png' });

@@ -17,8 +17,8 @@ document.title = t('common.app.title');
 function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
-    if (v == null || v === false) continue;
-    if (k === 'class') el.className = v;else if (k === 'html') el.innerHTML = v;else if (k.startsWith('on')) bindInteraction(el, k.slice(2), v, error => toast(errMsg(error), true));else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);else if (v === true) el.setAttribute(k, '');else el.setAttribute(k, v);
+    if (v == null || (v === false && k !== 'draggable' && !k.startsWith('aria-'))) continue;
+    if (k === 'class') el.className = v;else if (k === 'html') el.innerHTML = v;else if (k.startsWith('on')) bindInteraction(el, k.slice(2), v, error => toast(errMsg(error), true));else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);else if (typeof v === 'boolean' && (k === 'draggable' || k.startsWith('aria-'))) el.setAttribute(k, String(v));else if (v === true) el.setAttribute(k, '');else el.setAttribute(k, v);
   }
   for (const k of kids.flat(Infinity)) if (k != null && k !== false) el.append(k instanceof Node ? k : document.createTextNode(typeof k === 'number' ? fmtNumber(k) : String(k)));
   return el;
@@ -1029,6 +1029,7 @@ async function pageCompose(editId) {
   };
   if (initial) for (const _targetValue6 of initial.targets) s.per[_targetValue6.account_id] = {
     content: _targetValue6.content ?? undefined,
+    media_ids: _targetValue6.media_ids ?? undefined,
     options: _targetValue6.options || {}
   };
   const slides = {};
@@ -1441,6 +1442,7 @@ async function pageCompose(editId) {
         account_id: id
       };
       if (p.content !== undefined) _targetValue8.content = p.content;
+      if (p.media_ids !== undefined) _targetValue8.media_ids = p.media_ids;
       const o = structuredClone(p.options);
       for (const k of Object.keys(o)) if (o[k] === undefined) delete o[k];
       if (o.thread) o.thread = o.thread.filter(x => typeof x === 'string' ? x.trim() : x.text?.trim());
@@ -1541,9 +1543,9 @@ async function pageCompose(editId) {
   }, fmtDT(draft.created_at)))))) : h('p', {
     class: 'faint small'
   }, t("ui.copy.0107")));
-  return shell('/compose', h('div', {}, pagehead(editing ? t("ui.copy.0108") : t("compose.title"), t("ui.copy.0109")), inbox.data.length ? h('button',{class:'btn sm',onclick:()=>modal('Draft dari AI / agen',h('div',{class:'list'},inbox.data.map(d=>h('a',{class:'item',href:'#/compose?ai_draft='+d.id,onclick:e=>e.currentTarget.closest('dialog').close()},d.content?.slice(0,140)||'Draft tanpa caption'))))},inbox.data.length+' draft AI menunggu · Buka') : null, h('div',{class:'rd-compose-tabs'},h('button',{class:'btn',onclick:()=>root.classList.remove('show-preview')},'Editor'),h('button',{class:'btn',onclick:()=>root.classList.add('show-preview')},'Pratinjau')), aiDraft ? h('div', {
+  return shell('/compose', h('div', {}, pagehead(editing ? t("ui.copy.0108") : t("compose.title"), t("ui.copy.0109")), inbox.data.length ? h('button',{class:'btn sm',onclick:()=>modal('Draft menunggu persetujuan',h('div',{class:'list'},inbox.data.map(d=>h('a',{class:'item',href:'#/compose?ai_draft='+d.id,onclick:e=>e.currentTarget.closest('dialog').close()},d.content?.slice(0,140)||'Draft tanpa caption'))))},inbox.data.length+' draft menunggu · Buka') : null, h('div',{class:'rd-compose-tabs'},h('button',{class:'btn',onclick:()=>root.classList.remove('show-preview')},'Editor'),h('button',{class:'btn',onclick:()=>root.classList.add('show-preview')},'Pratinjau')), aiDraft ? h('div', {
     class: 'banner'
-  }, t("ui.copy.0110")) : null, root));
+  }, aiDraft.source==='Calendar'?'Salinan dari Kalender. Tinjau caption, media dan jadwal sebelum menyetujui.':t("ui.copy.0110")) : null, root));
 }
 function toLocalInput(iso) { return iso ? new Date(Date.parse(iso)+7*3600000).toISOString().slice(0,16) : ''; }
 
