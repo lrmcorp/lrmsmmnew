@@ -107,7 +107,7 @@ app.get('/connect/:platform/callback', async (req, res) => {
 });
 
 app.use('/v1', express.json({ limit: '2mb' }), api);
-app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
+app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'], setHeaders(res,file){if(/\.(?:html|js|css)$/.test(file))res.set('Cache-Control','no-cache, must-revalidate');} }));
 
 // ---- errors ----
 app.use((e, req, res, _next) => {

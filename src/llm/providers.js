@@ -80,6 +80,7 @@ export async function generateText({ provider, model, key, system, prompt, image
 }
 
 export async function generateImage({ provider, model, key, prompt, references = [] }) {
+  if(provider==='openai'&&typeof prompt==='string'&&prompt.length>32000)throw err(400,'image_prompt_too_long','The image prompt exceeds OpenAI’s 32,000-character limit. Shorten the image instructions before retrying.');
   let result, base64;
   if (provider === 'openai') {
     if (references.length) {
