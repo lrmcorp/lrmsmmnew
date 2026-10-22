@@ -1,3 +1,4 @@
+import {dashboardSummary,requestReconnect} from '../services/dashboard.js';
 import express from 'express';
 import { authenticate, requireWrite, requireOwner, createApiKey, listApiKeys, revokeApiKey, publicUser, createUser, revokeAllMachineAccess } from '../auth.js';
 import { all, run, one, now, kvGet, kvSet } from '../db.js';
@@ -225,6 +226,8 @@ api.post('/posts', W, (req, res) => {
 api.get('/posts', (req, res) => res.json(posts.listPosts(req.query, U(req))));
 api.post('/calendar/move',sessionOnly,(req,res)=>{const result=moveCalendarItem(U(req),req.body||{});audit(req.auth,'calendar.move',req.body?.kind==='generator'?'generator_run':'post',result.id,{scheduled_at:result.scheduled_at,account_ids:result.targets.map(t=>t.account_id)});res.json(result);});
 api.post('/posts/:id/duplicate',sessionOnly,(req,res)=>{const result=duplicateCalendarPost(U(req),req.params.id,req.body?.request_id);if(!result.replayed)audit(req.auth,'post.duplicate','post',req.params.id,{draft_id:result.id});res.status(result.replayed?200:201).json(result);});
+api.get('/dashboard/summary',sessionOnly,(req,res)=>res.json(dashboardSummary(U(req),req.query)));
+api.post('/dashboard/reconnect-request',sessionOnly,(req,res)=>{const result=requestReconnect(U(req),req.body?.account_id);if(!result.replayed)audit(req.auth,'account.reconnect_request','account',req.body.account_id);res.json(result);});
 api.get('/calendar', (req, res) => {
   if (!req.query.from || !req.query.to) throw err(400, 'validation_failed', 'from dan to wajib (ISO 8601)');
   res.json({ data: posts.calendar(new Date(req.query.from).toISOString(), new Date(req.query.to).toISOString(), U(req)) });

@@ -148,7 +148,7 @@ test('personal credentials, provider contracts, durable pipeline and final hando
     });
     await t.test('12-content date range planning, manual upload/edit and approval enter calendar only after approval', async () => {
       const date = days => new Date(Date.now()+days*864e5+7*3600000).toISOString().slice(0,10);
-      const body={request_id:'plan-12',brief:'Twelve wellness posts for the campaign',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:date(1),end_date:date(6),confirm_cost:true};
+      const body={request_id:'plan-12',brief:'Twelve wellness posts for the campaign',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:date(10),end_date:date(15),confirm_cost:true};
       const countBefore=one('SELECT COUNT(*) n FROM posts').n;
       const plan=await gen.createPlan(user,body);
       assert.equal(plan.slots.length,12);assert.equal(new Set(plan.slots).size,12);
@@ -175,7 +175,7 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.equal(approved.status,'scheduled');assert.equal(gen.getRun(user,target.id).status,'approved');
       assert.equal(gen.approveContent(user,target.id,{}).id,approved.id);
       assert.equal(one('SELECT COUNT(*) n FROM posts').n,countBefore+1);
-      const calendar=await realFetch(base+'/v1/calendar?from='+date(1)+'T00:00:00%2B07:00&to='+date(7)+'T00:00:00%2B07:00',{headers:{Cookie:cookie}}).then(r=>r.json());
+      const calendar=await realFetch(base+'/v1/calendar?from='+date(10)+'T00:00:00%2B07:00&to='+date(16)+'T00:00:00%2B07:00',{headers:{Cookie:cookie}}).then(r=>r.json());
       assert.ok(calendar.data.some(p=>p.id===approved.id));
       assert.throws(()=>gen.updateContent(user,target.id,{content:'Too late'}),/disetujui/);
       assert.throws(()=>gen.reviseContent(user,target.id,{brief:'Too late'}),/direvisi/);
