@@ -48,3 +48,37 @@ English error. No plan, episode memory or publishing is committed on failure.
 These tests use isolated storage and mocked providers. They do not prove a real
 paid model response or a live Instagram publication. Consult CI and the receiver
 result for deployment evidence; a built image alone is not a deployed release.
+
+## Failed production drafts
+
+Every failed draft exposes **Failure details** in its card, preview and editor.
+It shows the stored error, recorded/inferred stage, provider/model, error code and
+draft ID. Historical runs with no diagnostics say so; no root cause is invented.
+New failures save a sanitized `steps.failure` record. Known provider/validation
+errors include their safe reason; unexpected internal errors exclude raw exception
+messages. Completed stages/media remain intact and failure metadata clears on a
+confirmed retry. JSON `null` and null slides are rejected as validation errors.
+Static HTML/JS/CSS responses require revalidation to reduce stale frontend files.
+An already-open page still needs refresh; unsaved edits are never auto-discarded.
+
+The plan URL and a generic failure badge alone cannot reveal private provider
+errors to an unauthenticated debugging environment. Read its stored error through
+an authorized session or a read-only SQLite query before claiming a root cause.
+
+### Image prompt limit regression (2026-10-23)
+
+Production diagnostics showed all text/visual stages complete, GPT Image 1 failing
+with HTTP 400, and a ~48k-character subtotal from duplicated account archive,
+story, rules and slide instructions. OpenAI's official Images SDK schema documents
+a maximum prompt length of 32,000 characters. The former image request exceeded it.
+
+`image-prompt.js` now sends the approved visual prompt, current brief/episode,
+image-agent instructions, reference direction and structured account identity.
+It excludes duplicated prior proposals and story archives already reviewed by the
+Visual Conceptor. The full run archive remains saved for continuity. It preserves
+complete structured identity rules and ends with the mandatory immutable-asset
+policy; original image references and server composition are unchanged. Oversized
+essential instructions fail locally before any provider call, with actionable
+`image_prompt_too_long`. The OpenAI image adapter also enforces this boundary.
+Confirmed retries keep completed concepts/reviews/visual plans and existing slides;
+users need not create a new story or pay to redo those completed stages.

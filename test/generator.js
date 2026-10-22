@@ -40,7 +40,7 @@ globalThis.fetch = async (url, opts) => {
     text=JSON.stringify({contents:Array.from({length:n},(_,i)=>({title:'Topic '+(i+1),brief:'Unique wellness angle '+(i+1)}))});
   } else if (system.includes('Return ONLY JSON')) {
     const n = Number(system.match(/Exactly (\d+) slides/)[1]);
-    text = malformed ? '{malformed' : JSON.stringify({ title: 'Campaign', caption: 'Final caption', slides: Array.from({ length: n }, (_, i) => ({ prompt: 'Green brand image slide ' + (i + 1) })) });
+    text = malformed==='null'?'null':malformed==='null-slide'?JSON.stringify({caption:'Valid caption',slides:[null]}):malformed ? '{malformed' : JSON.stringify({ title: 'Campaign', caption: 'Final caption', slides: Array.from({ length: n }, (_, i) => ({ prompt: 'Green brand image slide ' + (i + 1) })) });
   }
   return Response.json(origin.includes('openai') ? { choices: [{ message: { content: text } }], usage: { total_tokens: 42 } } : origin.includes('anthropic') ? { content: [{ type: 'text', text }], usage: { input_tokens: 20, output_tokens: 22 } } : { candidates: [{ content: { parts: [{ text }] } }], usageMetadata: { totalTokenCount: 42 } });
 };
@@ -281,12 +281,27 @@ test('personal credentials, provider contracts, durable pipeline and final hando
     await t.test('image failure is safe, keeps completed slides and requires explicit retry', async () => {
       imageCalls = 0; failAfterSlide = 2;
       let r = make(); r = await execute(r);
-      assert.equal(r.status, 'failed'); assert.equal(r.media.length, 1); assert.ok(!r.error.includes(secret));
+      assert.equal(r.status, 'failed'); assert.equal(r.steps.failure.stage,'image');assert.equal(r.steps.failure.provider,'openai');assert.equal(r.steps.failure.code,'provider_error');assert.match(r.error,/Image Creator/); assert.equal(r.media.length, 1); assert.ok(!r.error.includes(secret));
       const first = r.media_ids[0], calls = providerCalls.length;
       gen.runGeneratorTick(); await gen.waitGenerator(); assert.equal(providerCalls.length, calls, 'no automatic paid retry');
       failAfterSlide = 0; gen.retryRun(user, r.id); r = await execute(r);
-      assert.equal(r.status, 'review'); assert.equal(r.media_ids[0], first); assert.equal(r.media_ids.length, 2);
+      assert.equal(r.status, 'review'); assert.equal(r.steps.failure,undefined); assert.equal(r.media_ids[0], first); assert.equal(r.media_ids.length, 2);
       gen.cancelRun(user, r.id);
+    });
+    await t.test('large account archives do not overflow GPT Image prompts or weaken original-asset protection',async()=>{
+      const {buildImagePrompt}=await import('../src/services/image-prompt.js');
+      const {ASSET_PRESERVATION}=await import('../src/services/brand-asset-policy.js');
+      const archive={account:{username:'nails.brand'},identity:{essence:'Real nail products',dont_rules:'Never change packaging'},foundation:'Brand foundation '.repeat(1000),previous_proposals:[{brief:'Private history '.repeat(2000)}],memory_session:{bible:'Story bible '.repeat(2000)}};
+      const prompt=buildImagePrompt({instructions:'Image direction '.repeat(250),direction:'Preserve references '.repeat(150),accounts:[archive],layout:'Use original product overlays',title:'Approved concept',brief:'Current product chapter',episode:3,slideIndex:0,slideCount:1,slidePrompt:'Place the unchanged product on a white background.'});
+      assert.ok(prompt.length<32000);assert.match(prompt,/nails.brand/);assert.match(prompt,/Never change packaging/);assert.match(prompt,/Place the unchanged product/);assert.ok(prompt.endsWith(ASSET_PRESERVATION));assert.ok(!prompt.includes('Private history'));assert.ok(!prompt.includes('Story bible'));
+      assert.throws(()=>buildImagePrompt({instructions:'x'.repeat(32001),slidePrompt:'visual'}),error=>error.code==='image_prompt_too_long');
+      const before=providerCalls.length;const {generateImage}=await import('../src/llm/providers.js');await assert.rejects(()=>generateImage({provider:'openai',model:'gpt-image-1',key:secret,prompt:'x'.repeat(32001)}),error=>error.code==='image_prompt_too_long');assert.equal(providerCalls.length,before,'oversized requests never reach the paid provider');
+    });
+    await t.test('null structured concepts are validation errors with saved stage diagnostics',async()=>{
+      for(const output of ['null','null-slide']){
+        malformed=output;const result=await execute(make({slide_count:1}));malformed=false;
+        assert.equal(result.status,'failed');assert.equal(result.steps.failure.stage,'concept');assert.equal(result.steps.failure.code,'generator_format');assert.equal(result.steps.failure.model,'gpt-4.1-mini');assert.match(result.error,/Conceptor/);assert.equal(result.media.length,0);assert.ok(!JSON.stringify(result.steps.failure).includes(secret));gen.cancelRun(user,result.id);
+      }
     });
     await t.test('idempotency, malformed output, revoked scope and cancellation during a provider call', async () => {
       const body = { request_id: 'stable', brief: 'Stable', account_ids: ['ig-generator'], slide_count: 1, confirm_cost: true };
