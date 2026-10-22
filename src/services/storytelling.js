@@ -75,12 +75,17 @@ export function queue(user,body,agents) {
  if(!Number.isInteger(body.content_count)||body.content_count<1||body.content_count>30||!Number.isInteger(body.slide_count)||body.slide_count<1||body.slide_count>10)throw err(400,'validation_failed','Pilih 1–30 konten dan 1–10 slide.');
  if(typeof body.start_date!=='string'||typeof body.end_date!=='string'||!Array.isArray(body.times)||!body.times.length||body.times.length>12||body.times.some(t=>typeof t!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(t)))throw err(400,'validation_failed','Tanggal dan jam sesi wajib valid.');
  if(body.memory_session_id!==undefined&&body.memory_session_id!==null&&(typeof body.memory_session_id!=='string'||!body.memory_session_id))throw err(400,'validation_failed','Pilih sesi memori cerita yang valid.');
+ const basePayload={account_id:body.account_id,direction:body.direction||'',content_count:body.content_count,slide_count:body.slide_count,start_date:body.start_date,end_date:body.end_date,times:body.times,produce_media:body.produce_media===true,agents};
+ const existing=one('SELECT id,request_hash,payload FROM story_jobs WHERE user_id=? AND request_id=?',user.id,body.request_id);
+ if(existing){
+  const stored=parseJSON(existing.payload,{}),replay=stored.memory_session_id?{memory_session_id:body.memory_session_id||stored.memory_session_id,...basePayload}:basePayload;
+  if(existing.request_hash!==sha256(JSON.stringify(replay))||!stored.memory_session_id&&body.memory_session_id)throw err(409,'idempotency_conflict','request_id dipakai untuk sesi berbeda.');
+  return {...job(user,existing.id),replayed:true};
+ }
  let p=profile(user,body.account_id,body.memory_session_id||null);
  if(!p.seed.trim())throw err(400,'story_seed_required','Simpan prompt cerita awal untuk akun ini terlebih dahulu.');
  if(!p.memory_session_id){p=createMemorySession(user,body.account_id,{title:'Cerita awal'});}
- const payload={memory_session_id:p.memory_session_id,account_id:body.account_id,direction:body.direction||'',content_count:body.content_count,slide_count:body.slide_count,start_date:body.start_date,end_date:body.end_date,times:body.times,produce_media:body.produce_media===true,agents};
- const hash=sha256(JSON.stringify(payload)),existing=one('SELECT id,request_hash FROM story_jobs WHERE user_id=? AND request_id=?',user.id,body.request_id);
- if(existing){if(existing.request_hash!==hash)throw err(409,'idempotency_conflict','request_id dipakai untuk sesi berbeda.');return {...job(user,existing.id),replayed:true};}
+ const payload={memory_session_id:p.memory_session_id,...basePayload},hash=sha256(JSON.stringify(payload));
  if(one("SELECT 1 FROM story_jobs WHERE account_id=? AND status IN ('queued','running')",body.account_id))throw err(409,'story_busy','Akun ini masih memiliki sesi cerita aktif.');
  const jid=id('story');run('INSERT INTO story_jobs(id,user_id,account_id,request_id,request_hash,payload,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',jid,user.id,body.account_id,body.request_id,hash,JSON.stringify({...payload,base_revision:p.revision}),now(),now());run('UPDATE story_jobs SET memory_session_id=? WHERE id=?',p.memory_session_id,jid);return job(user,jid);
 }
