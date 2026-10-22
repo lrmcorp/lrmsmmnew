@@ -9,7 +9,7 @@ Review date: 2026-10-23 (WIB).
 - Dedicated receiver unit tests: 6 passed.
 - English UI, WIB helper and no-native-dialog gate passed.
 - Interface SVG/no-emoji gate and `git diff --check` passed.
-- Browser workflow: see CI for the complete final run. Locally verified successful
+- Complete browser workflow passed locally, including successful
   Campaign → exact draft-plan navigation; Storyline → durable pending session →
   real six-item draft plan; capacity guidance; no image calls before approval.
 - Wrong-count Storyteller response: one repair completes all six episodes.
