@@ -18,7 +18,7 @@ export function getDraft(user, draftId) {
   return { id: draft.id, content: draft.content, targets, media_ids: parseJSON(draft.media_ids, []),
     media: parseJSON(draft.media_ids, []).map(mid => media.publicMedia(one('SELECT * FROM media WHERE id=?', mid))),
     scheduled_at: draft.scheduled_at, created_at: draft.created_at, status: draft.status, post_id: draft.post_id,
-    source: draft.oauth_token_id ? 'AI OAuth' : 'Agent API', compose_url: `${config.publicUrl}/#/compose?ai_draft=${draft.id}` };
+    source: draft.request_id?.startsWith('duplicate-') ? 'Calendar' : draft.oauth_token_id ? 'AI OAuth' : 'Agent API', compose_url: `${config.publicUrl}/#/compose?ai_draft=${draft.id}` };
 }
 export function listDrafts(user) {
   return all("SELECT id FROM ai_drafts WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 50", user.id)

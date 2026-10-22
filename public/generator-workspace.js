@@ -1,3 +1,4 @@
+import {brandReadiness} from './brand-readiness.js';
 import {workflowCanvas} from './workflow-canvas.js';
 import { autosave, fmtSlot, readSessionGroups } from './ui.js';
 const replace = (el, ...nodes) => el.replaceChildren(...nodes.flat(Infinity).filter(x => x != null && x !== false));
@@ -210,9 +211,7 @@ export async function generatorWorkspace(ctx, workspace) {
       accounts: list,
       selected: selection,
       mode: mode === 'story' ? 'single' : 'multi',
-      readiness: id => ({
-        ok: !!state.brandProfiles[id]?.seed
-      }),
+      readiness:id=>brandReadiness(state.brandProfiles[id]),
       onChange: ids => {
         if (mode === 'story' && ids[0] && !state.brandProfiles[ids[0]]?.seed) {
           quickBrand(state.accounts.find(a => a.id === ids[0]));
@@ -271,7 +270,7 @@ export async function generatorWorkspace(ctx, workspace) {
       })
     });
     for (const a of selected()) {
-      if (a.platform === 'instagram' && !state.brandProfiles[a.id]?.seed?.trim()) items.push({
+      if (a.platform === 'instagram' && !brandReadiness(state.brandProfiles[a.id]).ok) items.push({
         text: `@${a.username}: fondasi Brand Kit belum diisi.`,
         fix: () => quickBrand(a),
         account: a
@@ -537,7 +536,7 @@ export async function generatorWorkspace(ctx, workspace) {
       class: 'muted'
     }, `${days} hari`)), summaryRow('Ritme', `±${(n / days).toFixed(1)} post/hari/akun`), summaryRow('Bahasa', captionLanguage.selectedOptions[0]?.textContent), summaryRow('Tim AI', teamSummary.textContent, B('Ubah', teamDrawer, 'ui-text-button'))), mode === 'story' && a ? summaryRow('Aset', `${(p?.assets || []).filter(x => x.category === 'logo').length} logo · ${(p?.assets || []).filter(x => x.category === 'visual').length} referensi · ${(p?.assets || []).filter(x => x.category === 'product').length} produk`, B('Kelola', () => quickBrand(a), 'ui-text-button')) : null, mode === 'story' && a && !(p?.assets || []).some(x => x.category === 'product') ? h('div', {
       class: 'rd-callout warn small'
-    }, 'Belum ada foto produk. Storyteller belum bisa memilih produk spesifik. ', B('Tambah foto produk', () => quickBrand(a), 'ui-text-button')) : null, h('h3', {}, missing.length ? 'Yang perlu dilengkapi' : 'Siap generate'), h('div', {
+    }, 'Belum ada foto produk. Storyteller belum bisa memilih produk spesifik. ', B('Tambah foto produk', () => quickBrand(a), 'ui-text-button')) : null, h('div',{class:'gf-brand-completeness'},selected().filter(a=>a.platform==='instagram').map(a=>{const ready=brandReadiness(state.brandProfiles[a.id]);return h('div',{class:'small'},B('@'+a.username+' · Brand Kit '+ready.completeness+'%',()=>quickBrand(a),'ui-text-button'),ready.ok&&ready.missing.length?h('span',{class:'muted'},' · Disarankan: '+ready.missing.map(x=>x.label).join(', ')):null);})),h('h3', {}, missing.length ? 'Yang perlu dilengkapi' : 'Siap generate'), h('div', {
       class: 'rd-readiness'
     }, ...(missing.length ? missing.map(item => h('div', {
       class: 'rd-check-item warn'

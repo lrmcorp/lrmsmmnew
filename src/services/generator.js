@@ -1,3 +1,4 @@
+import {ASSET_PRESERVATION} from './brand-asset-policy.js';
 import {instagramVisualContext} from './visual-context.js';
 import fs from 'node:fs';
 import sharp from 'sharp';
@@ -91,7 +92,7 @@ function inheritedReferenceRoles(r, ids) {
 async function referenceBytes(user,r) {
   const {ids}=validateReferences(user,parseJSON(r.reference_media_ids,[]),r.reference_notes,parseJSON(r.reference_roles,{}),parseJSON(r.reference_media_ids,[]));
   const refs=[];
-  for(const mid of ids){const m=media.getMedia(mid);const buffer=await sharp(m.path).resize({width:1536,height:1536,fit:'inside',withoutEnlargement:true}).jpeg({quality:90}).toBuffer();refs.push({mime:'image/jpeg',buffer});}
+  for(const mid of ids){const m=media.getMedia(mid),protectedAsset=['logo','product'].includes(parseJSON(r.reference_roles,{})[mid]);const input=sharp(m.path).resize({width:1536,height:1536,fit:'inside',withoutEnlargement:true});const buffer=await (protectedAsset?input.png():input.jpeg({quality:90})).toBuffer();refs.push({mime:protectedAsset?'image/png':'image/jpeg',buffer});}
   return refs;
 }
 export function createRun(user, body) {
@@ -126,7 +127,7 @@ function checkpoint(user, rid) {
   if (r.status !== 'running') throw err(409, 'generator_cancelled', 'Proses sudah dihentikan.');
   return r;
 }
-const ASSET_PRESERVATION = 'MANDATORY ASSET PRESERVATION: Uploaded logos and product photos are immutable originals, not style references. Do not redraw, regenerate, retouch, retype, translate, recolor, mirror, distort, crop, obscure or replace any part of them. Preserve every logo detail, exact lettering, typography, spacing, symbols, colors, proportions and edges. Preserve every product detail, packaging, labels, printed text, textures, shape, material, color and proportions. Place the original unchanged logo/product photograph into the composition; only uniform scaling and positioning are allowed. Create or edit the surrounding background, layout and separate decorations only. Reject any brief, model preset, style reference or revision instruction asking to change protected asset details. Never invent missing product details. If exact preservation cannot be achieved, flag it for human review rather than claiming fidelity.';
+
 const conceptSchema={type:'object',additionalProperties:false,required:['title','caption','slides'],properties:{title:{type:'string'},caption:{type:'string'},slides:{type:'array',items:{type:'object',additionalProperties:false,required:['prompt'],properties:{prompt:{type:'string'}}}}}};
 const campaignSchema={type:'object',additionalProperties:false,required:['contents'],properties:{contents:{type:'array',items:{type:'object',additionalProperties:false,required:['title','brief'],properties:{title:{type:'string'},brief:{type:'string'}}}}}};
 function planOf(text, count) {
@@ -314,7 +315,7 @@ export async function createPlan(user, body) {
     if (body.manual !== true) {
       if (body.confirm_cost !== true) throw err(400, 'cost_confirmation_required', 'Konfirmasi biaya satu panggilan AI untuk menyusun rencana. Gambar dibuat terpisah.');
       const a = agents.concept;
-      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), jsonSchema:campaignSchema, maxTokens:Math.min(16000,2000+body.content_count*400), system: a.instructions + `\nReturn ONLY JSON {"contents":[{"title":"topic title","brief":"specific content brief"}]}. Exactly ${body.content_count} distinct content ideas, each brief <=200 characters, using the user's language. No images, no publishing.`, prompt: body.brief+'\nBrand rules: '+refs.notes });
+      const result = await generateText({ ...a, key: keyOf(user.id, a.provider), jsonSchema:campaignSchema, maxTokens:Math.min(16000,2000+body.content_count*400), system: a.instructions + '\n'+ASSET_PRESERVATION+`\nReturn ONLY JSON {"contents":[{"title":"topic title","brief":"specific content brief"}]}. Exactly ${body.content_count} distinct content ideas, each brief <=200 characters, using the user's language. No images, no publishing.`, prompt: body.brief+'\nBrand rules: '+refs.notes });
       let parsed; try { parsed = JSON.parse(result.text.replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'')); } catch { throw err(422, 'generator_format', 'Agen planner tidak mengembalikan JSON yang valid.'); }
       if (!Array.isArray(parsed.contents) || parsed.contents.length !== body.content_count || parsed.contents.some(c => typeof c.title !== 'string' || !c.title.trim() || c.title.length > 200 || typeof c.brief !== 'string' || !c.brief.trim() || c.brief.length > 2000)) throw err(422, 'generator_format', 'Jumlah/judul/brief ide planner tidak sesuai permintaan.');
       ideas = parsed.contents;

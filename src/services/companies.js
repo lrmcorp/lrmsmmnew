@@ -26,3 +26,9 @@ export function moveAccount(accountId, companyId) {
   if (companyId !== null && (typeof companyId !== 'string' || !one('SELECT 1 FROM companies WHERE id=?', companyId))) throw err(400, 'validation_failed', 'Perusahaan tidak ditemukan.');
   run('UPDATE accounts SET company_id=? WHERE id=?', companyId, accountId);
 }
+
+export function deleteCompany(companyId) {
+ if (!one('SELECT 1 FROM companies WHERE id=?',companyId)) throw err(404,'not_found','Perusahaan tidak ditemukan.');
+ if (one("SELECT 1 FROM accounts WHERE company_id=? AND status!='disconnected'",companyId)) throw err(409,'company_not_empty','Pindahkan atau putuskan semua akun sebelum menghapus perusahaan.');
+ run('UPDATE accounts SET company_id=NULL WHERE company_id=?',companyId);run('DELETE FROM companies WHERE id=?',companyId);
+}
