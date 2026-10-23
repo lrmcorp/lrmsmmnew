@@ -1,3 +1,4 @@
+import {VISUAL_DESIGN_POLICY} from './visual-design-policy.js';
 import {err} from '../util.js';
 import {ASSET_PRESERVATION} from './brand-asset-policy.js';
 
@@ -6,7 +7,7 @@ export const IMAGE_PROMPT_LIMIT=32000;
 // Do not repeat that archive in the image API request: GPT Image has a 32k limit.
 export function buildImagePrompt({instructions,direction,accounts=[],layout,title,brief,episode,slideIndex,slideCount,slidePrompt,designReason='',revision=''}){
  const identities=accounts.map(c=>({account:c.account,identity:c.identity||{},foundation:String(c.foundation||'').slice(0,1000)}));
- const prompt=[instructions,direction,'ACCOUNT IDENTITY: '+JSON.stringify(identities),
+ const prompt=[instructions,VISUAL_DESIGN_POLICY,direction,'ACCOUNT IDENTITY: '+JSON.stringify(identities),
   'Use the approved visual concept below. It already incorporates this account’s story, history and product selection. Do not invent a later episode, change the selected products or introduce another brand.',
   'Campaign: '+title,'Brief: '+brief,episode?'Story episode: '+episode:'',
   `Slide ${slideIndex+1}/${slideCount}: ${slidePrompt}`,

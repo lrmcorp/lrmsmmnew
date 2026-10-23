@@ -1,0 +1,16 @@
+:root {
+  --generator-paper: var(--slate-50);
+  --generator-surface: #fff;
+  --generator-ink: var(--slate-900);
+  --generator-muted: var(--slate-600);
+  --generator-line: var(--slate-200);
+  --generator-accent: var(--em-800);
+  --generator-focus: var(--em-700);
+  --generator-font: var(--font);
+  --generator-radius: .75rem;
+  --generator-control-radius: .5rem;
+  --generator-gap: 1.5rem;
+  --generator-control-size: 2.75rem;
+  --generator-label-size: .8125rem;
+  --generator-body-size: .875rem;
+}
