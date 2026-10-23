@@ -271,10 +271,10 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.throws(()=>deleteMedia(ref.id),/Media is used by a scheduled post or active draft/);
       const result=await execute(r);assert.equal(result.status,'review');
       const edit=providerCalls.findLast(c=>String(c.url).includes('/images/edits'));
-      assert.ok(edit.form instanceof FormData);assert.equal(edit.form.getAll('image[]').length,3);
+      assert.ok(edit.form instanceof FormData);assert.equal(edit.form.getAll('image[]').length,2,'the image provider sees the visual and product references, but not the logo');
       assert.ok((await edit.form.get('image[]').arrayBuffer()).byteLength>0);
       assert.ok(edit.form.get('prompt').includes('warm palette'));
-      for(const label of ['Image 1: visual','Image 2: logo','Image 3: product','do not redesign the logo','packaging'])assert.ok(edit.form.get('prompt').includes(label));
+      for(const label of ['Image 1: visual','Image 2: product','brand logo is added by the server','packaging'])assert.ok(edit.form.get('prompt').includes(label));
       assert.ok(edit.form.get('prompt').includes('MANDATORY ASSET PRESERVATION'));
       assert.ok(edit.form.get('prompt').includes('PRODUCT MOCKUP MODE'));assert.ok(edit.form.get('prompt').includes('worn on fingers'));assert.equal(result.steps.image.product_mockup,true);assert.deepEqual(result.steps.image.protected_placements[0].map(x=>x.role),['logo'],'mockup product photos are not pasted over the scene');
       const qc=providerCalls.findLast(c=>c.body.systemInstruction);assert.equal(qc.body.contents[0].parts.filter(p=>p.inlineData).length,4,'reviewer receives generated slide, original logo/product and visual reference');assert.ok(qc.body.systemInstruction.parts[0].text.includes('blocking issue'));

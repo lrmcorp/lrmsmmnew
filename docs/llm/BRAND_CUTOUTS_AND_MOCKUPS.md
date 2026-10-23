@@ -26,7 +26,10 @@ because the full source bounds were scaled. This was principally a system issue.
   Conceptor inspects the uploaded references at high detail and selects an
   upper-left, upper-centre or upper-right placement per slide, with a one-sentence
   design reason. The image prompt reserves that location within the headline
-  composition, and the server places the unchanged cutout there. Existing runs
+  composition, and the server places the unchanged cutout there. The image model
+  receives visual and product references but not the separate logo source, which
+  reduces duplicate or imitated wordmarks. The planner and reviewer still see the
+  original logo. Existing runs
   without this metadata retain the prior upper-right fallback.
 - Uploaded visual references lead the art direction for new slides: the Visual
   Conceptor and image prompt request their concrete palette, background, subject

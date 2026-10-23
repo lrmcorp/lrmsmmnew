@@ -11,7 +11,7 @@ export function buildImagePrompt({instructions,direction,accounts=[],layout,titl
   'Campaign: '+title,'Brief: '+brief,episode?'Story episode: '+episode:'',
   `Slide ${slideIndex+1}/${slideCount}: ${slidePrompt}`,
   designReason?'DESIGN DECISION: '+designReason:'',
-  revision?'The last attached image is the current slide. Preserve its composition and identity except for the requested changes. Human revision for this slide: '+revision:'',
+  revision?'The last attached image is the current slide. Preserve its composition except for the requested changes. Any logo visible there was placed by the server: use its position for layout only, do not copy or redraw it; the server will add the original again. Human revision for this slide: '+revision:'',
   layout,
   ASSET_PRESERVATION].filter(Boolean).join('\n');
  if(prompt.length>IMAGE_PROMPT_LIMIT)throw err(400,'image_prompt_too_long',`Image instructions contain ${prompt.length} characters after removing duplicated history; the limit is ${IMAGE_PROMPT_LIMIT}. Shorten the image-agent instructions or this slide’s visual prompt. Your story and completed stages are retained.`);
