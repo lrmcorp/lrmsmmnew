@@ -22,16 +22,19 @@ because the full source bounds were scaled. This was principally a system issue.
   antialiased edges and tiny details need review. This is not universal AI matting.
 - Prepared previews expose the background/edge status. Original files remain
   available for comparison. Old selected assets prepare lazily during generation.
-- Logos are composited from prepared cutouts. AI must not redraw logos. New image
-  prompts reserve a quiet upper-right signature area (roughly the rightmost 30%,
-  6–17% from the top) without headline or subject detail. The server places the
-  unchanged cutout there at a restrained size instead of spanning the headline.
-  The layout instruction follows the slide concept so it remains the final
-  placement constraint. Generated artwork still needs human visual review.
+- Logos are composited from prepared cutouts. AI must not redraw logos. The Visual
+  Conceptor inspects the uploaded references at high detail and selects an
+  upper-left, upper-centre or upper-right placement per slide, with a one-sentence
+  design reason. The image prompt reserves that location within the headline
+  composition, and the server places the unchanged cutout there. Existing runs
+  without this metadata retain the prior upper-right fallback.
 - Uploaded visual references lead the art direction for new slides: the Visual
   Conceptor and image prompt request their concrete palette, background, subject
   scale/placement, typography hierarchy, spacing and lighting. This improves
   reference fidelity but cannot guarantee an exact match from a generative model.
+- The Final Reviewer also receives the visual style references and is asked to
+  flag generic layouts and poorly integrated logos. Its findings appear for human
+  review; the app does not silently spend extra credits on an automatic redraw.
 - Products default to **In-scene AI mockup**, including applicable products worn or
   used naturally (for example press-on nails on fingers). Product reference photos
   inform the image model, and are not pasted over the final scene.

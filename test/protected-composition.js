@@ -16,10 +16,15 @@ test('final composition uses real source pixels, preserves complete aspect bound
   assert.ok(logoBox.top>=1024*.06&&logoBox.top+logoBox.height<=1024*.16,'logo remains inside the reserved quiet area');
   const headlineSpace=await sharp(result.buffer).extract({left:80,top:80,width:1,height:1}).raw().toBuffer();assert.ok(headlineSpace[0]>200&&headlineSpace[1]<30,'upper-left artwork stays unobstructed');
   assert.match(protectedLayout([{role:'logo'}]),/upper-right/);
+  assert.match(protectedLayout([{role:'logo'}],true,'top-left'),/upper-left/);
   assert.doesNotMatch(protectedLayout([{role:'logo'}]),/REFERENCE PRIORITY/,'no visual reference is claimed when none was uploaded');
   assert.match(protectedLayout([{role:'logo'}],true),/REFERENCE PRIORITY/);
   assert.doesNotMatch(protectedLayout([{role:'product'}]),/original logo/,'product-only designs do not reserve a needless logo space');
   for(const [box,rgb]of[[logoBox,[18,72,208]],[productBox,[21,196,89]]]){const pixel=await sharp(result.buffer).extract({left:box.left+Math.floor(box.width/2),top:box.top+Math.floor(box.height/2),width:1,height:1}).raw().toBuffer();rgb.forEach((value,i)=>assert.ok(Math.abs(pixel[i]-value)<=3,'source pixels replace AI background'));}
+  const left=await composeProtectedAssets(background,[{role:'logo',media_id:'logo',path:path.join(dir,'logo.png')}],{logoPlacement:'top-left'});
+  const center=await composeProtectedAssets(background,[{role:'logo',media_id:'logo',path:path.join(dir,'logo.png')}],{logoPlacement:'top-center'});
+  assert.ok(left.placements[0].left<=1024*.07,'reference-led left placement is applied');
+  assert.ok(Math.abs(center.placements[0].left+center.placements[0].width/2-512)<=1,'centre placement aligns with the canvas');
   assert.deepEqual(fs.readFileSync(path.join(dir,'logo.png')),logo);assert.deepEqual(fs.readFileSync(path.join(dir,'product.png')),product);assert.deepEqual((await composeProtectedAssets(background,[])).buffer,background);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });

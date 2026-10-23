@@ -58,13 +58,13 @@ export async function geminiModels(key,{refresh=false}={}) {
  modelCatalogs.set(cacheKey,{value,expires:Date.now()+5*60_000});return value;
 }
 
-export async function generateText({ provider, model, key, system, prompt, images = [], maxTokens = 2400, jsonSchema = null }) {
+export async function generateText({ provider, model, key, system, prompt, images = [], imageDetail = 'low', maxTokens = 2400, jsonSchema = null }) {
   let result, text;
   if (provider === 'openai' && /codex/i.test(model)) {
-    result = await jsonRequest('https://api.openai.com/v1/responses', { Authorization: `Bearer ${key}` }, { model, instructions:system, input:[{role:'user',content:[{type:'input_text',text:prompt},...images.map(x=>({type:'input_image',image_url:`data:${x.mime};base64,${x.data}`}))]}], max_output_tokens:maxTokens, ...(jsonSchema?{text:{format:{type:'json_schema',name:'content_plan',strict:true,schema:jsonSchema}}}:{}) });
+    result = await jsonRequest('https://api.openai.com/v1/responses', { Authorization: `Bearer ${key}` }, { model, instructions:system, input:[{role:'user',content:[{type:'input_text',text:prompt},...images.map(x=>({type:'input_image',image_url:`data:${x.mime};base64,${x.data}`,detail:imageDetail}))]}], max_output_tokens:maxTokens, ...(jsonSchema?{text:{format:{type:'json_schema',name:'content_plan',strict:true,schema:jsonSchema}}}:{}) });
     text = result.output_text || result.output?.flatMap(item=>item.content||[]).filter(part=>part.type==='output_text').map(part=>part.text).join('\n');
   } else if (provider === 'openai') {
-    const content = [{ type: 'text', text: prompt }, ...images.map(x => ({ type: 'image_url', image_url: { url: `data:${x.mime};base64,${x.data}`, detail: 'low' } }))];
+    const content = [{ type: 'text', text: prompt }, ...images.map(x => ({ type: 'image_url', image_url: { url: `data:${x.mime};base64,${x.data}`, detail: imageDetail } }))];
     result = await jsonRequest('https://api.openai.com/v1/chat/completions', { Authorization: `Bearer ${key}` }, { model, ...(jsonSchema?{response_format:{type:'json_schema',json_schema:{name:'content_plan',strict:true,schema:jsonSchema}}}:{}), max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content }] });
     text = result.choices?.[0]?.message?.content;
   } else if (provider === 'anthropic') {

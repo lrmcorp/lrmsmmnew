@@ -40,7 +40,7 @@ globalThis.fetch = async (url, opts) => {
     text=JSON.stringify({contents:Array.from({length:n},(_,i)=>({title:'Topic '+(i+1),brief:'Unique wellness angle '+(i+1)}))});
   } else if (system.includes('Return ONLY JSON')) {
     const n = Number(system.match(/Exactly (\d+) slides/)[1]);
-    text = malformed==='null'?'null':malformed==='null-slide'?JSON.stringify({caption:'Valid caption',slides:[null]}):malformed ? '{malformed' : JSON.stringify({ title: 'Campaign', caption: 'Final caption', slides: Array.from({ length: n }, (_, i) => ({ prompt: 'Green brand image slide ' + (i + 1) })) });
+    text = malformed==='null'?'null':malformed==='null-slide'?JSON.stringify({caption:'Valid caption',slides:[null]}):malformed ? '{malformed' : JSON.stringify({ title: 'Campaign', caption: 'Final caption', slides: Array.from({ length: n }, (_, i) => ({ prompt: 'Green brand image slide ' + (i + 1),...(system.includes('Final visual concept only')?{logo_placement:'top-center',design_reason:'The approved brand palette and subject sit around a central header.'}:{}) })) });
   }
   return Response.json(origin.includes('openai') ? { choices: [{ message: { content: text } }], usage: { total_tokens: 42 } } : origin.includes('anthropic') ? { content: [{ type: 'text', text }], usage: { input_tokens: 20, output_tokens: 22 } } : { candidates: [{ content: { parts: [{ text }] } }], usageMetadata: { totalTokenCount: 42 } });
 };
@@ -277,7 +277,7 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       for(const label of ['Image 1: visual','Image 2: logo','Image 3: product','do not redesign the logo','packaging'])assert.ok(edit.form.get('prompt').includes(label));
       assert.ok(edit.form.get('prompt').includes('MANDATORY ASSET PRESERVATION'));
       assert.ok(edit.form.get('prompt').includes('PRODUCT MOCKUP MODE'));assert.ok(edit.form.get('prompt').includes('worn on fingers'));assert.equal(result.steps.image.product_mockup,true);assert.deepEqual(result.steps.image.protected_placements[0].map(x=>x.role),['logo'],'mockup product photos are not pasted over the scene');
-      const qc=providerCalls.findLast(c=>c.body.systemInstruction);assert.equal(qc.body.contents[0].parts.filter(p=>p.inlineData).length,3,'reviewer receives generated slide plus original logo and product');assert.ok(qc.body.systemInstruction.parts[0].text.includes('blocking issue'));
+      const qc=providerCalls.findLast(c=>c.body.systemInstruction);assert.equal(qc.body.contents[0].parts.filter(p=>p.inlineData).length,4,'reviewer receives generated slide, original logo/product and visual reference');assert.ok(qc.body.systemInstruction.parts[0].text.includes('blocking issue'));
       assert.deepEqual(gen.updateContent(user,result.id,{content:'Updated caption'}).reference_roles,roleMap);
       assert.throws(()=>make({reference_media_ids:[ref.id],reference_roles:{[ref.id]:'unknown'}}),/reference category/);
       assert.throws(()=>make({reference_media_ids:[ref.id],reference_roles:{[logo.id]:'logo'}}),/reference category/);
