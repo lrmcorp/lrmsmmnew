@@ -34,7 +34,7 @@ export function publicMedia(m) {
   if (!m) return null;
   return {
     id: m.id, type: m.kind, mime_type: m.mime, size_bytes: m.size_bytes, width: m.width, height: m.height,
-    prepared:cutoutInfo(m), duration_ms: m.duration_ms, alt_text: m.alt_text, in_library: !!m.in_library, status: m.status,
+    prepared:cutoutInfo(m,undefined,{legacyPreview:true}), duration_ms: m.duration_ms, alt_text: m.alt_text, in_library: !!m.in_library, status: m.status,
     url: m.status === 'ready' ? mediaUrl(m) : null, original_name: m.original_name, created_at: m.created_at,
   };
 }

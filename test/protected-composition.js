@@ -16,6 +16,8 @@ test('final composition uses real source pixels, preserves complete aspect bound
   assert.ok(logoBox.top>=1024*.06&&logoBox.top+logoBox.height<=1024*.16,'logo remains inside the reserved quiet area');
   const headlineSpace=await sharp(result.buffer).extract({left:80,top:80,width:1,height:1}).raw().toBuffer();assert.ok(headlineSpace[0]>200&&headlineSpace[1]<30,'upper-left artwork stays unobstructed');
   assert.match(protectedLayout([{role:'logo'}]),/upper-right/);
+  assert.doesNotMatch(protectedLayout([{role:'logo'}]),/REFERENCE PRIORITY/,'no visual reference is claimed when none was uploaded');
+  assert.match(protectedLayout([{role:'logo'}],true),/REFERENCE PRIORITY/);
   assert.doesNotMatch(protectedLayout([{role:'product'}]),/original logo/,'product-only designs do not reserve a needless logo space');
   for(const [box,rgb]of[[logoBox,[18,72,208]],[productBox,[21,196,89]]]){const pixel=await sharp(result.buffer).extract({left:box.left+Math.floor(box.width/2),top:box.top+Math.floor(box.height/2),width:1,height:1}).raw().toBuffer();rgb.forEach((value,i)=>assert.ok(Math.abs(pixel[i]-value)<=3,'source pixels replace AI background'));}
   assert.deepEqual(fs.readFileSync(path.join(dir,'logo.png')),logo);assert.deepEqual(fs.readFileSync(path.join(dir,'product.png')),product);assert.deepEqual((await composeProtectedAssets(background,[])).buffer,background);
@@ -32,4 +34,31 @@ test('automatic cutouts remove white/transparent margins without overwriting sou
  const trimmed=await isolateBrandImage(transparent);assert.equal(trimmed.width,30);assert.equal(trimmed.height,20);assert.equal(trimmed.status,'prepared');
  const complex=await sharp({create:{width:120,height:100,channels:4,background:'#c82420'}}).composite([{input:mark,left:40,top:30}]).png().toBuffer();assert.equal((await isolateBrandImage(complex)).status,'needs_review');
  const blank=await sharp({create:{width:40,height:40,channels:3,background:'#fff'}}).png().toBuffer();assert.equal((await isolateBrandImage(blank)).status,'needs_review');
+});
+
+test('logo cutouts clear enclosed white letter counters while product cutouts keep white details',async()=>{
+ const {isolateBrandImage}=await import('../src/services/brand-image-isolation.js');
+ const pixels=Buffer.alloc(100*100*3,255);
+ for(let y=30;y<70;y++)for(let x=30;x<70;x++){const offset=(y*100+x)*3,letterHole=x>=44&&x<56&&y>=44&&y<56;pixels.fill(letterHole?255:0,offset,offset+3);}
+ const source=await sharp(pixels,{raw:{width:100,height:100,channels:3}}).png().toBuffer();
+ const logo=await isolateBrandImage(source,{logo:true}),product=await isolateBrandImage(source);
+ assert.equal(logo.width,40);assert.equal(logo.height,40);
+ const logoPixel=await sharp(logo.buffer).extract({left:20,top:20,width:1,height:1}).raw().toBuffer();
+ const productPixel=await sharp(product.buffer).extract({left:20,top:20,width:1,height:1}).raw().toBuffer();
+ assert.equal(logoPixel[3],0,'white inside a logo letter must show the slide background');
+ assert.equal(productPixel[3],255,'white product detail must remain opaque');
+ assert.equal((await sharp(logo.buffer).extract({left:4,top:4,width:1,height:1}).raw().toBuffer())[3],255,'black logo strokes remain opaque');
+ const transparentPixels=Buffer.alloc(100*100*4);
+ for(let y=30;y<70;y++)for(let x=30;x<70;x++){const offset=(y*100+x)*4,letterHole=x>=44&&x<56&&y>=44&&y<56;transparentPixels.fill(letterHole?255:0,offset,offset+3);transparentPixels[offset+3]=255;}
+ const transparentSource=await sharp(transparentPixels,{raw:{width:100,height:100,channels:4}}).png().toBuffer();
+ const transparentLogo=await isolateBrandImage(transparentSource,{logo:true});
+ assert.equal((await sharp(transparentLogo.buffer).extract({left:20,top:20,width:1,height:1}).raw().toBuffer())[3],0,'enclosed white is cleared even when the source already has transparent margins');
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'logo-counter-'));
+ try{
+  const logoPath=path.join(dir,'logo.png');fs.writeFileSync(logoPath,logo.buffer);
+  const background=await sharp({create:{width:1024,height:1024,channels:3,background:'#34b578'}}).png().toBuffer();
+  const composed=await composeProtectedAssets(background,[{role:'logo',media_id:'logo',path:logoPath}]);
+  const box=composed.placements[0],center=await sharp(composed.buffer).extract({left:box.left+20,top:box.top+20,width:1,height:1}).raw().toBuffer();
+  assert.ok(center[1]>150&&center[0]<100,'the final JPEG shows slide color through the letter counter');
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });

@@ -13,6 +13,10 @@ because the full source bounds were scaled. This was principally a system issue.
 - Local Sharp processing removes border-connected near-white background and empty
   transparent margins; original uploaded files remain untouched. No provider/API
   key or paid AI call is used for preparation.
+- Logo preparation also clears enclosed white letter counters (for example the
+  inside of an “a”) in white-backed or transparent logo sources. Product cutouts
+  retain enclosed white details. Logos use a new prepared derivative so existing
+  cached cutouts do not hide the correction; original media remains unchanged.
 - Complex backgrounds are retained and flagged **needs review**, rather than
   claiming a perfect semantic foreground extraction. White foreground objects,
   antialiased edges and tiny details need review. This is not universal AI matting.
@@ -24,6 +28,10 @@ because the full source bounds were scaled. This was principally a system issue.
   unchanged cutout there at a restrained size instead of spanning the headline.
   The layout instruction follows the slide concept so it remains the final
   placement constraint. Generated artwork still needs human visual review.
+- Uploaded visual references lead the art direction for new slides: the Visual
+  Conceptor and image prompt request their concrete palette, background, subject
+  scale/placement, typography hierarchy, spacing and lighting. This improves
+  reference fidelity but cannot guarantee an exact match from a generative model.
 - Products default to **In-scene AI mockup**, including applicable products worn or
   used naturally (for example press-on nails on fingers). Product reference photos
   inform the image model, and are not pasted over the final scene.

@@ -1,8 +1,8 @@
 import sharp from 'sharp';
 
-export function protectedLayout(assets){
+export function protectedLayout(assets,hasVisualReference=false){
  const logo=assets.some(a=>a.role==='logo'),exact=assets.some(a=>a.role==='product');
- return ['REFERENCE PRIORITY: Follow uploaded visual references for mood, composition, palette and lighting.',
+ return [hasVisualReference?'REFERENCE PRIORITY: Build the slide from the attached visual references. Match their observable palette, background treatment, subject scale and placement, typography hierarchy, spacing and lighting. Preserve that design language across the campaign while adapting content to this slide; avoid a generic product-ad layout.':'',
   logo?'The server will place the original logo as a restrained signature in the upper-right of the finished image: within the rightmost 30% of the canvas, roughly 6–17% from the top. Treat this space and any headline as one editorial header, with aligned spacing, a shared palette and a calm background that gives the supplied logo colors clear contrast. Keep lettering, faces, hands and product details out of the reserved logo space. Compose the headline and scene around it; do not generate, redraw or imitate any logo elsewhere.':'',
   exact?'Products explicitly set to EXACT CUTOUT receive an original-source overlay; reserve a clean lower area for those products.':'',
   'Products in PRODUCT MOCKUP mode must be rendered naturally in the approved scene, never as a pasted photo or catalog rectangle. Preserve recognizable product details and flag any uncertainty for review.'].filter(Boolean).join(' ');
