@@ -2909,11 +2909,11 @@ async function pageGenerator() {
     value: 1,
     'aria-label': t("ui.copy.0245")
   });
-  const tomorrow = new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0, 10);
+  const firstDate = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
   const until = new Date(Date.now() + 14 * 864e5 + 7 * 3600000).toISOString().slice(0, 10);
   const fromDate = h('input', {
     type: 'date',
-    value: tomorrow,
+    value: firstDate,
     'aria-label': t("ui.copy.0246")
   });
   const endDate = h('input', {

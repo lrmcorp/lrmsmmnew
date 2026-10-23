@@ -135,8 +135,8 @@ export async function generatorWorkspace(ctx, workspace) {
     }, 'I will upload my own photos'));
   const start = h('input', {
       type: 'date',
-      value: new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0, 10),
-      min: new Date(Date.now() + 864e5 + 7 * 3600000).toISOString().slice(0, 10),
+      value: new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10),
+      min: new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10),
       'aria-label': 'Start date in WIB',
       oninput: update
     }),
@@ -303,8 +303,8 @@ export async function generatorWorkspace(ctx, workspace) {
       text: 'Choose 1–10 slides.',
       fix: () => slides.focus()
     });
-    if (!start.value || start.value <= today() || !end.value || end.value < start.value) items.push({
-      text: 'Start at least tomorrow; the end date cannot be earlier.',
+    if (!start.value || start.value < today() || !end.value || end.value < start.value) items.push({
+      text: 'Start today or later; the end date cannot be earlier.',
       fix: () => start.focus()
     });
     if (Date.parse(end.value) - Date.parse(start.value) > 90 * 864e5) items.push({
@@ -318,8 +318,15 @@ export async function generatorWorkspace(ctx, workspace) {
     });
     const inclusiveDays = Math.floor((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1;
     const validTimes = ts.length && ts.length <= 12 && ts.every(value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value));
-    if (validTimes && Number.isFinite(inclusiveDays) && inclusiveDays > 0 && Number.isInteger(n) && n > inclusiveDays * new Set(ts).size) items.push({
-      text: `Schedule capacity is ${inclusiveDays * new Set(ts).size} posts per account, but ${n} are requested. Add unique posting times, extend the dates or reduce the count.`,
+    let capacity = 0;
+    if (validTimes && Number.isFinite(inclusiveDays) && inclusiveDays > 0 && inclusiveDays <= 91) {
+      for (let day = Date.parse(start.value + 'T00:00:00+07:00'); day <= Date.parse(end.value + 'T00:00:00+07:00'); day += 864e5) {
+        const date = new Date(day + 7 * 3600000).toISOString().slice(0, 10);
+        capacity += [...new Set(ts)].filter(time => Date.parse(`${date}T${time}:00+07:00`) > Date.now() + 5 * 60000).length;
+      }
+    }
+    if (validTimes && inclusiveDays > 0 && inclusiveDays <= 91 && Number.isInteger(n) && n > capacity) items.push({
+      text: `Schedule capacity is ${capacity} future posts per account, but ${n} are requested. Use Start now, add posting times, extend the dates or reduce the count.`,
       fix: () => schedulePopover('times')
     });
     return items;
@@ -444,7 +451,7 @@ export async function generatorWorkspace(ctx, workspace) {
           update();
           refreshCalendar();
         }, 'gf-range-day ' + (date >= start.value && date <= end.value ? 'in-range ' : '') + (date === start.value || date === end.value ? 'endpoint' : ''), {
-          disabled: date <= today(),
+          disabled: date < today(),
           'aria-label': date,
           'aria-pressed': String(date >= start.value && date <= end.value)
         });
@@ -452,9 +459,9 @@ export async function generatorWorkspace(ctx, workspace) {
       rhythm.textContent = `${count.value} posts across ${Math.max(1, Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1)} days per account. WIB slots: ${times.value}. Content is distributed evenly in order.`;
     }
     function presetRange(days, nextMonday = false) {
-      let date = new Date(Date.now() + 864e5 + 7 * 3600000);
+      let date = new Date(Date.now() + 7 * 3600000);
       if (nextMonday) {
-        const delta = (8 - date.getUTCDay()) % 7;
+        const delta = (8 - date.getUTCDay()) % 7 || 7;
         date.setUTCDate(date.getUTCDate() + delta);
       }
       start.value = date.toISOString().slice(0, 10);
@@ -466,7 +473,15 @@ export async function generatorWorkspace(ctx, workspace) {
     }
     const d = modal('Plan & schedule', h('div', {}, h('div', {
       class: 'gf-date-presets'
-    }, B('2 weeks', () => presetRange(14), 'btn sm'), B('1 month', () => presetRange(30), 'btn sm'), B('This week', () => presetRange(Math.max(1, 7 - new Date(Date.now() + 7 * 3600000).getUTCDay())), 'btn sm'), B('Start next Monday', () => presetRange(14, true), 'btn sm')), h('div', {
+    }, B('Start now', () => {
+      const next = new Date(Math.ceil((Date.now() + 6 * 60000) / 60000) * 60000 + 7 * 3600000);
+      start.value = next.toISOString().slice(0, 10);
+      if (end.value < start.value) end.value = start.value;
+      times.value = [...new Set([next.toISOString().slice(11, 16), ...times.value.split(',').map(x => x.trim()).filter(x => /^([01]\d|2[0-3]):[0-5]\d$/.test(x))])].slice(0, 12).sort().join(', ');
+      month = new Date(start.value.slice(0, 7) + '-01T12:00:00+07:00');
+      update();
+      refreshCalendar();
+    }, 'btn sm'), B('2 weeks', () => presetRange(14), 'btn sm'), B('1 month', () => presetRange(30), 'btn sm'), B('This week', () => presetRange(Math.max(1, 7 - new Date(Date.now() + 7 * 3600000).getUTCDay())), 'btn sm'), B('Start next Monday', () => presetRange(14, true), 'btn sm')), h('div', {
       class: 'gf-schedule-fields'
     }, field('Posts per account', count), field('Start date (WIB)', start), field('End date (WIB)', end), field('Posting times (WIB, comma-separated)', times)), calendar, rhythm), [B('Apply', () => {
       update();
