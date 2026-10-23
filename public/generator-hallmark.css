@@ -1,0 +1,55 @@
+/* Hallmark v2.0.0 | shape: app screen | theme: brand | genre: modern-minimal | scope: app | signature: reference-led production workbench | copy: verbatim */
+/* Critique: preserve the three-step composer; improve controls, quiet summary hierarchy and focus without changing routes or data. */
+@import url('/generator-tokens.css');
+
+html:has(.gf-generator), body:has(.gf-generator) { overflow-x: clip; }
+.gf-generator {
+  max-width: 1360px;
+  margin-inline: auto;
+  font-family: var(--generator-font);
+  color: var(--generator-ink);
+}
+.gf-generator :is(h1,h2,h3) { min-width: 0; overflow-wrap: break-word; text-wrap: balance; }
+.gf-generator :is(.muted,.pagehead p,.gf-account-meta,.gf-account-hint) { color: var(--generator-muted); }
+.gf-generator .rd-generator-layout { grid-template-columns: minmax(0,1fr) minmax(280px,320px); gap: var(--generator-gap); align-items: start; }
+.gf-generator .rd-generator-composer { background: var(--generator-surface); box-shadow: none; border-color: var(--generator-line); }
+.gf-generator .rd-generator-summary { background: var(--generator-paper); border: 0; box-shadow: none; border-radius: var(--generator-radius); }
+.gf-generator .rd-generator-summary h3 { text-transform: none; letter-spacing: normal; font-size: var(--generator-label-size); color: var(--generator-ink); }
+.gf-generator .gf-summary-row { font-size: var(--generator-label-size); line-height: 1.6; }
+.gf-generator .gf-summary-row b { font-weight: 500; }
+.gf-generator .rd-summary-total { font-variant-numeric: tabular-nums; }
+.gf-generator .gf-story-position { background: var(--generator-paper); border: 0; border-radius: var(--generator-control-radius); box-shadow: none; }
+.gf-generator .gf-step-heading h2 { font-size: var(--generator-body-size); line-height: 1.5; }
+.gf-generator :is(.btn,.ui-text-button,.gf-inline,.ui-account-chip,select,input:not([type=checkbox]),textarea) { font-family: var(--generator-font); font-size: var(--generator-label-size); }
+.gf-generator :is(.btn,.ui-text-button,.gf-inline,.ui-account-chip,select,input:not([type=checkbox])) { min-height: var(--generator-control-size); }
+.gf-generator .gf-inline { display: inline-flex; align-items: center; }
+.gf-generator .gf-slot { display: inline-flex; align-items: center; }
+.gf-generator .gf-slot > button { min-width: var(--generator-control-size); min-height: var(--generator-control-size); }
+.gf-generator .rd-quick-ideas .btn { border-radius: var(--generator-control-radius); }
+.gf-generator .rd-generator-accounts { align-items: center; }
+.gf-generator .ui-account-row { padding-block: .25rem; }
+.gf-generator .gf-brief-footer { align-items: center; flex-wrap: wrap; }
+.gf-generator .gf-format-controls { flex-wrap: wrap; row-gap: .5rem; }
+.gf-generator :is(button,a,input,textarea,select,summary,[tabindex]):focus-visible { outline: 2px solid var(--generator-focus); outline-offset: 3px; transition: none; }
+.gf-generator :is(button,a):active:not(:disabled) { transform: translateY(1px); }
+.gf-generator :is(button:disabled,[aria-disabled=true]) { cursor: not-allowed; }
+.gf-generator [aria-busy=true] { cursor: progress; }
+.gf-generator :is(.gf-session-recent,.gf-live-card) { box-shadow: none; border-color: var(--generator-line); }
+.gf-generator .gf-recent-row { flex-wrap: wrap; row-gap: .5rem; }
+.gf-generator .gf-recent-row > b { white-space: normal; }
+@media (max-width: 1100px) and (min-width: 768px) {
+  .gf-generator .rd-generator-layout { grid-template-columns: minmax(0,1fr) 280px; gap: 1rem; }
+  .gf-generator .gf-step-heading { align-items: flex-start; flex-wrap: wrap; }
+}
+@media (max-width: 767px) {
+  .gf-generator .rd-generator-layout { display: flex; }
+  .gf-generator .rd-step { background: var(--generator-surface); }
+  .gf-generator .gf-step-heading h2 { font-size: var(--generator-body-size); }
+  .gf-generator .rd-generator-accounts > select { min-width: 110px; }
+  .gf-generator .rd-quick-ideas { flex-wrap: wrap; }
+  .gf-generator .gf-recent-row > b { flex-basis: 55%; }
+  .gf-generator .rd-generator-mobile-footer { background: var(--generator-surface); box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gf-generator *, .gf-generator *::before, .gf-generator *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; transform: none !important; }
+}
