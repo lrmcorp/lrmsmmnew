@@ -2,7 +2,7 @@ import {prepareBrandImage,cutoutFiles} from './brand-cutout.js';
 import {assetMetadata} from './brand-metadata.js';
 import {buildImagePrompt} from './image-prompt.js';
 import {accountSpecialistContext,ACCOUNT_SPECIALIST_POLICY} from './account-specialist.js';
-import {composeProtectedAssets,PROTECTED_LAYOUT} from './protected-composition.js';
+import {composeProtectedAssets,protectedLayout} from './protected-composition.js';
 import {ASSET_PRESERVATION} from './brand-asset-policy.js';
 import {instagramVisualContext} from './visual-context.js';
 import fs from 'node:fs';
@@ -217,7 +217,7 @@ async function processRun(user, rid) {
           const original=media.getMedia(mids[i]);
           slideRefs.push({mime:'image/jpeg',buffer:await sharp(original.path).resize({width:1536,height:1536,fit:'inside',withoutEnlargement:true}).flatten({background:'#ffffff'}).jpeg({quality:90}).toBuffer()});
         }
-        const result = await generateImage({ ...a, key: keyOf(user.id, a.provider), references:slideRefs, prompt: buildImagePrompt({instructions:a.instructions,direction:visualDirection,accounts:steps.account_specialization.accounts,layout:protectedAssets.length?PROTECTED_LAYOUT:'Inspect the attached visual references first and match their design direction closely.',title:plan.title,brief:row.brief,episode:row.story_episode,slideIndex:i,slideCount:row.slide_count,slidePrompt:plan.slides[i].prompt,revision:redoPrompt||''}) });
+        const result = await generateImage({ ...a, key: keyOf(user.id, a.provider), references:slideRefs, prompt: buildImagePrompt({instructions:a.instructions,direction:visualDirection,accounts:steps.account_specialization.accounts,layout:protectedAssets.length?protectedLayout(protectedAssets):'Inspect the attached visual references first and match their design direction closely.',title:plan.title,brief:row.brief,episode:row.story_episode,slideIndex:i,slideCount:row.slide_count,slidePrompt:plan.slides[i].prompt,revision:redoPrompt||''}) });
         checkpoint(user, rid);
         const composed=await composeProtectedAssets(result.buffer,protectedAssets);
         steps.image.protected_placements??={};steps.image.protected_placements[i]=composed.placements;

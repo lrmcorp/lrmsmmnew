@@ -18,7 +18,12 @@ because the full source bounds were scaled. This was principally a system issue.
   antialiased edges and tiny details need review. This is not universal AI matting.
 - Prepared previews expose the background/edge status. Original files remain
   available for comparison. Old selected assets prepare lazily during generation.
-- Logos are composited from prepared cutouts. AI must not redraw logos.
+- Logos are composited from prepared cutouts. AI must not redraw logos. New image
+  prompts reserve a quiet upper-right signature area (roughly the rightmost 30%,
+  6–17% from the top) without headline or subject detail. The server places the
+  unchanged cutout there at a restrained size instead of spanning the headline.
+  The layout instruction follows the slide concept so it remains the final
+  placement constraint. Generated artwork still needs human visual review.
 - Products default to **In-scene AI mockup**, including applicable products worn or
   used naturally (for example press-on nails on fingers). Product reference photos
   inform the image model, and are not pasted over the final scene.
@@ -39,6 +44,6 @@ Completed runs keep their saved content; original assets remain available.
 
 Tests cover opaque/transparent whitespace, unchanged source bytes, complex/blank
 fallback, metadata persistence, default mockups without product overlays, PNG/logo
-preservation, prepared upload URLs, cleanup and the full browser workflow.
+preservation and placement, prepared upload URLs, cleanup and the full browser workflow.
 Provider calls are mocked: no paid generation or live Instagram publishing is
 claimed as verification of visual fidelity.
