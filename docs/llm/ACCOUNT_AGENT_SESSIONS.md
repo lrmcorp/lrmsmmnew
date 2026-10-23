@@ -82,3 +82,13 @@ essential instructions fail locally before any provider call, with actionable
 `image_prompt_too_long`. The OpenAI image adapter also enforces this boundary.
 Confirmed retries keep completed concepts/reviews/visual plans and existing slides;
 users need not create a new story or pay to redo those completed stages.
+
+## Same-day generation
+
+Generator date defaults and calendar permit today in WIB. Schedule presets begin
+today; Start next Monday retains its explicit future meaning. In Plan & schedule,
+Start now adds the nearest whole-minute slot at least six minutes ahead (including
+midnight rollover). The backend still excludes slots within five minutes and
+existing account conflicts; the UI counts only future slots when checking capacity.
+Saved future date choices are preserved. Generation starts on submission; publishing
+still requires final approval. If production outlasts the slot, reschedule at approval.

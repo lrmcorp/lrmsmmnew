@@ -162,6 +162,19 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       gen.deleteContent(user,survivor.id);gen.deleteContent(user,edit.id);
       assert.ok(one('SELECT id FROM media WHERE id=?',sharedAsset.id),'scheduled post still holds its asset');
     });
+    await t.test('same-day plans accept upcoming WIB slots, skip past times and keep approval required', async () => {
+      const originalNow = Date.now;
+      const fixed = Date.parse('2027-01-12T10:00:00+07:00');
+      Date.now = () => fixed;
+      try {
+        const before = one('SELECT COUNT(*) n FROM posts').n;
+        const plan = await gen.createPlan(user, {request_id:'today-plan', brief:'Start content today', account_ids:['ig-generator'], content_count:1, slide_count:1, start_date:'2027-01-12', end_date:'2027-01-12', times:['09:00','10:06'], confirm_cost:true});
+        assert.deepEqual(plan.slots, ['2027-01-12T03:06:00.000Z']);
+        assert.equal(one('SELECT COUNT(*) n FROM posts').n, before);
+        assert.equal(gen.listRuns(user).find(r => r.plan_id === plan.id).status, 'planned');
+        await assert.rejects(() => gen.createPlan(user, {request_id:'today-past', brief:'Past slots', account_ids:['ig-generator'], content_count:1, slide_count:1, start_date:'2027-01-12', end_date:'2027-01-12', times:['09:00','10:05'], confirm_cost:true}), /posting slots are available/);
+      } finally { Date.now = originalNow; }
+    });
     await t.test('12-content date range planning, manual upload/edit and approval enter calendar only after approval', async () => {
       const date = days => new Date(Date.now()+days*864e5+7*3600000).toISOString().slice(0,10);
       const body={request_id:'plan-12',brief:'Twelve wellness posts for the campaign',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:date(10),end_date:date(15),confirm_cost:true};
