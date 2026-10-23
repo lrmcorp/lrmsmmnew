@@ -25,3 +25,12 @@ is conservative background/margin processing, not universal AI object segmentati
 complex backgrounds require review. Generative mockups require human product-detail
 review and cannot guarantee pixel-exact product appearance. Past generated images
 are not modified automatically; use confirmed regeneration to apply the new flow.
+
+## Production-image follow-up
+
+The first image gate caught a pure test importing app configuration without a
+production encryption key. Foreground processing is now a standalone module,
+independent of configuration. The full 65-check backend suite and 40 application
+checks pass with NODE_ENV=production. Host CI now uses that environment too;
+production encryption requirements remain intact. No VPS change occurred during
+the failed image gate.
