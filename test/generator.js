@@ -263,6 +263,7 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.ok(edit.form.get('prompt').includes('warm palette'));
       for(const label of ['Image 1: visual','Image 2: logo','Image 3: product','do not redesign the logo','packaging'])assert.ok(edit.form.get('prompt').includes(label));
       assert.ok(edit.form.get('prompt').includes('MANDATORY ASSET PRESERVATION'));
+      assert.ok(edit.form.get('prompt').includes('PRODUCT MOCKUP MODE'));assert.ok(edit.form.get('prompt').includes('worn on fingers'));assert.equal(result.steps.image.product_mockup,true);assert.deepEqual(result.steps.image.protected_placements[0].map(x=>x.role),['logo'],'mockup product photos are not pasted over the scene');
       const qc=providerCalls.findLast(c=>c.body.systemInstruction);assert.equal(qc.body.contents[0].parts.filter(p=>p.inlineData).length,3,'reviewer receives generated slide plus original logo and product');assert.ok(qc.body.systemInstruction.parts[0].text.includes('blocking issue'));
       assert.deepEqual(gen.updateContent(user,result.id,{content:'Updated caption'}).reference_roles,roleMap);
       assert.throws(()=>make({reference_media_ids:[ref.id],reference_roles:{[ref.id]:'unknown'}}),/reference category/);

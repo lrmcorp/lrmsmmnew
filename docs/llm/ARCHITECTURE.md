@@ -58,7 +58,8 @@ functions and `public/story-workspace.js` remain for historical/other call paths
 | `src/services/storytelling.js` | Account foundations/catalog, named memory, storyteller/manager/scheduler jobs |
 | `src/services/brand-metadata.js` | Structured identity and labeled asset metadata |
 | `src/services/brand-asset-policy.js` | Mandatory identity/product preservation policy |
-| `src/services/protected-composition.js` | Original-source overlay placement after background generation |
+| `src/services/protected-composition.js` | Cleaned logo / explicit exact-product overlay; mockup products stay in scene |
+| `src/services/brand-cutout.js` | Local background/padding preparation, original retention and derivative cleanup |
 | `src/services/visual-context.js` | Authorized Meta feed thumbnails; constrained CDN fetch, cache and availability reporting |
 | `src/llm/providers.js` | OpenAI, Anthropic and Gemini adapters, model/schema/image request handling |
 | `src/services/media.js` | Uploads, JPEG derivatives, retained private PNGs, ownership, use checks and GC |

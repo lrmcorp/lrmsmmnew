@@ -33,3 +33,5 @@ UI and old phase order. The latest user direction selected English UI while pres
 "master". Current user direction wins; reconcile discrepancies explicitly.
 
 - [Account-specialized agents and draft sessions](ACCOUNT_AGENT_SESSIONS.md)
+
+- [Automatic brand cutouts and product mockups](BRAND_CUTOUTS_AND_MOCKUPS.md)

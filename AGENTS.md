@@ -24,8 +24,9 @@ Current user instructions take precedence over historical redesign briefs.
 - Use application dialogs, never `window.confirm`, `prompt` or `alert`.
 - Autosave must flush before leaving; dispose timers/listeners and guard stale
   async rendering. Cover keyboard operation and 375px mobile layouts.
-- Never generate, redraw, crop, retouch or recolor protected logos/product photos.
-  Keep original-source composition and PNG retention/cleanup intact.
+- Keep uploaded originals unchanged. Automatic derivatives may remove background
+  and empty margins. Logos use source cutouts; products support AI scene mockups
+  (mandatory detail review) or explicit exact-cutout composition. Keep cleanup intact.
 - Named story memory is account-scoped; generator jobs/drafts and provider keys
   remain user-private. Session deletion must not delete produced posts/drafts.
 - Do not invoke real paid AI or publish to real social accounts as a test unless

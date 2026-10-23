@@ -1,9 +1,9 @@
 import sharp from 'sharp';
 
-export const PROTECTED_LAYOUT='REFERENCE PRIORITY: Inspect uploaded visual references first. Match their layout rhythm, palette, typography style, spacing, lighting and overall visual direction as closely as possible without copying foreign logos, product identities or claims. Uploaded original logos/products override every style reference. Generate the surrounding design/background only: do not paint, redraw or invent a logo or product. Reserve the top band (x 5–95%, y 5–21%) for original logos, and the lower panel (x 6–94%, y 34–94%) for original product photographs, placed side by side. Keep text and decorations out of these protected panels. The server will insert unchanged originals into these areas after generation. Do not generate duplicates or remove/obscure any original detail.';
+export const PROTECTED_LAYOUT='REFERENCE PRIORITY: Follow uploaded visual references for mood, composition, palette and lighting. For logos and exact cutouts, generate the surrounding design/background only. Do not generate or redraw logos. Leave a clear top band for the server to place the cleaned original logo. Only products explicitly set to EXACT CUTOUT receive an original-source overlay; reserve a clean lower area for those if present. Products in PRODUCT MOCKUP mode must be rendered naturally in the approved scene, never as a pasted photo or catalog rectangle. Preserve recognizable product details and flag any uncertainty for review.';
 
 // Identity assets never pass through generative repainting in the final output.
-// Full source bounds/alpha are retained; only proportional resizing/positioning.
+// Prepared cutout bounds/alpha are retained; only proportional resizing/positioning.
 export async function composeProtectedAssets(background,assets){
  if(!assets.length)return {buffer:background,placements:[]};
  const meta=await sharp(background).metadata(),width=meta.width,height=meta.height;

@@ -26,6 +26,12 @@ record above remains historical until the new release passes the actual receiver
 Preserve main’s Brand Kit raw-length fix, personal AI settings entry, available-key
 provider defaults, Codex Responses adapter and ffmpeg/ffprobe CI setup.
 
+## Brand asset update: 2026-10-23
+
+Automatic white/transparent-margin preparation and in-scene product mockups
+supersede the older full-photo product overlays. Logos still use source cutouts.
+See [cutouts and mockups](BRAND_CUTOUTS_AND_MOCKUPS.md) for modes, limits and tests.
+
 ## Recent implemented releases
 
 | Release | Changes | Evidence |

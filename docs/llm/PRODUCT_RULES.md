@@ -36,9 +36,12 @@
 
 ## Brand and image generation
 
-- Uploaded logos/product photos are protected originals. Never redraw, retype,
-  recolor, mirror, distort, crop, retouch, remove background, invent packaging or
-  replace their details. Only uniform sizing/positioning is permitted.
+- Keep uploaded source files unchanged. Automatic derivatives may remove simple
+  background and empty margins. Complex backgrounds are marked for review.
+- Logos use cleaned source cutouts and must not be AI redrawn. Products default
+  to in-scene AI mockups (for example nails worn on fingers), with mandatory human
+  product-detail review; optional Exact cutout mode preserves source placement.
+  Do not promise pixel-exact AI mockups or invent product facts.
 - Editable agent presets cannot override `ASSET_PRESERVATION`.
 - Style references guide composition, palette, typography, lighting and vibes;
   they do not redefine product identity or authorize copied foreign brand claims.
