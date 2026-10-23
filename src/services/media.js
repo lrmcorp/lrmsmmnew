@@ -1,3 +1,4 @@
+import {cutoutInfo,removeCutout} from './brand-cutout.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import dns from 'node:dns/promises';
@@ -33,7 +34,7 @@ export function publicMedia(m) {
   if (!m) return null;
   return {
     id: m.id, type: m.kind, mime_type: m.mime, size_bytes: m.size_bytes, width: m.width, height: m.height,
-    duration_ms: m.duration_ms, alt_text: m.alt_text, in_library: !!m.in_library, status: m.status,
+    prepared:cutoutInfo(m), duration_ms: m.duration_ms, alt_text: m.alt_text, in_library: !!m.in_library, status: m.status,
     url: m.status === 'ready' ? mediaUrl(m) : null, original_name: m.original_name, created_at: m.created_at,
   };
 }
@@ -222,7 +223,7 @@ export function deleteMedia(mediaId) {
   const m = one('SELECT * FROM media WHERE id=?', mediaId);
   if (!m) throw err(404, 'not_found', "Media not found.");
   if (mediaInActiveUse(mediaId)) throw err(409, 'media_in_use', 'Media is used by a scheduled post or active draft.');
-  if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});
+  if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});removeCutout(m);
   run('DELETE FROM media WHERE id=?', mediaId);
 }
 
@@ -238,7 +239,7 @@ export function purgePublishedMedia() {
       WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?`, like, like, like);
     if (!uses.some(u => u.status === 'published')) continue;
     if (uses.some(u => !['published', 'cancelled'].includes(u.status))) continue;
-    if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});
+    if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});removeCutout(m);
     run("UPDATE media SET path=NULL,source_path=NULL,source_size_bytes=0, size_bytes=0, status='purged', in_library=0 WHERE id=?", m.id);
     removed++;
   }
@@ -257,11 +258,11 @@ export function gcMedia() {
     if (one("SELECT 1 FROM ai_drafts WHERE status='pending' AND (media_ids LIKE ? OR targets LIKE ?)", like, like)) continue;
     const uses = all('SELECT t.status, t.published_at, p.updated_at FROM post_targets t JOIN posts p ON p.id=t.post_id WHERE p.media_ids LIKE ? OR t.media_ids LIKE ? OR t.options LIKE ?', like, like, like);
     const busy = uses.some((u) => ['pending', 'publishing'].includes(u.status) || (u.published_at || u.updated_at) > monthAgo);
-    if (!busy) { if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true}); run('DELETE FROM media WHERE id=?', m.id); }
+    if (!busy) { if (m.path) fs.rmSync(m.path, { force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});removeCutout(m); run('DELETE FROM media WHERE id=?', m.id); }
   }
   // stale chunked uploads
   for (const m of all("SELECT * FROM media WHERE status='uploading' AND created_at < ?", new Date(Date.now() - 864e5).toISOString())) {
-    fs.rmSync(path.join(config.mediaDir, `${m.id}.parts`), { recursive: true, force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});
+    fs.rmSync(path.join(config.mediaDir, `${m.id}.parts`), { recursive: true, force: true });if(m.source_path)fs.rmSync(m.source_path,{force:true});removeCutout(m);
     run('DELETE FROM media WHERE id=?', m.id);
   }
 }

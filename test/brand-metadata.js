@@ -17,7 +17,7 @@ try{
   assert.equal(p.identity.essence,'Little details. Beautiful feelings.');assert.equal(p.identity.caption_language,'en');assert.equal(p.identity.emoji,false);
   assert.deepEqual(p.identity.tones,['Warm','Subtle']);const product=p.assets.find(x=>x.category==='product');
   assert.ok(p.brand_notes.startsWith('x'.repeat(6000)),'legacy notes survive a restart');
-  assert.equal(product.collection,'Everyday');assert.deepEqual(product.tags,['pink','glossy']);assert.equal(product.description,'Pink lembut, finishing glossy');
+  assert.equal(product.presentation,'exact');assert.equal(product.collection,'Everyday');assert.deepEqual(product.tags,['pink','glossy']);assert.equal(product.description,'Pink lembut, finishing glossy');
   assert.equal(brandReadiness(p).completeness,100);assert.match(p.brand_notes,/Write captions and on-image text in English/);assert.match(p.brand_notes,/Final Reviewer must flag/);
   db.close();console.log('PASS restart persistence');
  }else{
@@ -35,7 +35,7 @@ try{
    p=story.saveAsset(user,'brand-account',{media_id:m.id,category,name:category==='product'?'Blush Petal':category,description:category==='product'?'Pink lembut, finishing glossy':'',collection:category==='product'?'Everyday':'',tags:category==='product'?['pink','glossy','pink']:[]});
   }
   assert.equal(brandReadiness(p).completeness,100);
-  const product=p.assets.find(x=>x.category==='product');assert.deepEqual(product.tags,['pink','glossy']);
+  const product=p.assets.find(x=>x.category==='product');assert.deepEqual(product.tags,['pink','glossy']);assert.equal(product.presentation,'mockup');p=story.saveAsset(user,'brand-account',{category:'product',name:product.name,description:product.description,presentation:'exact'},product.id);assert.equal(p.assets.find(x=>x.id===product.id).presentation,'exact');assert.throws(()=>story.saveAsset(user,'brand-account',{category:'product',name:product.name,presentation:'invalid'},product.id));
   assert.throws(()=>story.saveAsset(user,'brand-account',{category:'product',name:'',collection:'',tags:[]},product.id));
   assert.throws(()=>story.saveAsset(user,'brand-account',{category:'product',name:'Product',tags:['x'.repeat(61)]},product.id));
   assert.throws(()=>story.saveProfile(user,'brand-account',{seed:p.seed,brand_notes:'',identity:{caption_language:'unsupported'}}));

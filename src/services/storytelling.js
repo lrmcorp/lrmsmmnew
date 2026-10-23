@@ -156,7 +156,7 @@ export async function processJob(user,jid,{generateText,keyOf,slotsFor,normalize
  try{
   body.agents=normalizeAgents(body.agents||{});
   checkpoint();const p=profile(user,body.account_id,body.memory_session_id||initial.memory_session_id),assets=p.assets;assetsForValidation=assets;if(body.base_revision!==p.revision)throw err(409,'story_changed',"Account foundation or memory has changed. Create a new session to keep the story consistent.");
-  const catalogue=assets.filter(a=>a.category==='product').map((a,i)=>({sheet:Math.floor(i/30)+1,row:Math.floor((i%30)/6)+1,column:(i%6)+1,id:a.id,name:a.name,description:a.description.slice(0,500),collection:a.collection,tags:a.tags}));
+  const catalogue=assets.filter(a=>a.category==='product').map((a,i)=>({sheet:Math.floor(i/30)+1,row:Math.floor((i%30)/6)+1,column:(i%6)+1,id:a.id,name:a.name,description:a.description.slice(0,500),collection:a.collection,tags:a.tags,presentation:a.presentation}));
   const recent=p.episodes.slice(0,30).reverse().map(e=>({number:e.episode_number,title:e.title,brief:(e.current_brief||e.brief).slice(0,2000),caption:e.current_caption.slice(0,2200),products:e.product_ids,status:e.status}));
   const context=JSON.stringify({memory_session_title:p.memory_session_title,first_prompt:p.seed,brand_rules:p.brand_notes,bible:p.bible,memory:p.memory,next_episode:p.next_episode,recent_episodes:recent,product_catalog:catalogue,uploaded_videos:assets.filter(a=>a.category==='video').map(a=>({id:a.id,name:a.name,description:a.description})),requested_slides:body.slide_count,session_direction:body.direction});
   let proposal=steps.storyteller?.output;

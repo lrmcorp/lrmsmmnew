@@ -16,3 +16,15 @@ test('final composition uses real source pixels, preserves complete aspect bound
   assert.deepEqual(fs.readFileSync(path.join(dir,'logo.png')),logo);assert.deepEqual(fs.readFileSync(path.join(dir,'product.png')),product);assert.deepEqual((await composeProtectedAssets(background,[])).buffer,background);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('automatic cutouts remove white/transparent margins without overwriting source bytes and flag complex backgrounds',async()=>{
+ const {isolateBrandImage}=await import('../src/services/brand-cutout.js');
+ const mark=await sharp({create:{width:30,height:20,channels:4,background:'#142a80'}}).png().toBuffer();
+ const padded=await sharp({create:{width:120,height:100,channels:4,background:'#fff'}}).composite([{input:mark,left:40,top:30}]).png().toBuffer(),original=Buffer.from(padded);
+ const result=await isolateBrandImage(padded);assert.equal(result.status,'prepared');assert.equal(result.removed_background,true);assert.equal(result.width,30);assert.equal(result.height,20);assert.deepEqual(padded,original);
+ const pixel=await sharp(result.buffer).raw().toBuffer();assert.deepEqual([...pixel.subarray(0,4)],[20,42,128,255]);
+ const transparent=await sharp({create:{width:120,height:100,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).composite([{input:mark,left:40,top:30}]).png().toBuffer();
+ const trimmed=await isolateBrandImage(transparent);assert.equal(trimmed.width,30);assert.equal(trimmed.height,20);assert.equal(trimmed.status,'prepared');
+ const complex=await sharp({create:{width:120,height:100,channels:4,background:'#c82420'}}).composite([{input:mark,left:40,top:30}]).png().toBuffer();assert.equal((await isolateBrandImage(complex)).status,'needs_review');
+ const blank=await sharp({create:{width:40,height:40,channels:3,background:'#fff'}}).png().toBuffer();assert.equal((await isolateBrandImage(blank)).status,'needs_review');
+});

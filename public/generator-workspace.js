@@ -263,7 +263,7 @@ export async function generatorWorkspace(ctx, workspace) {
         en: 'English',
         mixed: 'a natural mix of Indonesian and English'
       }[languageFor(a)];
-    return `Write captions and on-image text in ${lang}. ${/Emoji in captions:\s*off/i.test(p?.brand_notes || '') ? 'Do not use emoji in captions, titles or on-image text.' : 'Emoji in captions are allowed when appropriate.'} Preserve every logo and product detail exactly; never redraw or alter them.`;
+    return `Write captions and on-image text in ${lang}. ${/Emoji in captions:\s*off/i.test(p?.brand_notes || '') ? 'Do not use emoji in captions, titles or on-image text.' : 'Emoji in captions are allowed when appropriate.'} Preserve logo identity and product appearance. Follow each product’s chosen presentation mode; AI mockups require human product-detail review.`;
   }
   function readyItems() {
     const items = [];

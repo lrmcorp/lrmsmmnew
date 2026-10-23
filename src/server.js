@@ -1,3 +1,4 @@
+import {prepareBrandImage,cutoutFiles} from './services/brand-cutout.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
@@ -48,7 +49,8 @@ app.use(metaCb);
 app.all('/mcp', express.json({ limit: '30mb' }), mcpHandler);
 
 // ---- public media (Meta fetches these URLs when publishing) ----
-app.get('/m/:file', (req, res) => {
+app.get('/m/:file', async (req, res) => {
+  if(req.params.file.endsWith('.cutout.png')){const token=req.params.file.slice(0,-11),m=one("SELECT * FROM media WHERE public_token=? AND status='ready' AND kind='image'",token);if(!m||!m.path||!fs.existsSync(m.path))return res.status(404).end();await prepareBrandImage(m);res.set('Cache-Control','public, max-age=86400');return res.type('image/png').sendFile(cutoutFiles(m).image);}
   const token = req.params.file.replace(/\.[a-z0-9]+$/i, '');
   const m = one("SELECT * FROM media WHERE public_token=? AND status='ready'", token);
   if (!m || !m.path || !fs.existsSync(m.path)) return res.status(404).end();
