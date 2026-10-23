@@ -18,7 +18,7 @@ test('final composition uses real source pixels, preserves complete aspect bound
 });
 
 test('automatic cutouts remove white/transparent margins without overwriting source bytes and flag complex backgrounds',async()=>{
- const {isolateBrandImage}=await import('../src/services/brand-cutout.js');
+ const {isolateBrandImage}=await import('../src/services/brand-image-isolation.js');
  const mark=await sharp({create:{width:30,height:20,channels:4,background:'#142a80'}}).png().toBuffer();
  const padded=await sharp({create:{width:120,height:100,channels:4,background:'#fff'}}).composite([{input:mark,left:40,top:30}]).png().toBuffer(),original=Buffer.from(padded);
  const result=await isolateBrandImage(padded);assert.equal(result.status,'prepared');assert.equal(result.removed_background,true);assert.equal(result.width,30);assert.equal(result.height,20);assert.deepEqual(padded,original);
