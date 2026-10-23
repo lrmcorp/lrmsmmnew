@@ -66,7 +66,7 @@ export function contentWorkspace({h,api,ui,state,icon,modal,toast,go,loadAccount
 }
  async function session(id){await loadAccounts();let sessions=await data(),s=sessions.find(s=>s.id===id||s.plan_ids.includes(id)||s.runs.some(r=>r.id===id));if(!s)return{element:empty('Session not found','The session may have been deleted or you may no longer have access.',link('Back to Drafts','/generator/drafts'))};
   s.runs.sort((a,b)=>String(a.scheduled_at||'9999').localeCompare(String(b.scheduled_at||'9999')));
-  let stopped=false,refreshing=false,working=false,drawerOpen=false,chosen=new Set(),activeId='',view='date',filter='all',accountIds=accountsOf(s).map(a=>a.id),drawerSaves=new Set();const sideSlides=new Map(),calendarContexts=new Map();const q=new URLSearchParams(location.hash.split('?')[1]||'');activeId=q.get('item')||q.get('id')||s.runs.find(r=>['concept_review','review'].includes(r.status))?.id||s.runs[0]?.id;view=q.get('view')||'date';filter=q.get('filter')||(s.runs.some(r=>r.status==='concept_review')?'concept_review':'all');
+  let stopped=false,refreshing=false,working=false,drawerOpen=false,fullImageDialog=null,chosen=new Set(),activeId='',view='date',filter='all',accountIds=accountsOf(s).map(a=>a.id),drawerSaves=new Set();const sideSlides=new Map(),calendarContexts=new Map();const q=new URLSearchParams(location.hash.split('?')[1]||'');activeId=q.get('item')||q.get('id')||s.runs.find(r=>['concept_review','review'].includes(r.status))?.id||s.runs[0]?.id;view=q.get('view')||'date';filter=q.get('filter')||(s.runs.some(r=>r.status==='concept_review')?'concept_review':'all');
   const header=h('div',{class:'df-session-header'}),toolbar=h('div',{class:'df-session-toolbar'}),body=h('div'),side=h('aside',{class:'rd-review-side'}),bulk=h('div',{class:'df-session-bulk'}),notice=h('div',{class:'df-session-notice',role:'status'}),list=h('div'),root=h('div',{class:'rd-page rd-session-page'},link('Drafts','/generator/drafts','ui-text-button'),header,notice,toolbar,bulk,h('div',{class:'rd-review-layout'},list,side));
   const find=()=>s.runs.find(r=>r.id===activeId);
   function selected(){return s.runs.filter(r=>chosen.has(r.id));}
@@ -123,6 +123,23 @@ async function approve(items) {
     h('div',{class:'df-concept-revise'},B('Request a revision to this concept…',()=>revise([r]),'btn ghost')),savedLabel,
     h('div',{class:'df-concept-footer'},B('Skip this concept',()=>{chosen.delete(r.id);move(1);}),B('Approve concepts & create images',acceptAndNext,'btn primary')));
 }
+  function openFullImage(r) {
+  const slides=media(r);if(!slides.length)return;
+  let index=Math.max(0,Math.min(sideSlides.get(r.id)||0,slides.length-1));
+  const stage=h('div',{class:'df-full-image-stage'}),counter=h('span',{class:'small muted','aria-live':'polite'});
+  const previous=B(icon('chevron-left'),()=>show(index-1),'btn sm',{'aria-label':'Previous slide'});
+  const next=B(icon('chevron-right'),()=>show(index+1),'btn sm',{'aria-label':'Next slide'});
+  function show(nextIndex){
+    index=Math.max(0,Math.min(nextIndex,slides.length-1));sideSlides.set(r.id,index);
+    const item=slides[index];replace(stage,item.type==='video'?h('video',{src:item.url,controls:true,preload:'metadata','aria-label':`Slide ${index+1} video`}):h('img',{src:item.url,alt:item.alt_text||`Full image for slide ${index+1}`}));
+    counter.textContent=`${index+1} / ${slides.length}`;previous.disabled=index===0;next.disabled=index===slides.length-1;
+  }
+  const controls=slides.length>1?h('div',{class:'df-full-image-controls'},previous,counter,next):null;
+  const d=modal('Full image',h('div',{class:'df-full-image-viewer'},stage,controls));fullImageDialog=d;d.classList.add('df-full-image-dialog');
+  d.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();show(index+(event.key==='ArrowLeft'?-1:1));}});
+  d.addEventListener('close',()=>{if(fullImageDialog===d)fullImageDialog=null;if(!stopped&&find()?.id===r.id)drawSide();},{once:true});
+  show(index);
+}
   function drawSide() {
   const r=find();if(!r){replace(side);return;}
   const rows=filtered(),position=rows.findIndex(x=>x.id===r.id),index=sideSlides.get(r.id)||0;
@@ -133,6 +150,7 @@ async function approve(items) {
   const approveNext=async()=>{const result=await approve([r]);if(result?.done){const next=s.runs.find(x=>x.status==='review'&&x.id!==r.id);if(next)pick(next);}};
   replace(side,navigation,h('div',{class:'df-preview-heading'},h('h2',{},'Preview'),ui.statusChip(r)),r.steps?.image?.asset_preparation?.some(a=>a.status==='needs_review')?h('p',{class:'rd-callout warn'},'Some asset backgrounds need review. Open Brand Kit to inspect the prepared cutouts.'):null,r.steps?.image?.product_mockup?h('p',{class:'rd-callout warn'},'AI product mockup — compare shapes, colors and patterns with the original product before approving.'):null,r.status==='failed'?failureDetails(r):null,...(['running','queued'].includes(r.status)?[milestones(r)]:[]),
     ui.phonePreview({account:ownAccounts(r)[0]||state.accounts[0],media:media(r),caption:r.caption||'',initialIndex:index,onSlideChange:i=>sideSlides.set(r.id,i),platform:ownAccounts(r)[0]?.platform||'instagram'}),
+    media(r).length?B('View full image',()=>openFullImage(r),'btn sm df-view-full-image'):null,
     media(r).length>1?h('div',{class:'df-preview-slides'},media(r).map((m,i)=>B(m.type==='video'?h('video',{src:m.url,muted:true,preload:'metadata'}):h('img',{src:m.url,alt:`Slide ${i+1}`}),()=>{sideSlides.set(r.id,i);drawSide();},'df-preview-thumb '+(i===index?'on':''),{'aria-label':`Select slide ${i+1}`,'aria-pressed':String(i===index)})),h('span',{class:'small muted'},`${media(r).length} slide`)):null,
     ['review','concept_review','planned','failed'].includes(r.status)?revisionRow:null,
     h('div',{class:'df-preview-quick-actions'},B('Edit full draft',()=>openEditor(r),'btn sm'),r.status==='review'?B('Revise slide',()=>reviseSlide(r,sideSlides.get(r.id)||0),'btn sm',{disabled:!r.steps?.revision?.output?.slides?.[index],title:r.steps?.revision?.output?.slides?.[index]?'':'AI revision requires a slide from an AI concept.'}):null,editable(r)?schedule:null),
@@ -226,7 +244,7 @@ async function openEditor(original) {
 }
 
   const keyHandler=e=>{if(document.querySelector('dialog[open]')||/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='ArrowRight'||e.key==='ArrowDown'){e.preventDefault();move(1);}if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();move(-1);}if(e.key.toLowerCase()==='e'&&find())openEditor(find());if(e.key.toLowerCase()==='x'&&find()){chosen.has(activeId)?chosen.delete(activeId):chosen.add(activeId);drawBulk();}if(e.key.toLowerCase()==='a'&&find()?.status==='review')approve([find()]);else if(e.key.toLowerCase()==='a'&&find()?.status==='concept_review')approveConcepts([find()]);if(e.key.toLowerCase()==='s'&&find()){chosen.delete(activeId);move(1);}};document.addEventListener('keydown',keyHandler);draw();if(q.get('item')||q.get('id'))await openEditor(find());const timer=setInterval(refresh,5000);
-  return {element:root,dispose:async()=>{stopped=true;clearInterval(timer);document.removeEventListener('keydown',keyHandler);for(const saver of drawerSaves){await saver.flush();if(saver.error)throw new Error('Changes have not been saved. Retry saving before leaving the page.');}document.querySelectorAll('dialog.rd-drawer[open],dialog.df-approval-dialog[open],dialog.df-approval-result-dialog[open]').forEach(d=>d.close());}};
+  return {element:root,dispose:async()=>{stopped=true;clearInterval(timer);document.removeEventListener('keydown',keyHandler);for(const saver of drawerSaves){await saver.flush();if(saver.error)throw new Error('Changes have not been saved. Retry saving before leaving the page.');}fullImageDialog?.close();document.querySelectorAll('dialog.rd-drawer[open],dialog.df-approval-dialog[open],dialog.df-approval-result-dialog[open]').forEach(d=>d.close());}};
  }
  return {drafts,session,cost,errorBox,data,stateOf,card,roles,field,B,link,local,iso,today};
 }

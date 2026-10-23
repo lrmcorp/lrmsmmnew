@@ -19,6 +19,11 @@ to the created plan when Storyteller, Manager and Scheduler finish. Failed stage
 remain visible and can be retried without repeating completed stages. Stopping a
 pending session retains existing drafts/posts.
 
+In a Drafts session, **View full image** opens the selected slide in a large
+dialog. Images fit inside the viewport without cropping; videos keep controls.
+Carousel slides can be changed with buttons or Left/Right keys, and Escape closes
+the dialog. The narrow social preview remains for layout context.
+
 ## Validation and recovery
 
 Date/time capacity is checked before queueing. Six items over two days with two
@@ -43,7 +48,8 @@ English error. No plan, episode memory or publishing is committed on failure.
   products/video, completed-stage retention and scheduler failures.
 - `test/redesign-browser.cjs`: English workflow, Campaign session routing,
   Storyline pending progress and transition to real concepts, capacity errors,
-  mobile, autosave, approvals, calendar and permissions.
+  full-image carousel dialog at desktop and 375px, autosave, approvals, calendar
+  and permissions.
 
 These tests use isolated storage and mocked providers. They do not prove a real
 paid model response or a live Instagram publication. Consult CI and the receiver
