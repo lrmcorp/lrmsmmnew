@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { err } from '../util.js';
 
 export const PROVIDERS = {
-  openai: { name: 'OpenAI (ChatGPT & Codex)', textModel: 'gpt-4.1-mini', imageModel: 'gpt-image-1', image: true, textModels: [{id:'gpt-4.1-mini',name:'GPT-4.1 mini · Lightweight'}, {id:'gpt-4.1',name:'GPT-4.1 · Detailed'}, {id:'gpt-4o',name:'GPT-4o · Multimodal'}, {id:'gpt-5.1-codex-mini',name:'GPT-5.1 Codex mini · Responses API'}], imageModels: [{id:'gpt-image-1',name:'GPT Image 1'}] },
+  openai: { name: 'OpenAI (ChatGPT & Codex)', textModel: 'gpt-4.1-mini', imageModel: 'gpt-image-2.5-sunburst', image: true, textModels: [{id:'gpt-4.1-mini',name:'GPT-4.1 mini · Lightweight'}, {id:'gpt-4.1',name:'GPT-4.1 · Detailed'}, {id:'gpt-4o',name:'GPT-4o · Multimodal'}, {id:'gpt-5.1-codex-mini',name:'GPT-5.1 Codex mini · Responses API'}], imageModels: [{id:'gpt-image-2.5-sunburst',name:'GPT Image 2.5 Sunburst · Detailed'}, {id:'gpt-image-2.5-flare',name:'GPT Image 2.5 Flare · Faster'}] },
   anthropic: { name: 'Anthropic (Claude)', textModel: 'claude-sonnet-4-5', image: false, textModels: [{id:'claude-sonnet-4-5',name:'Claude Sonnet 4.5'}, {id:'claude-haiku-4-5',name:'Claude Haiku 4.5 · Lightweight'}, {id:'claude-opus-4-1',name:'Claude Opus 4.1 · Detailed'}], imageModels: [] },
   gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detailed'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Lightweight'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
 };
@@ -30,6 +30,13 @@ async function boundedText(res, limit = 64 * 1024) {
   } catch { return ''; }
   return Buffer.concat(chunks).toString().slice(0, limit);
 }
+// OpenAI shut gpt-image-1 down on 2026-10-23; a request naming it is rejected.
+// Saved agent settings and older drafts keep the model they were created with,
+// so a retired id is mapped to its documented replacement wherever a stored
+// configuration is read. Only retired ids are remapped: a working model someone
+// deliberately chose is left alone.
+export const RETIRED_MODELS = { 'gpt-image-1': 'gpt-image-2.5-sunburst' };
+export const currentModel = model => (typeof model === 'string' && RETIRED_MODELS[model]) || model;
 async function jsonRequest(url, headers, body, method = 'POST') {
   let res;
   try { res = await fetch(url, { method, headers: { ...(method==='GET'||body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...headers }, body: method==='GET'?undefined:body instanceof FormData ? body : JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(method==='GET'?10000:180000) }); }

@@ -50,6 +50,42 @@ a human. `test/browser-storytelling.cjs` and `test/browser-components.cjs` fail 
 this checkout both before and after this change: they still expect the retired
 Indonesian interface. They are not part of CI and were left alone.
 
+## Retired image model: 2026-10-27
+
+**OpenAI shut `gpt-image-1` down on 2026-10-23.** Every Image Creator run failed
+with a provider HTTP 400 from that date. The stage error said "Check the model
+and provider account", which was a guess from the old generic error path, and the
+rejection left no entry in OpenAI's request logs. This was unrelated to the visual
+quality work deployed on the 27th, which merely coincided with it.
+
+The default and catalog now use `gpt-image-2.5-sunburst`, with
+`gpt-image-2.5-flare` also selectable. `RETIRED_MODELS` in `src/llm/providers.js`
+maps a retired id to its replacement wherever a stored configuration is read:
+saved agent settings, a settings save, and the agents snapshotted into an older
+`generator_runs` row, so retrying a draft created before the shutdown reaches a
+live model. Only retired ids are remapped; a working model a user chose is left
+alone.
+
+### The rest of the catalog is also stale
+
+Deliberately **not** changed in this release, at the user's direction, but due:
+
+- OpenAI text `gpt-4.1-mini` (default for five agents), `gpt-4.1`, `gpt-4o`,
+  `gpt-5.1-codex-mini` — superseded by the GPT-5.6 line (`sol`, `terra`, `luna`).
+- Anthropic `claude-sonnet-4-5` (the Concept Reviewer default) and
+  `claude-opus-4-1` are absent from Anthropic's legacy-still-available list and
+  appear retired; `claude-haiku-4-5` is legacy but available. Current ids are
+  `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5-1`.
+- Gemini `gemini-2.5-flash` (Final Reviewer default) is deprecated and limited to
+  projects that already used it; `gemini-2.5-flash-image` has conflicting shutdown
+  dates reported (2026-10-02 vs 2027-03-15). `geminiModels()` reads Gemini's live
+  catalog, so that provider partly self-heals; the hardcoded defaults do not.
+
+Sourcing: the Anthropic lineup was read from the official docs. OpenAI's and
+Google's documentation hosts were unreachable from the session container, so
+those points come from search results and secondary sources that conflict on some
+dates. Verify against each provider's own deprecation page before acting.
+
 ## Recent implemented releases
 
 | Release | Changes | Evidence |
