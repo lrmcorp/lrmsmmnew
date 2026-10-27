@@ -317,6 +317,24 @@ test('personal credentials, provider contracts, durable pipeline and final hando
         assert.equal(result.status,'failed');assert.equal(result.steps.failure.stage,'concept');assert.equal(result.steps.failure.code,'generator_format');assert.equal(result.steps.failure.model,'gpt-4.1-mini');assert.match(result.error,/Conceptor/);assert.equal(result.media.length,0);assert.ok(!JSON.stringify(result.steps.failure).includes(secret));gen.cancelRun(user,result.id);
       }
     });
+    await t.test('input_fidelity is sent only to the models that accept it', async () => {
+      const {saveBuffer}=await import('../src/services/media.js');
+      const styleRef=await saveBuffer(user.id,image,{inLibrary:false});
+      const imageAgent=gen.settings(user).agents.image;
+      const withRef=()=>make({slide_count:1,reference_media_ids:[styleRef.id],reference_roles:{[styleRef.id]:'visual'}});
+      const before=providerCalls.length;
+      await execute(withRef());
+      const current=providerCalls.slice(before).find(c=>String(c.url).includes('/images/edits'));
+      assert.equal(current.body.model,'gpt-image-2.5-sunburst');
+      assert.ok(!('input_fidelity' in current.body),'gpt-image-2.5 rejects input_fidelity outright, so it is never sent');
+
+      gen.saveSettings(user,{agents:{...gen.settings(user).agents,image:{...imageAgent,model:'gpt-image-1.5'}}});
+      const legacyFrom=providerCalls.length;
+      await execute(withRef());
+      const legacy=providerCalls.slice(legacyFrom).find(c=>String(c.url).includes('/images/edits'));
+      assert.equal(legacy.body.input_fidelity,'high','the gpt-image-1 line still gets the fidelity it needs');
+      gen.saveSettings(user,{agents:{...gen.settings(user).agents,image:imageAgent}});
+    });
     await t.test('a retired image model never reaches the provider, from settings, a save or an older draft', async () => {
       const {PROVIDERS,currentModel}=await import('../src/llm/providers.js');
       assert.equal(PROVIDERS.openai.imageModel,'gpt-image-2.5-sunburst');

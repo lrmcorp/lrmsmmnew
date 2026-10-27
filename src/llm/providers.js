@@ -114,7 +114,12 @@ export async function generateImage({ provider, model, key, prompt, references =
   if (provider === 'openai') {
     if (references.length) {
       const form = new FormData();
-      for (const [k,v] of Object.entries({ model, prompt, n: '1', size: '1024x1024', output_format: 'png', input_fidelity:'high' })) form.append(k,v);
+      // Only the gpt-image-1 line accepts input_fidelity. gpt-image-2 and later
+      // hold every supplied reference at high fidelity on their own and reject
+      // the parameter outright with invalid_input_fidelity_model, so omitting it
+      // keeps brand-reference fidelity rather than giving it up.
+      const fidelity = /^gpt-image-1/.test(String(model)) ? { input_fidelity: 'high' } : {};
+      for (const [k,v] of Object.entries({ model, prompt, n: '1', size: '1024x1024', output_format: 'png', ...fidelity })) form.append(k,v);
       references.forEach((ref,i) => form.append('image[]',new Blob([ref.buffer],{type:ref.mime}),`reference-${i+1}.${ref.mime==='image/png'?'png':'jpg'}`));
       result = await jsonRequest('https://api.openai.com/v1/images/edits', { Authorization: `Bearer ${key}` }, form);
     } else {

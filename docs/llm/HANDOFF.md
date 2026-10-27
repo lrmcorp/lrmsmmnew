@@ -66,6 +66,18 @@ saved agent settings, a settings save, and the agents snapshotted into an older
 live model. Only retired ids are remapped; a working model a user chose is left
 alone.
 
+### input_fidelity belongs to the gpt-image-1 line only
+
+Moving to `gpt-image-2.5-sunburst` surfaced a second rejection, reported by the
+new diagnostics as `invalid_input_fidelity_model / image_generation_user_error`.
+`generateImage` sent `input_fidelity: 'high'` on every OpenAI edit request. Only
+the gpt-image-1 line accepts it; gpt-image-2 and later hold each supplied
+reference at high fidelity on their own and reject the parameter outright. It is
+now sent only when the model id matches `^gpt-image-1`, which keeps it working
+for `gpt-image-1.5` until that model's 2026-12-01 shutdown. **Omitting it does
+not reduce reference fidelity on 2.5**, so brand/product reference behavior is
+preserved rather than traded away.
+
 ### The rest of the catalog is also stale
 
 Deliberately **not** changed in this release, at the user's direction, but due:
