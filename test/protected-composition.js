@@ -29,6 +29,33 @@ test('final composition uses real source pixels, preserves complete aspect bound
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
 
+test('the original logo moves off generated headline lettering instead of being stamped over it',async()=>{
+ const {resolveLogoPlacement}=await import('../src/services/protected-composition.js');
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'logo-collision-'));
+ try{
+  const bars=Array.from({length:5},(_,i)=>({input:{create:{width:280,height:14,channels:3,background:'#3a1020'}},left:30+i*6,top:70+i*20}));
+  const headline=await sharp({create:{width:1024,height:1024,channels:3,background:'#f6e7dc'}}).composite(bars).png().toBuffer();
+  const moved=await resolveLogoPlacement(headline,'top-left');
+  assert.equal(moved.requested,'top-left');assert.equal(moved.occupied,true,'headline lettering inside the reserved header is detected');
+  assert.equal(moved.moved,true);assert.notEqual(moved.applied,'top-left');assert.equal(moved.still_occupied,false,'the logo lands in a measurably clear slot');
+
+  const calm=await sharp({create:{width:1024,height:1024,channels:3,background:'#f4d9c8'}}).png().toBuffer();
+  const kept=await resolveLogoPlacement(calm,'top-left');
+  assert.deepEqual([kept.applied,kept.moved,kept.occupied],['top-left',false,false],'a reference-led slot that the model honoured is never second-guessed');
+
+  const busy=await sharp(Buffer.from(Uint8Array.from({length:1024*1024*3},(_,i)=>(i*37+((i/97)|0)*53)%256)),{raw:{width:1024,height:1024,channels:3}}).png().toBuffer();
+  const nowhere=await resolveLogoPlacement(busy,'top-left');
+  assert.equal(nowhere.applied,'top-left','with no calmer slot the chosen placement stands rather than churning');
+  assert.equal(nowhere.still_occupied,true,'an unresolved collision stays visible for human review instead of being hidden');
+
+  const logo=await sharp({create:{width:160,height:80,channels:3,background:'#1248d0'}}).png().toBuffer();
+  fs.writeFileSync(path.join(dir,'logo.png'),logo);
+  const composed=await composeProtectedAssets(headline,[{role:'logo',media_id:'logo',path:path.join(dir,'logo.png')}],{logoPlacement:'top-left'});
+  assert.equal(composed.logo.moved,true);assert.ok(composed.placements[0].left>1024*.3,'the composited original follows the corrected slot, not the requested one');
+  assert.equal((await composeProtectedAssets(headline,[])).logo,null,'slides with no protected assets report no logo check');
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
 test('automatic cutouts remove white/transparent margins without overwriting source bytes and flag complex backgrounds',async()=>{
  const {isolateBrandImage}=await import('../src/services/brand-image-isolation.js');
  const mark=await sharp({create:{width:30,height:20,channels:4,background:'#142a80'}}).png().toBuffer();

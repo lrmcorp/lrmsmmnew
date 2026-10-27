@@ -3,11 +3,20 @@ import {err} from '../util.js';
 import {ASSET_PRESERVATION} from './brand-asset-policy.js';
 
 export const IMAGE_PROMPT_LIMIT=32000;
+export const ART_DIRECTION_FIELDS={palette:'Palette',background:'Background and setting',typography:'Typography',composition:'Composition, subject scale and negative space',lighting:'Lighting and material finish',avoid:'Would break this look'};
+// The Visual Conceptor reads the references at high detail; without its findings
+// written down, the image model only ever receives adjectives and falls back to
+// the category default. Carry the observed traits verbatim into every slide.
+export function formatArtDirection(direction){
+ if(!direction||typeof direction!=='object')return '';
+ const lines=Object.entries(ART_DIRECTION_FIELDS).filter(([field])=>typeof direction[field]==='string'&&direction[field].trim()).map(([field,label])=>`- ${label}: ${direction[field].trim()}`);
+ return lines.length?'ART DIRECTION observed in this account’s own references. Reproduce this design language exactly; it outranks any generic idea of an attractive product image:\n'+lines.join('\n'):'';
+}
 // Full account history/story has already informed the approved Visual Conceptor.
 // Do not repeat that archive in the image API request: GPT Image has a 32k limit.
-export function buildImagePrompt({instructions,direction,accounts=[],layout,title,brief,episode,slideIndex,slideCount,slidePrompt,designReason='',revision=''}){
+export function buildImagePrompt({instructions,direction,artDirection,accounts=[],layout,title,brief,episode,slideIndex,slideCount,slidePrompt,designReason='',revision=''}){
  const identities=accounts.map(c=>({account:c.account,identity:c.identity||{},foundation:String(c.foundation||'').slice(0,1000)}));
- const prompt=[instructions,VISUAL_DESIGN_POLICY,direction,'ACCOUNT IDENTITY: '+JSON.stringify(identities),
+ const prompt=[instructions,VISUAL_DESIGN_POLICY,direction,formatArtDirection(artDirection),'ACCOUNT IDENTITY: '+JSON.stringify(identities),
   'Use the approved visual concept below. It already incorporates this account’s story, history and product selection. Do not invent a later episode, change the selected products or introduce another brand.',
   'Campaign: '+title,'Brief: '+brief,episode?'Story episode: '+episode:'',
   `Slide ${slideIndex+1}/${slideCount}: ${slidePrompt}`,

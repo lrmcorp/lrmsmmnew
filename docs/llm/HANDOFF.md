@@ -32,6 +32,24 @@ Automatic white/transparent-margin preparation and in-scene product mockups
 supersede the older full-photo product overlays. Logos still use source cutouts.
 See [cutouts and mockups](BRAND_CUTOUTS_AND_MOCKUPS.md) for modes, limits and tests.
 
+## Visual quality update: 2026-10-27
+
+Generated slides ignored the account's uploaded references and reproduced a
+generic marketplace flat-lay, with the server logo composited over the generated
+headline. Fixed in three places: a required `art_direction` contract carrying the
+Visual Conceptor's concrete observations into every image prompt, an explicit list
+of refused defaults in `VISUAL_DESIGN_POLICY`, and measured logo placement in
+`protected-composition.js` that will not stamp the original over lettering.
+See [Hallmark Generator](HALLMARK_GENERATOR.md) and [cutouts and mockups](BRAND_CUTOUTS_AND_MOCKUPS.md).
+
+Verified with mocked providers only: 69 production-mode backend checks, 40
+application checks, 6 deployment tests, the English/SVG gates and the real-browser
+redesign workflow. No paid image was generated and no post was published, so the
+visual improvement itself is **not** demonstrated — it needs a real run reviewed by
+a human. `test/browser-storytelling.cjs` and `test/browser-components.cjs` fail on
+this checkout both before and after this change: they still expect the retired
+Indonesian interface. They are not part of CI and were left alone.
+
 ## Recent implemented releases
 
 | Release | Changes | Evidence |
