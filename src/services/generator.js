@@ -15,7 +15,7 @@ import * as media from './media.js';
 import { createPost, publicPost, getPost } from './posts.js';
 import { receiveDraft } from './ai-drafts.js';
 import * as storytelling from './storytelling.js';
-import { PROVIDERS, generateText, generateImage, geminiModels } from '../llm/providers.js';
+import { PROVIDERS, generateText, generateImage, geminiModels, currentModel } from '../llm/providers.js';
 
 export const ROLES = ['concept', 'revision', 'image', 'final', 'storyteller', 'manager', 'scheduler', 'visual'];
 export const DEFAULT_AGENTS = {
@@ -25,7 +25,7 @@ export const DEFAULT_AGENTS = {
   scheduler:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Scheduler. Consider Manager findings, choose available times for each episode based on story and content type, and explain the reason. Never claim access to performance data that was not supplied.'},
   concept: { provider: 'openai', model: 'gpt-4.1-mini', instructions: 'Create clear, account-specific social concepts grounded in the Brand Kit. Never invent facts or product claims.' },
   revision: { provider: 'anthropic', model: 'claude-sonnet-4-5', instructions: 'Review the concept for clarity, consistency, spelling and claims. Preserve the brief objective and account identity.' },
-  image: { provider: 'openai', model: 'gpt-image-1', instructions: 'Create high-quality square Instagram feed designs. Keep visual direction consistent across slides and preserve original brand assets.' },
+  image: { provider: 'openai', model: 'gpt-image-2.5-sunburst', instructions: 'Create high-quality square Instagram feed designs. Keep visual direction consistent across slides and preserve original brand assets.' },
   final: { provider: 'gemini', model: 'gemini-2.5-flash', instructions: 'Review actual images, caption alignment, spelling, consistency and claim risks. Provide honest findings for human approval.' },
 };
 const active = new Map();
@@ -47,6 +47,7 @@ export function settings(user) {
       agent.provider=fallback;
       agent.model=role==='image'?PROVIDERS[fallback].imageModel:PROVIDERS[fallback].textModel;
     }
+    agent.model=currentModel(agent.model);
     return [role,agent];
   }));
   return {providers:PROVIDERS,agents,keys};
@@ -58,7 +59,7 @@ function cleanAgents(agents) {
     if (!a || !PROVIDERS[a.provider] || (role === 'image' && !PROVIDERS[a.provider].image)) throw err(400, 'validation_failed', "Agent provider does not support this stage.");
     if (typeof a.model !== 'string' || !/^[A-Za-z0-9._-]{1,100}$/.test(a.model)) throw err(400, 'validation_failed', "Invalid model name.");
     if (typeof a.instructions !== 'string' || a.instructions.length > 4000) throw err(400, 'validation_failed', "Agent instructions must not exceed 4,000 characters.");
-    return [role, { provider: a.provider, model: a.model, instructions: a.instructions }];
+    return [role, { provider: a.provider, model: currentModel(a.model), instructions: a.instructions }];
   }));
 }
 export function saveSettings(user, body) {
@@ -176,7 +177,9 @@ async function processRun(user, rid) {
   let failureStage='preparation',failureAgent=null;
   try {
     let row = checkpoint(user, rid);
-    const agents = parseJSON(row.agents, {}), steps = parseJSON(row.steps, {});
+    // A draft created before a model was retired still names it. Retrying one
+    // must reach a live model rather than repeat the provider rejection.
+    const agents = Object.fromEntries(Object.entries(parseJSON(row.agents, {})).map(([role,a])=>[role,a&&typeof a==='object'?{...a,model:currentModel(a.model)}:a])), steps = parseJSON(row.steps, {});
     if(steps.failure){delete steps.failure;run('UPDATE generator_runs SET steps=? WHERE id=?',JSON.stringify(steps),rid);}
     failureStage='account_context';
     const memorySessionId=row.story_job_id?one('SELECT memory_session_id FROM story_jobs WHERE id=?',row.story_job_id)?.memory_session_id:null;

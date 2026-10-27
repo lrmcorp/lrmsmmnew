@@ -317,6 +317,30 @@ test('personal credentials, provider contracts, durable pipeline and final hando
         assert.equal(result.status,'failed');assert.equal(result.steps.failure.stage,'concept');assert.equal(result.steps.failure.code,'generator_format');assert.equal(result.steps.failure.model,'gpt-4.1-mini');assert.match(result.error,/Conceptor/);assert.equal(result.media.length,0);assert.ok(!JSON.stringify(result.steps.failure).includes(secret));gen.cancelRun(user,result.id);
       }
     });
+    await t.test('a retired image model never reaches the provider, from settings, a save or an older draft', async () => {
+      const {PROVIDERS,currentModel}=await import('../src/llm/providers.js');
+      assert.equal(PROVIDERS.openai.imageModel,'gpt-image-2.5-sunburst');
+      assert.deepEqual(PROVIDERS.openai.imageModels.map(m=>m.id),['gpt-image-2.5-sunburst','gpt-image-2.5-flare'],'both current image models are offered');
+      assert.equal(currentModel('gpt-image-1'),'gpt-image-2.5-sunburst');
+      assert.equal(currentModel('gpt-image-2.5-flare'),'gpt-image-2.5-flare','a deliberate working choice is never rewritten');
+      assert.equal(gen.settings(user).agents.image.model,'gpt-image-2.5-sunburst','the default no longer names the retired model');
+
+      const saved=gen.saveSettings(user,{agents:{...gen.settings(user).agents,image:{provider:'openai',model:'gpt-image-1',instructions:'Create square designs.'}}});
+      assert.equal(saved.agents.image.model,'gpt-image-2.5-sunburst','a stored retired model is migrated on read');
+
+      // A draft created before the shutdown keeps the model it was made with.
+      const stale=make({slide_count:1});
+      const staleAgents=JSON.parse(one('SELECT agents FROM generator_runs WHERE id=?',stale.id).agents);
+      staleAgents.image.model='gpt-image-1';
+      run('UPDATE generator_runs SET agents=? WHERE id=?',JSON.stringify(staleAgents),stale.id);
+      const before=providerCalls.length;
+      const result=await execute(stale);
+      assert.equal(result.status,'review',JSON.stringify(result.steps?.failure));
+      const imageCall=providerCalls.slice(before).find(c=>String(c.url).includes('/images/'));
+      assert.equal(imageCall.body.model,'gpt-image-2.5-sunburst','retrying an older draft reaches a live model');
+      assert.ok(!providerCalls.slice(before).some(c=>c.body.model==='gpt-image-1'),'the retired id never leaves the app');
+      gen.saveSettings(user,{agents:{...gen.settings(user).agents,image:{provider:'openai',model:'gpt-image-2.5-sunburst',instructions:'Create square designs.'}}});
+    });
     await t.test('a rejected image request reports the provider’s own reason without echoing its text', async () => {
       const {providerDetail}=await import('../src/llm/providers.js');
       failImage='rejected';const result=await execute(make({slide_count:1}));failImage=false;
