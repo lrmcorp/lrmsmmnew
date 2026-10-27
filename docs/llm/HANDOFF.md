@@ -84,10 +84,7 @@ Deliberately **not** changed in this release, at the user's direction, but due:
 
 - OpenAI text `gpt-4.1-mini` (default for five agents), `gpt-4.1`, `gpt-4o`,
   `gpt-5.1-codex-mini` — superseded by the GPT-5.6 line (`sol`, `terra`, `luna`).
-- Anthropic `claude-sonnet-4-5` (the Concept Reviewer default) and
-  `claude-opus-4-1` are absent from Anthropic's legacy-still-available list and
-  appear retired; `claude-haiku-4-5` is legacy but available. Current ids are
-  `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5-1`.
+- Anthropic: **done 2026-10-27**, see below.
 - Gemini `gemini-2.5-flash` (Final Reviewer default) is deprecated and limited to
   projects that already used it; `gemini-2.5-flash-image` has conflicting shutdown
   dates reported (2026-10-02 vs 2027-03-15). `geminiModels()` reads Gemini's live
@@ -97,6 +94,38 @@ Sourcing: the Anthropic lineup was read from the official docs. OpenAI's and
 Google's documentation hosts were unreachable from the session container, so
 those points come from search results and secondary sources that conflict on some
 dates. Verify against each provider's own deprecation page before acting.
+
+## Anthropic models refreshed: 2026-10-27
+
+Read from Anthropic's own deprecations page, which **corrected an earlier claim
+in this session**. `claude-sonnet-4-5` was reported here as already retired; it
+is not. The accurate status at the time of writing:
+
+| Model | State | Date |
+|---|---|---|
+| `claude-opus-4-1-20250805` | **Retired** | 2026-08-05 — requests fail |
+| `claude-sonnet-4-5-20250929` | Deprecated 2026-09-30 | Retires **2026-11-30** |
+| `claude-haiku-4-5-20251001` | Active | Not sooner than 2026-10-15 |
+
+So the Concept Reviewer was **not** broken: the dateless `claude-sonnet-4-5`
+alias resolves to the deprecated dated snapshot, which still works until
+2026-11-30. `claude-opus-4-1` was genuinely retired and was still offered in the
+picker, so any user who had selected it was failing.
+
+The catalog is now `claude-sonnet-5-5` (default), `claude-haiku-5-5`
+(lightweight) and `claude-opus-5-5` (detailed), and the Concept Reviewer default
+moved to `claude-sonnet-5-5`. Sonnet 5.5 is also cheaper than Sonnet 4.5 per
+token, so this is not a cost increase.
+
+`RETIRED_MODELS` was renamed `SUPERSEDED_MODELS` because its meaning widened: it
+now covers ids that fail today **and** ids with a published retirement date, so
+`claude-sonnet-4-5` migrates ahead of 2026-11-30 instead of breaking on it.
+`claude-haiku-4-5` is Active and is deliberately left alone — being older than
+the current generation is not a reason to override someone's choice.
+
+Checked while reading that page: `temperature`, `top_p` and `top_k` return 400
+from Anthropic API version `2026-10-21`. This application sends none of them and
+pins `anthropic-version: 2023-06-01`, so it is unaffected.
 
 ## Recent implemented releases
 
