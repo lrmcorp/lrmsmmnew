@@ -341,6 +341,11 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.deepEqual(PROVIDERS.openai.imageModels.map(m=>m.id),['gpt-image-2.5-sunburst','gpt-image-2.5-flare'],'both current image models are offered');
       assert.equal(currentModel('gpt-image-1'),'gpt-image-2.5-sunburst');
       assert.equal(currentModel('gpt-image-2.5-flare'),'gpt-image-2.5-flare','a deliberate working choice is never rewritten');
+      assert.equal(currentModel('claude-opus-4-1'),'claude-opus-5-5','a retired Claude model is replaced');
+      assert.equal(currentModel('claude-sonnet-4-5'),'claude-sonnet-5-5','a Claude model with an announced retirement date is replaced ahead of it');
+      assert.equal(currentModel('claude-haiku-4-5'),'claude-haiku-4-5','a model that is merely older but still Active is left alone');
+      assert.equal(PROVIDERS.anthropic.textModel,'claude-sonnet-5-5');
+      assert.equal(gen.settings(user).agents.revision.model,'claude-sonnet-5-5','the Concept Reviewer default is a current model');
       assert.equal(gen.settings(user).agents.image.model,'gpt-image-2.5-sunburst','the default no longer names the retired model');
 
       const saved=gen.saveSettings(user,{agents:{...gen.settings(user).agents,image:{provider:'openai',model:'gpt-image-1',instructions:'Create square designs.'}}});

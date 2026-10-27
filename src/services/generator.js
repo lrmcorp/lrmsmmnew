@@ -24,7 +24,7 @@ export const DEFAULT_AGENTS = {
   manager:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Social Media Manager. Check story continuity, brand consistency, claims, variety, product selection and each episode objective. Correct proposals before production.'},
   scheduler:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Scheduler. Consider Manager findings, choose available times for each episode based on story and content type, and explain the reason. Never claim access to performance data that was not supplied.'},
   concept: { provider: 'openai', model: 'gpt-4.1-mini', instructions: 'Create clear, account-specific social concepts grounded in the Brand Kit. Never invent facts or product claims.' },
-  revision: { provider: 'anthropic', model: 'claude-sonnet-4-5', instructions: 'Review the concept for clarity, consistency, spelling and claims. Preserve the brief objective and account identity.' },
+  revision: { provider: 'anthropic', model: 'claude-sonnet-5-5', instructions: 'Review the concept for clarity, consistency, spelling and claims. Preserve the brief objective and account identity.' },
   image: { provider: 'openai', model: 'gpt-image-2.5-sunburst', instructions: 'Create high-quality square Instagram feed designs. Keep visual direction consistent across slides and preserve original brand assets.' },
   final: { provider: 'gemini', model: 'gemini-2.5-flash', instructions: 'Review actual images, caption alignment, spelling, consistency and claim risks. Provide honest findings for human approval.' },
 };
