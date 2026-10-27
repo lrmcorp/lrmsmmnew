@@ -31,6 +31,19 @@ because the full source bounds were scaled. This was principally a system issue.
   reduces duplicate or imitated wordmarks. The planner and reviewer still see the
   original logo. Existing runs
   without this metadata retain the prior upper-right fallback.
+- The reserved header is now verified before the logo is stamped. The prompt asks
+  the image model to keep that area clear, but it frequently puts the headline
+  there anyway and the server used to composite the original straight over the
+  lettering. `resolveLogoPlacement` measures the greyscale spread of all three
+  candidate slots in the finished background and keeps the chosen slot unless it
+  is occupied and another is clearly calmer, in which case the logo moves there.
+  The geometry is defined once and shared by the prompt text, the measurement and
+  the composite. Each slide records `requested`, `applied`, `moved`, `occupied`,
+  `still_occupied` and the readings in `steps.image.logo_placement`. When no slot
+  is clear the requested placement stands and the collision is reported to the
+  Final Reviewer for human review rather than being silently accepted. A calm
+  reading means the area is quiet, not that the logo's colors contrast with it;
+  contrast remains a human check.
 - Uploaded visual references lead the art direction for new slides: the Visual
   Conceptor and image prompt request their concrete palette, background, subject
   scale/placement, typography hierarchy, spacing and lighting. This improves

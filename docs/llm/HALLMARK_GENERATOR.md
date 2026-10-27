@@ -33,6 +33,32 @@ makes no promise of exact model output or a measured aesthetic improvement.
 Existing images are not regenerated automatically. New generation and confirmed
 image revisions use the policy; final approval is still needed for publication.
 
+## Observed art direction (2026-10-27)
+
+Reviewed output reproduced the category default — a marketplace flat-lay with
+unrelated props — while the account's references were a different design language.
+Three causes were found and fixed.
+
+1. The references reached the Visual Conceptor as images, but nothing required it
+   to write down what it saw. The image model then received only adjectives.
+   `visualSchema` now requires an `art_direction` object per run: `palette`,
+   `background`, `typography`, `composition`, `lighting` and `avoid`, each 10–400
+   characters of concrete observation. `planOf` rejects a run that omits or pads
+   them, before any paid image request. `buildImagePrompt` prints the object above
+   the slide prompt in every image call, so each slide carries the same direction.
+   A run with no visual reference must derive the fields from the Brand Kit and
+   say so in the field; describing imagery that was not supplied remains forbidden.
+2. `VISUAL_DESIGN_POLICY` stated only what good work looks like. It now also names
+   the defaults to refuse — listing composites, flat-lays, uninvited props, catalog
+   grids, competing subjects, edge-crammed headlines, directionless stock lighting.
+   The list yields to any reference that plainly shows one of those treatments, so
+   the existing rule against a blanket ban on deliberate colors or decoration holds.
+3. Logo placement was advisory only; see the cutouts and mockups page.
+
+`art_direction` is additive. Runs produced before this change keep their saved
+visual output, and retrying only their image stage omits the section rather than
+failing. Retrying the visual stage applies the new contract.
+
 ## Verification
 
 - Hallmark static sweep of the two new CSS files: 0 FAIL, 0 REFLEX, 0 WARN.

@@ -40,7 +40,7 @@ globalThis.fetch = async (url, opts) => {
     text=JSON.stringify({contents:Array.from({length:n},(_,i)=>({title:'Topic '+(i+1),brief:'Unique wellness angle '+(i+1)}))});
   } else if (system.includes('Return ONLY JSON')) {
     const n = Number(system.match(/Exactly (\d+) slides/)[1]);
-    text = malformed==='null'?'null':malformed==='null-slide'?JSON.stringify({caption:'Valid caption',slides:[null]}):malformed ? '{malformed' : JSON.stringify({ title: 'Campaign', caption: 'Final caption', slides: Array.from({ length: n }, (_, i) => ({ prompt: 'Green brand image slide ' + (i + 1),...(system.includes('Final visual concept only')?{logo_placement:'top-center',design_reason:'The approved brand palette and subject sit around a central header.'}:{}) })) });
+    text = malformed==='null'?'null':malformed==='null-slide'?JSON.stringify({caption:'Valid caption',slides:[null]}):(malformed&&malformed!=='no-art-direction') ? '{malformed' : JSON.stringify({ title: 'Campaign', caption: 'Final caption', ...(system.includes('Final visual concept only')&&malformed!=='no-art-direction'?{art_direction:{palette:'Warm peach to lilac gradient with deep plum headline text',background:'Soft studio wall with a gentle arch and window light',typography:'High-contrast editorial serif headline over a small sans supporting line',composition:'One hero subject at lower right, upper half deliberately empty',lighting:'Low directional sun with long soft shadows and a glossy finish',avoid:'Flat-lay props, catalog grids and crowded surfaces'},}:{}), slides: Array.from({ length: n }, (_, i) => ({ prompt: 'Green brand image slide ' + (i + 1),...(system.includes('Final visual concept only')?{logo_placement:'top-center',design_reason:'The approved brand palette and subject sit around a central header.'}:{}) })) });
   }
   return Response.json(origin.includes('openai') ? { choices: [{ message: { content: text } }], usage: { total_tokens: 42 } } : origin.includes('anthropic') ? { content: [{ type: 'text', text }], usage: { input_tokens: 20, output_tokens: 22 } } : { candidates: [{ content: { parts: [{ text }] } }], usageMetadata: { totalTokenCount: 42 } });
 };
@@ -316,6 +316,14 @@ test('personal credentials, provider contracts, durable pipeline and final hando
         malformed=output;const result=await execute(make({slide_count:1}));malformed=false;
         assert.equal(result.status,'failed');assert.equal(result.steps.failure.stage,'concept');assert.equal(result.steps.failure.code,'generator_format');assert.equal(result.steps.failure.model,'gpt-4.1-mini');assert.match(result.error,/Conceptor/);assert.equal(result.media.length,0);assert.ok(!JSON.stringify(result.steps.failure).includes(secret));gen.cancelRun(user,result.id);
       }
+    });
+    await t.test('a visual concept without observed art direction is rejected before any paid image', async () => {
+      const images=imageCalls;malformed='no-art-direction';const result=await execute(make({slide_count:1}));malformed=false;
+      assert.equal(result.status,'failed');assert.equal(result.steps.failure.stage,'visual');assert.equal(result.steps.failure.code,'generator_format');
+      assert.match(result.error,/palette, background, typography, composition, lighting, avoid/,'the error names the missing reference observations');
+      assert.equal(imageCalls,images,'the image model is never paid for a slide with no art direction');
+      assert.equal(result.steps.revision.status,'done','completed concept stages survive the failed visual stage');
+      gen.cancelRun(user,result.id);
     });
     await t.test('idempotency, malformed output, revoked scope and cancellation during a provider call', async () => {
       const body = { request_id: 'stable', brief: 'Stable', account_ids: ['ig-generator'], slide_count: 1, confirm_cost: true };
