@@ -71,6 +71,27 @@ The plan URL and a generic failure badge alone cannot reveal private provider
 errors to an unauthenticated debugging environment. Read its stored error through
 an authorized session or a read-only SQLite query before claiming a root cause.
 
+### Provider rejection reasons (2026-10-27)
+
+`jsonRequest` used to cancel the response body of a failed provider request and
+store a fixed sentence. An HTTP 400 therefore read "Check the model and provider
+account", which is a guess: the model and account were usually fine. The actual
+cause was discarded, so no amount of reading the draft could recover it.
+
+Failed responses are now read, bounded to 64 KB, and `providerDetail` keeps only
+`code`, `type` and `status` when each matches `^[\w.-]{1,60}$` — bounded machine
+identifiers such as `moderation_blocked`, `string_above_max_length` or
+`INVALID_ARGUMENT`. The provider's free-text `message` is **never** surfaced or
+stored: it is provider-controlled and may echo the prompt or other content, which
+the existing rule against exposing raw provider responses forbids. A body with no
+usable identifier yields "The provider named no reason" rather than a guess.
+Gemini's numeric `code` is ignored and its string `status` kept. `test/generator.js`
+asserts the identifiers reach `steps.failure.message` while a secret planted in
+the provider's `message` never does.
+
+This reports the rejection; it does not prevent one. A 400 on the Image Creator
+stage is still to be diagnosed from the identifier it now records.
+
 ### Image prompt limit regression (2026-10-23)
 
 Production diagnostics showed all text/visual stages complete, GPT Image 1 failing

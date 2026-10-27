@@ -30,7 +30,7 @@ globalThis.fetch = async (url, opts) => {
   if (imageRequest) {
     imageCalls++;
     if (gate) { blocked?.(); await gate; }
-    if (failImage || (failAfterSlide && imageCalls === failAfterSlide)) return new Response(JSON.stringify({ error: { message: secret } }), { status: 429 });
+    if (failImage || (failAfterSlide && imageCalls === failAfterSlide)) return failImage==='rejected' ? new Response(JSON.stringify({ error: { code: 'moderation_blocked', type: 'image_generation_user_error', message: secret } }), { status: 400 }) : new Response(JSON.stringify({ error: { message: secret } }), { status: 429 });
     return Response.json(origin.includes('openai') ? { data: [{ b64_json: image.toString('base64') }] } : { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: image.toString('base64') } }] } }] });
   }
   const system = body.system || body.messages?.[0]?.content || body.systemInstruction?.parts?.[0]?.text || '';
@@ -316,6 +316,20 @@ test('personal credentials, provider contracts, durable pipeline and final hando
         malformed=output;const result=await execute(make({slide_count:1}));malformed=false;
         assert.equal(result.status,'failed');assert.equal(result.steps.failure.stage,'concept');assert.equal(result.steps.failure.code,'generator_format');assert.equal(result.steps.failure.model,'gpt-4.1-mini');assert.match(result.error,/Conceptor/);assert.equal(result.media.length,0);assert.ok(!JSON.stringify(result.steps.failure).includes(secret));gen.cancelRun(user,result.id);
       }
+    });
+    await t.test('a rejected image request reports the provider’s own reason without echoing its text', async () => {
+      const {providerDetail}=await import('../src/llm/providers.js');
+      failImage='rejected';const result=await execute(make({slide_count:1}));failImage=false;
+      assert.equal(result.status,'failed');assert.equal(result.steps.failure.stage,'image');assert.equal(result.steps.failure.code,'provider_error');
+      assert.match(result.steps.failure.message,/moderation_blocked/,'the actual cause replaces a guess about the model or account');
+      assert.match(result.steps.failure.message,/image_generation_user_error/);
+      assert.ok(!result.steps.failure.message.includes(secret),'provider free text is never stored');assert.ok(!result.error.includes(secret));
+      assert.doesNotMatch(result.steps.failure.message,/Check the model and provider account/,'an unexplained guess is not presented as the reason');
+      gen.cancelRun(user,result.id);
+      assert.equal(providerDetail(JSON.stringify({error:{message:secret}})),'','a reason-less body yields no detail rather than leaking the message');
+      assert.equal(providerDetail(JSON.stringify({error:{code:'string_above_max_length',type:'invalid_request_error'}})),'string_above_max_length / invalid_request_error');
+      assert.equal(providerDetail(JSON.stringify({error:{status:'INVALID_ARGUMENT',code:400}})),'INVALID_ARGUMENT','Gemini numeric codes are ignored and its status is kept');
+      assert.equal(providerDetail('<html>502 Bad Gateway</html>'),'');assert.equal(providerDetail(JSON.stringify({error:{code:'x'.repeat(99)}})),'','unbounded identifiers are refused');
     });
     await t.test('a visual concept without observed art direction is rejected before any paid image', async () => {
       const images=imageCalls;malformed='no-art-direction';const result=await execute(make({slide_count:1}));malformed=false;

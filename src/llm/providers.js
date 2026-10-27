@@ -8,15 +8,37 @@ export const PROVIDERS = {
   gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detailed'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Lightweight'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
 };
 
+// A rejected request names its cause in `code`/`type`/`status`: bounded machine
+// identifiers such as moderation_blocked or string_above_max_length. Those are
+// the diagnosis. The free-text `message` is provider-controlled and may echo the
+// prompt or anything else, so it is never surfaced or stored.
+export function providerDetail(raw) {
+  let data; try { data = JSON.parse(raw); } catch { return ''; }
+  const detail = data?.error ?? (Array.isArray(data) ? data[0]?.error : null);
+  if (!detail || typeof detail !== 'object') return '';
+  const labels = [detail.code, detail.type, detail.status].filter(v => typeof v === 'string' && /^[\w.-]{1,60}$/.test(v));
+  return [...new Set(labels)].join(' / ');
+}
+async function boundedText(res, limit = 64 * 1024) {
+  if (!res.body) return '';
+  const chunks = []; let size = 0;
+  try {
+    for await (const chunk of res.body) {
+      chunks.push(chunk); size += chunk.length;
+      if (size >= limit) { await res.body.cancel?.(); break; }
+    }
+  } catch { return ''; }
+  return Buffer.concat(chunks).toString().slice(0, limit);
+}
 async function jsonRequest(url, headers, body, method = 'POST') {
   let res;
   try { res = await fetch(url, { method, headers: { ...(method==='GET'||body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...headers }, body: method==='GET'?undefined:body instanceof FormData ? body : JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(method==='GET'?10000:180000) }); }
   catch { throw err(502, 'provider_unavailable', "Provider did not respond. Check your connection and retry this stage."); }
   // Do not expose raw provider responses, prompts or secrets in error messages.
   if (!res.ok) {
-    await res.body?.cancel();
-    const text = res.status === 404 ? "Model is unavailable for this endpoint or API key (HTTP 404). Refresh the model list and select an available model." : res.status === 401 || res.status === 403 ? "The provider rejected the API key or model access." : res.status === 429 ? "Provider quota or request limit reached." : `Provider request failed (HTTP ${res.status}). Check the model and provider account.`;
-    throw err(502, res.status===404?'provider_model_unavailable':'provider_error', text);
+    const detail = providerDetail(await boundedText(res));
+    const text = res.status === 404 ? "Model is unavailable for this endpoint or API key (HTTP 404). Refresh the model list and select an available model." : res.status === 401 || res.status === 403 ? "The provider rejected the API key or model access." : res.status === 429 ? "Provider quota or request limit reached." : `Provider request failed (HTTP ${res.status}).`;
+    throw err(502, res.status===404?'provider_model_unavailable':'provider_error', detail ? `${text} The provider rejected it as: ${detail}.` : `${text} The provider named no reason.`);
   }
   const chunks = []; let size = 0;
   for await (const chunk of res.body) {
