@@ -311,6 +311,24 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       const archive={account:{username:'nails.brand'},identity:{essence:'Real nail products',dont_rules:'Never change packaging'},foundation:'Brand foundation '.repeat(1000),previous_proposals:[{brief:'Private history '.repeat(2000)}],memory_session:{bible:'Story bible '.repeat(2000)}};
       const prompt=buildImagePrompt({instructions:'Image direction '.repeat(250),direction:'Preserve references '.repeat(150),accounts:[archive],layout:'Use original product overlays',title:'Approved concept',brief:'Current product chapter',episode:3,slideIndex:0,slideCount:1,slidePrompt:'Place the unchanged product on a white background.'});
       assert.ok(prompt.length<32000);assert.match(prompt,/nails.brand/);assert.match(prompt,/Never change packaging/);assert.match(prompt,/Place the unchanged product/);assert.ok(prompt.indexOf('Use original product overlays')>prompt.indexOf('Place the unchanged product'),'reserved asset layout takes precedence over the slide direction');assert.ok(prompt.endsWith(ASSET_PRESERVATION));assert.ok(!prompt.includes('Private history'));assert.ok(!prompt.includes('Story bible'));
+      {
+        // Every input at its validated maximum at once. The duplicated context is
+        // budgeted, so a real run cannot fail the 32k guard while the slide prompt,
+        // art direction, craft policy and asset rules all arrive whole.
+        const {protectedLayout}=await import('../src/services/protected-composition.js');
+        const {VISUAL_DESIGN_POLICY}=await import('../src/services/visual-design-policy.js');
+        const field='x'.repeat(400);
+        const worst=buildImagePrompt({instructions:'i'.repeat(4000),direction:'d'.repeat(6000),
+          artDirection:{palette:field,background:field,typography:field,composition:field,lighting:field,avoid:field},
+          accounts:[{account:'@a',identity:{a:'y'.repeat(500)},foundation:'f'.repeat(2000)},{account:'@b',identity:{},foundation:'f'.repeat(2000)}],
+          layout:protectedLayout([{role:'logo'},{role:'product'}],true,'hero-center'),
+          title:'t'.repeat(300),brief:'b'.repeat(10000),episode:'e'.repeat(2000),slideIndex:0,slideCount:3,
+          slidePrompt:'s'.repeat(6000),designReason:'r'.repeat(500),revision:'v'.repeat(1000)});
+        assert.ok(worst.length<32000,`worst-case prompt is ${worst.length} characters and must stay under the provider limit`);
+        assert.ok(worst.includes('s'.repeat(6000)),'the slide prompt is never truncated');
+        assert.ok(worst.includes(VISUAL_DESIGN_POLICY)&&worst.includes(ASSET_PRESERVATION),'the craft policy and asset rules arrive whole');
+        assert.ok(!worst.includes('b'.repeat(900)),'the brief the Conceptor already read travels as short context');
+      }
       assert.throws(()=>buildImagePrompt({instructions:'x'.repeat(32001),slidePrompt:'visual'}),error=>error.code==='image_prompt_too_long');
       const before=providerCalls.length;const {generateImage}=await import('../src/llm/providers.js');await assert.rejects(()=>generateImage({provider:'openai',model:'gpt-image-1',key:secret,prompt:'x'.repeat(32001)}),error=>error.code==='image_prompt_too_long');assert.equal(providerCalls.length,before,'oversized requests never reach the paid provider');
     });

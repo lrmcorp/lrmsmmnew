@@ -14,11 +14,19 @@ export function formatArtDirection(direction){
 }
 // Full account history/story has already informed the approved Visual Conceptor.
 // Do not repeat that archive in the image API request: GPT Image has a 32k limit.
+// The same applies to anything the Conceptor has already distilled. The campaign
+// brief may be 10k characters and the reference notes 6k, but both were read by
+// the Conceptor and are expressed in the slide prompt and the art direction, so
+// they travel here only as short context. What the image model actually needs,
+// the slide prompt, the art direction, the craft policy and the asset rules, is
+// never truncated; budgeting the duplicated parts is what keeps room for them.
+const BRIEF_CONTEXT=700, DIRECTION_CONTEXT=2000, EPISODE_CONTEXT=400;
+const clip=(value,limit)=>{const text=String(value??'');return text.length>limit?text.slice(0,limit).trimEnd()+'…':text;};
 export function buildImagePrompt({instructions,direction,artDirection,accounts=[],layout,title,brief,episode,slideIndex,slideCount,slidePrompt,designReason='',revision=''}){
  const identities=accounts.map(c=>({account:c.account,identity:c.identity||{},foundation:String(c.foundation||'').slice(0,1000)}));
- const prompt=[instructions,VISUAL_DESIGN_POLICY,direction,formatArtDirection(artDirection),'ACCOUNT IDENTITY: '+JSON.stringify(identities),
+ const prompt=[instructions,VISUAL_DESIGN_POLICY,clip(direction,DIRECTION_CONTEXT),formatArtDirection(artDirection),'ACCOUNT IDENTITY: '+JSON.stringify(identities),
   'Use the approved visual concept below. It already incorporates this account’s story, history and product selection. Do not invent a later episode, change the selected products or introduce another brand.',
-  'Campaign: '+title,'Brief: '+brief,episode?'Story episode: '+episode:'',
+  'Campaign: '+title,'Brief: '+clip(brief,BRIEF_CONTEXT),episode?'Story episode: '+clip(episode,EPISODE_CONTEXT):'',
   `Slide ${slideIndex+1}/${slideCount}: ${slidePrompt}`,
   designReason?'DESIGN DECISION: '+designReason:'',
   revision?'The last attached image is the current slide. Preserve its composition except for the requested changes. Any logo visible there was placed by the server: use its position for layout only, do not copy or redraw it; the server will add the original again. Human revision for this slide: '+revision:'',

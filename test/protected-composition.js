@@ -33,6 +33,26 @@ test('final composition uses real source pixels, preserves complete aspect bound
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
 
+test('hero-center makes the composited original the focal element, not a corner mark',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'logo-hero-'));
+ try{
+  const mark=await sharp({create:{width:600,height:200,channels:3,background:'#6b3fa0'}}).png().toBuffer();
+  fs.writeFileSync(path.join(dir,'mark.png'),mark);
+  const background=await sharp({create:{width:1024,height:1024,channels:3,background:'#f6e7dc'}}).png().toBuffer();
+  const asset=[{role:'logo',media_id:'mark',path:path.join(dir,'mark.png')}];
+  const corner=(await composeProtectedAssets(background,asset,{logoPlacement:'top-right'})).placements[0];
+  const hero=(await composeProtectedAssets(background,asset,{logoPlacement:'hero-center'})).placements[0];
+  assert.ok(hero.width>corner.width*1.4,'the hero mark is substantially larger than a corner mark');
+  assert.ok(Math.abs(hero.left+hero.width/2-512)<=2,'the hero mark is centred horizontally');
+  assert.ok(hero.top>1024*.3&&hero.top+hero.height<1024*.6,'the hero mark sits in the middle band, not against an edge');
+  assert.equal(hero.width/hero.height,corner.width/corner.height,'scaling up never changes the proportions of the mark');
+  const {protectedLayout}=await import('../src/services/protected-composition.js');
+  assert.match(protectedLayout([{role:'logo'}],true,'hero-center'),/hold the centre of the frame completely empty/,'the model is told the centre is reserved');
+  assert.doesNotMatch(protectedLayout([{role:'logo'}],true,'top-right'),/hold the centre of the frame completely empty/,'a corner mark does not reserve the centre');
+  assert.deepEqual(fs.readFileSync(path.join(dir,'mark.png')),mark,'the source file is never rewritten');
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
 test('a watermark logo keeps the original shape while taking an authorised tint and opacity',async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'logo-watermark-'));
  try{

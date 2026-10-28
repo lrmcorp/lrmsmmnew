@@ -96,3 +96,30 @@ This is a deterministic server composite, not a model repainting a logo, which
 remains forbidden. A tint is a flat single colour: a logo whose identity depends
 on its own gradient or multiple colours will lose that, so leave `logo_tint`
 empty for those brands.
+
+## Hero logo placement (2026-10-28)
+
+Output stayed short of the account's references even once the art direction was
+reaching the model, and the reason was structural rather than a prompt weakness.
+Every placement put the logo in a corner band 30% wide and 10% tall, while the
+references build whole slides around a large centred wordmark: a small
+letterspaced eyebrow, the mark as the focal element, one short line beneath. That
+layout could not be expressed at all, because the model is forbidden to draw the
+brand name and the server could only stamp a corner mark.
+
+Placements are now boxes in canvas fractions rather than a shared band, and
+`hero-center` reserves 46% of the width at 36–53% of the height. The Final Visual
+Conceptor chooses it when the references open a campaign or a chapter that way,
+and is told not to use it on a slide whose focal point is a face, a hand or the
+product. The prompt then asks for the centre of the frame to be held completely
+empty, with the scene arranged around that space.
+
+The composited mark is still the original file, scaled proportionally. The test
+asserts a hero mark is substantially larger than a corner mark, centred, inside
+the middle band, identical in proportions, and that the source file is unchanged.
+
+**This only pays off with the right logo file.** The server composites whatever
+the Brand Kit holds. These references show a purple gradient wordmark while the
+uploaded asset is a flat black script, so a hero placement will enlarge the black
+script unless the styled artwork is uploaded. A flat tint cannot substitute: it
+would discard the gradient. See the tint caveat above.
