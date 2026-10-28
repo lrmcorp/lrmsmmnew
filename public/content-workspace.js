@@ -36,6 +36,17 @@ export function contentWorkspace({h,api,ui,state,icon,modal,toast,go,loadAccount
   const message=typeof r.error==='string'&&r.error.trim()?r.error:failure?.message||'This older draft has no saved failure reason. A confirmed retry will record the failed stage and reason without replacing completed work.';
   return h('section',{class:'rd-callout warn df-failure-details',role:'status'},h('h3',{},'Failure details'),h('p',{},message),h('dl',{},[['Stage',roles[role]||role||'Not recorded'],['Provider / model',[failure?.provider||agent?.provider,failure?.model||agent?.model].filter(Boolean).join(' / ')||'Not recorded'],['Error code',failure?.code||'Not recorded'],['Draft ID',r.id]].map(([label,value])=>h('div',{},h('dt',{},label),h('dd',{},value)))),h('p',{class:'small'},'Your story, caption and completed stages are retained. Retrying can use API credits.'),link('AI connection settings','/settings?tab=ai','ui-text-button'));
  }
+ // What the Visual Conceptor actually decided. Without this the only way to tell
+ // an ignored art direction from an absent one is to read the database.
+ const AD_LABELS={palette:'Palette',background:'Background',typography:'Typography',composition:'Composition',lighting:'Lighting',avoid:'Avoid'};
+ function visualDirection(r,index){
+  const output=r.steps?.visual?.output,direction=output?.art_direction,prompt=output?.slides?.[index]?.prompt;
+  if(!direction&&!prompt)return null;
+  const rows=direction?Object.entries(AD_LABELS).filter(([k])=>typeof direction[k]==='string'&&direction[k].trim()).map(([k,label])=>[h('dt',{},label),h('dd',{},direction[k])]):[];
+  return h('details',{class:'df-visual-direction'},h('summary',{},'Art direction and image prompt'),
+   direction?h('dl',{class:'df-art-direction'},rows):h('p',{class:'small muted'},'This draft was created before art direction was recorded, so none was sent to the image model. Start a new content item to apply it.'),
+   prompt?h('div',{},h('b',{class:'small'},`Image prompt, slide ${index+1}`),h('p',{class:'small muted df-slide-prompt'},prompt)):null);
+ }
  function milestones(r){return ui.progressPipeline(['concept','revision','visual','image','final'].map(role=>({label:roles[role],state:r.steps?.[role]?.status||'waiting',pct:r.steps?.[role]?.status==='done'?100:r.steps?.[role]?.status==='running'?50:0,count:role==='image'?`${r.steps?.image?.completed_slides||0}/${r.slide_count}`:''})));}
  function card(s, {onStart} = {}) {
   const ss=stateOf(s), accounts=accountsOf(s), runs=s.runs.filter(r=>r.status!=='cancelled'), counts=runs.reduce((c,r)=>(c[r.status]=(c[r.status]||0)+1,c),{}), count=runs.length||s.content_count||0;
@@ -151,6 +162,7 @@ async function approve(items) {
   replace(side,navigation,h('div',{class:'df-preview-heading'},h('h2',{},'Preview'),ui.statusChip(r)),r.steps?.image?.asset_preparation?.some(a=>a.status==='needs_review')?h('p',{class:'rd-callout warn'},'Some asset backgrounds need review. Open Brand Kit to inspect the prepared cutouts.'):null,r.steps?.image?.product_mockup?h('p',{class:'rd-callout warn'},'AI product mockup — compare shapes, colors and patterns with the original product before approving.'):null,r.status==='failed'?failureDetails(r):null,...(['running','queued'].includes(r.status)?[milestones(r)]:[]),
     ui.phonePreview({account:ownAccounts(r)[0]||state.accounts[0],media:media(r),caption:r.caption||'',initialIndex:index,onSlideChange:i=>sideSlides.set(r.id,i),platform:ownAccounts(r)[0]?.platform||'instagram'}),
     r.steps?.visual?.output?.slides?.[index]?.design_reason?h('p',{class:'small muted df-design-reason'},h('b',{},'Design reason: '),r.steps.visual.output.slides[index].design_reason):null,
+    visualDirection(r,index),
     media(r).length?B('View full image',()=>openFullImage(r),'btn sm df-view-full-image'):null,
     media(r).length>1?h('div',{class:'df-preview-slides'},media(r).map((m,i)=>B(m.type==='video'?h('video',{src:m.url,muted:true,preload:'metadata'}):h('img',{src:m.url,alt:`Slide ${i+1}`}),()=>{sideSlides.set(r.id,i);drawSide();},'df-preview-thumb '+(i===index?'on':''),{'aria-label':`Select slide ${i+1}`,'aria-pressed':String(i===index)})),h('span',{class:'small muted'},`${media(r).length} slide`)):null,
     ['review','concept_review','planned','failed'].includes(r.status)?revisionRow:null,

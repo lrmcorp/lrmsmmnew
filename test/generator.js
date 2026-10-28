@@ -227,14 +227,16 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       const done=await execute(revision);assert.equal(done.status,'review');assert.notEqual(done.media_ids[0],original.media_ids[0]);
       gen.cancelRun(user,revision.id);
     });
-    await t.test('concept → Claude revision → OpenAI images → Gemini visual review, no publishing', async () => {
+    await t.test('concept → Claude revision → OpenAI images → Claude visual review, no publishing', async () => {
       const r = make(); const postCount = one('SELECT COUNT(*) n FROM posts').n;
       const done = await execute(r);
       assert.equal(done.status, 'review'); assert.equal(done.media.length, 2);
       assert.ok(done.media.every(m => m.mime_type === 'image/jpeg' && m.url));
       for (const role of ['concept','revision','image','final']) assert.equal(done.steps[role].status, 'done');
-      const final = providerCalls.findLast(c => c.origin.includes('googleapis') && !c.body.generationConfig?.responseModalities);
-      assert.equal(final.body.contents[0].parts.filter(p => p.inlineData).length, 2, 'reviewer sees actual image bytes');
+      const final = providerCalls.findLast(c => typeof c.body.system === 'string' && c.body.system.includes('Review the actual supplied images'));
+      assert.equal(final.origin, 'https://api.anthropic.com', 'final review runs on a vision model');
+      assert.equal(final.body.model, 'claude-sonnet-5-5');
+      assert.equal(final.body.messages[0].content.filter(p => p.type === 'image').length, 2, 'reviewer sees actual image bytes');
       assert.equal(one('SELECT COUNT(*) n FROM posts').n, postCount);
       assert.equal((await http('GET', '/runs/' + r.id, undefined, otherCookie)).status, 404);
       const row = one('SELECT path FROM media WHERE id=?', done.media_ids[0]);
@@ -277,7 +279,7 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       for(const label of ['Image 1: visual','Image 2: product','brand logo is added by the server','packaging'])assert.ok(edit.form.get('prompt').includes(label));
       assert.ok(edit.form.get('prompt').includes('MANDATORY ASSET PRESERVATION'));
       assert.ok(edit.form.get('prompt').includes('PRODUCT MOCKUP MODE'));assert.ok(edit.form.get('prompt').includes('worn on fingers'));assert.equal(result.steps.image.product_mockup,true);assert.deepEqual(result.steps.image.protected_placements[0].map(x=>x.role),['logo'],'mockup product photos are not pasted over the scene');
-      const qc=providerCalls.findLast(c=>c.body.systemInstruction);assert.equal(qc.body.contents[0].parts.filter(p=>p.inlineData).length,4,'reviewer receives generated slide, original logo/product and visual reference');assert.ok(qc.body.systemInstruction.parts[0].text.includes('blocking issue'));
+      const qc=providerCalls.findLast(c=>typeof c.body.system==='string'&&c.body.system.includes('Review the actual supplied images'));assert.equal(qc.body.messages[0].content.filter(p=>p.type==='image').length,4,'reviewer receives generated slide, original logo/product and visual reference');assert.ok(qc.body.system.includes('blocking issue'));
       assert.deepEqual(gen.updateContent(user,result.id,{content:'Updated caption'}).reference_roles,roleMap);
       assert.throws(()=>make({reference_media_ids:[ref.id],reference_roles:{[ref.id]:'unknown'}}),/reference category/);
       assert.throws(()=>make({reference_media_ids:[ref.id],reference_roles:{[logo.id]:'logo'}}),/reference category/);

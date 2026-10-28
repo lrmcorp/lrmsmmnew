@@ -357,3 +357,13 @@
 /* Shared S4 scope stays on one horizontal row. */
 .rd-drafts-index .ui-company-label{white-space:nowrap;flex:none}
 .rd-drafts-index .ui-account-row{overflow-x:auto}
+
+/* The Visual Conceptor's own decisions, open on demand beside the preview. */
+.df-visual-direction{margin:8px 0 0;font-size:12px}
+.df-visual-direction>summary{cursor:pointer;color:var(--c-muted,#667085);font-size:11px;padding:4px 0;min-height:24px}
+.df-visual-direction>summary:focus-visible{outline:2px solid var(--c-brand,#0b6b4b);outline-offset:2px;border-radius:4px}
+.df-art-direction{display:grid;grid-template-columns:minmax(78px,auto) 1fr;gap:4px 10px;margin:6px 0}
+.df-art-direction>dt{color:var(--c-muted,#667085);font-size:11px}
+.df-art-direction>dd{margin:0;font-size:11px;overflow-wrap:anywhere}
+.df-slide-prompt{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow-y:auto}
+@media (max-width:767px){.df-art-direction{grid-template-columns:1fr;gap:2px}.df-art-direction>dt{margin-top:6px}}

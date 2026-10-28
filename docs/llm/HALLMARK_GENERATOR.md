@@ -84,3 +84,44 @@ scene remains allowed. See [HANDOFF.md](HANDOFF.md) for the full note.
 - Screenshots reviewed: /tmp/redesign-generator-1280.png and generator-375.png.
 - 67 production-mode backend checks, 40 application checks and 6 deployment tests
   passed locally. Providers mocked; no paid image request or real social post.
+
+## Vision-capable agents (2026-10-28)
+
+The Final Visual Conceptor inspects the uploaded references and writes the art
+direction every image then follows, so its model sets the ceiling for the whole
+visual pipeline. It ran on `gpt-4.1-mini`, and worse, `settings()` made the visual
+role **inherit the Conceptor's provider and model** when no explicit visual agent
+was stored. Reference inspection therefore silently used whichever lightweight
+model had been chosen for writing text.
+
+- `DEFAULT_AGENTS.visual` is now `anthropic` / `claude-opus-5`, chosen by the user
+  over Opus 5.5. Anthropic's deprecations page lists it Active, with retirement no
+  sooner than 2027-07-24. It is offered in the Anthropic picker so the choice can
+  be changed back in the interface.
+- `DEFAULT_AGENTS.final` is now `anthropic` / `claude-sonnet-5-5`, replacing the
+  deprecated `gemini-2.5-flash`. The Final Reviewer also reads images.
+- The visual role no longer inherits the Conceptor's model. It keeps its own
+  default unless the user explicitly configures it.
+- `PROVIDERS[*].visionModel` gives each provider a vision-capable fallback
+  (`gpt-4.1`, `claude-opus-5-5`, `gemini-2.5-pro`). Note this stays on Opus 5.5:
+  it is the current generation and applies only when a vision role falls back
+  because its own provider key is missing, which is a different decision from the
+  Visual Conceptor's configured default. When a user lacks the key for
+  a vision role's provider, it now falls back to that rather than the provider's
+  lightweight `textModel`.
+
+`imageDetail: 'high'` is an **OpenAI-only** parameter. Anthropic and Gemini receive
+the image bytes directly and read them at native resolution, so detail there is
+governed by `referenceBytes`, which caps references at 1536px — close to the point
+above which Anthropic downsamples anyway.
+
+**A saved configuration wins over these defaults.** `saveSettings` writes every
+role, so any user who has opened AI settings and saved has an explicit `visual`
+entry and will keep their old model until they change it in the interface. Changing
+a stored choice automatically is deliberately not done; `SUPERSEDED_MODELS` covers
+only ids that are retired or have a published retirement date.
+
+Cost moves with capability: Claude Opus 5.5 is $4/$20 per MTok against GPT-4.1
+mini's far lower rate, for one call per content item. No measured quality
+improvement is claimed here — this removes a known bottleneck, and the art
+direction panel on each draft is how to judge whether it helped.
