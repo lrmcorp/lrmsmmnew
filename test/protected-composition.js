@@ -101,6 +101,20 @@ test('the original logo moves off generated headline lettering instead of being 
   assert.equal(nowhere.applied,'top-left','with no calmer slot the chosen placement stands rather than churning');
   assert.equal(nowhere.still_occupied,true,'an unresolved collision stays visible for human review instead of being hidden');
 
+  // A soft background is not "busy", but one corner can still be plainly emptier
+  // than the slot that was chosen before the image existed.
+  const quiet=await sharp({create:{width:1024,height:1024,channels:3,background:'#f7e9e4'}})
+   .composite(Array.from({length:4},(_,i)=>({input:{create:{width:300,height:10,channels:3,background:'#8a3a52'}},left:40,top:70+i*22}))).png().toBuffer();
+  const seated=await resolveLogoPlacement(quiet,'top-left');
+  assert.equal(seated.moved,true,'the mark is seated where the frame is genuinely emptiest, not merely where it is not busy');
+  assert.notEqual(seated.applied,'top-left');
+  assert.ok(seated.readings[seated.applied]<seated.readings['top-left']);
+  const hero=await resolveLogoPlacement(quiet,'hero-center');
+  assert.equal(hero.applied,'hero-center','a deliberate hero layout is never relocated');
+  assert.equal(hero.moved,false);
+  const evenField=await sharp({create:{width:1024,height:1024,channels:3,background:'#f4d9c8'}}).png().toBuffer();
+  assert.equal((await resolveLogoPlacement(evenField,'bottom-right')).moved,false,'an evenly calm frame leaves the reference-led choice alone');
+
   const logo=await sharp({create:{width:160,height:80,channels:3,background:'#1248d0'}}).png().toBuffer();
   fs.writeFileSync(path.join(dir,'logo.png'),logo);
   const composed=await composeProtectedAssets(headline,[{role:'logo',media_id:'logo',path:path.join(dir,'logo.png')}],{logoPlacement:'top-left'});

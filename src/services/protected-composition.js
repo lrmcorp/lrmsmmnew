@@ -38,6 +38,12 @@ async function treatCutout(buffer,{tint='',opacity=1}={}){
 // Greyscale spread inside the reserved band. A calm wall, gradient or sky sits
 // well below this; headline lettering, faces or product detail sit far above it.
 const BUSY_STDEV=18, CLEARLY_CALMER=.75;
+// Seating the mark only when its slot is outright busy left it sitting in a
+// merely-adequate corner while a genuinely emptier one went unused. A margin
+// this far above the calmest reading is enough to move on its own.
+const PREFER_CALMER_BY=5;
+// hero-center is a deliberate layout decision, never a fallback to drift into.
+const CORNER_PLACEMENTS=Object.keys(LOGO_BOXES).filter(k=>k!=='hero-center');
 const pct=value=>Math.round(value*100);
 
 export function protectedLayout(assets,hasVisualReference=false,logoPlacement='top-right'){
@@ -71,9 +77,12 @@ export async function resolveLogoPlacement(background,requested='top-right'){
   const mean=sum/pixels.length;
   readings[name]=Math.round(Math.sqrt(Math.max(0,squares/pixels.length-mean*mean))*10)/10;
  }
- const calmest=Object.keys(readings).reduce((a,b)=>readings[b]<readings[a]?b:a);
+ const calmest=CORNER_PLACEMENTS.reduce((a,b)=>readings[b]<readings[a]?b:a);
  const occupied=readings[slot]>BUSY_STDEV;
- const moved=occupied&&calmest!==slot&&readings[calmest]<readings[slot]*CLEARLY_CALMER;
+ // A hero mark owns the centre by design, so it is never relocated.
+ const moved=slot!=='hero-center'&&calmest!==slot&&(
+  (occupied&&readings[calmest]<readings[slot]*CLEARLY_CALMER)||
+  readings[slot]-readings[calmest]>=PREFER_CALMER_BY);
  const applied=moved?calmest:slot;
  // A flat reading only means the area is quiet, not that the logo's colors
  // contrast with it. Contrast stays a human review point.

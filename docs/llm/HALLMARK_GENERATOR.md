@@ -75,6 +75,20 @@ is reserved; the Final Reviewer counts marks per slide and treats a second drawn
 one as blocking. Lettering genuinely printed on the product or its packaging in the
 scene remains allowed. See [HANDOFF.md](HANDOFF.md) for the full note.
 
+## One framing per content (2026-10-28)
+
+Contents in one campaign each run their visual stage independently from the same
+references and the same art direction, so they converged on one arrangement and
+differed only in wording. `generator.js` now assigns each content a shot type from
+`SHOT_TYPES` by its position among its same-plan, same-account siblings
+(`shotTypeFor`), and the visual system prompt opens with that assignment: product
+as sculptural hero in empty space, tight crop on finish, held or in use with the
+person partly cropped, type-led frame with a small product, or an off-centre
+lifestyle moment. The clause states that the other contents are getting different
+framings deliberately, and that palette, light, typography and treatment still come
+from the references — only the framing is assigned. Position is derived at prompt
+time, so a retried draft keeps its index. A run with no siblings gets no clause.
+
 ## Verification
 
 - Hallmark static sweep of the two new CSS files: 0 FAIL, 0 REFLEX, 0 WARN.
