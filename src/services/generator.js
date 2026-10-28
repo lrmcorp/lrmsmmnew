@@ -18,15 +18,19 @@ import * as storytelling from './storytelling.js';
 import { PROVIDERS, generateText, generateImage, geminiModels, currentModel } from '../llm/providers.js';
 
 export const ROLES = ['concept', 'revision', 'image', 'final', 'storyteller', 'manager', 'scheduler', 'visual'];
+// These stages read the uploaded references and the finished slides. When a
+// provider key is missing and the role falls back, it must land on that
+// provider's vision-capable model rather than its lightweight text default.
+const VISION_ROLES = new Set(['visual', 'final']);
 export const DEFAULT_AGENTS = {
-  visual:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Final Visual Conceptor. Finalize each slide using uploaded references, original logos/products and actual available Instagram feed visuals. Specify composition, colors, typography, lighting and continuity. Never change logo or product details or copy unsupported reference claims.'},
+  visual:{provider:'anthropic',model:'claude-opus-5-5',instructions:'You are the Final Visual Conceptor. Finalize each slide using uploaded references, original logos/products and actual available Instagram feed visuals. Specify composition, colors, typography, lighting and continuity. Never change logo or product details or copy unsupported reference claims.'},
   storyteller:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are a world-class Instagram storyteller. Continue the brand story from its saved foundation, choose real catalog products and evolve episodes without restarting the story.'},
   manager:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Social Media Manager. Check story continuity, brand consistency, claims, variety, product selection and each episode objective. Correct proposals before production.'},
   scheduler:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Scheduler. Consider Manager findings, choose available times for each episode based on story and content type, and explain the reason. Never claim access to performance data that was not supplied.'},
   concept: { provider: 'openai', model: 'gpt-4.1-mini', instructions: 'Create clear, account-specific social concepts grounded in the Brand Kit. Never invent facts or product claims.' },
   revision: { provider: 'anthropic', model: 'claude-sonnet-5-5', instructions: 'Review the concept for clarity, consistency, spelling and claims. Preserve the brief objective and account identity.' },
   image: { provider: 'openai', model: 'gpt-image-2.5-sunburst', instructions: 'Create high-quality square Instagram feed designs. Keep visual direction consistent across slides and preserve original brand assets.' },
-  final: { provider: 'gemini', model: 'gemini-2.5-flash', instructions: 'Review actual images, caption alignment, spelling, consistency and claim risks. Provide honest findings for human approval.' },
+  final: { provider: 'anthropic', model: 'claude-sonnet-5-5', instructions: 'Review actual images, caption alignment, spelling, consistency and claim risks. Provide honest findings for human approval.' },
 };
 const active = new Map();
 const keyOf = (userId, provider) => {
@@ -41,11 +45,14 @@ export function settings(user) {
   const preferred=['openai','gemini','anthropic'].find(p=>available.has(p));
   const imagePreferred=['openai','gemini'].find(p=>available.has(p));
   const agents=Object.fromEntries(ROLES.map(role=>{
-    const agent={...DEFAULT_AGENTS[role],...(stored?.[role]||(role==='visual'?{provider:stored?.concept?.provider||DEFAULT_AGENTS.visual.provider,model:stored?.concept?.model||DEFAULT_AGENTS.visual.model}:{}))};
+    // The visual stage used to copy the Conceptor's model. That silently gave
+    // reference inspection whichever lightweight model was chosen for writing
+    // text, so it keeps its own capable default unless explicitly configured.
+    const agent={...DEFAULT_AGENTS[role],...(stored?.[role]||{})};
     const fallback=role==='image'?imagePreferred:preferred;
     if(fallback&&!available.has(agent.provider)){
       agent.provider=fallback;
-      agent.model=role==='image'?PROVIDERS[fallback].imageModel:PROVIDERS[fallback].textModel;
+      agent.model=role==='image'?PROVIDERS[fallback].imageModel:VISION_ROLES.has(role)?PROVIDERS[fallback].visionModel||PROVIDERS[fallback].textModel:PROVIDERS[fallback].textModel;
     }
     agent.model=currentModel(agent.model);
     return [role,agent];
@@ -208,7 +215,7 @@ async function processRun(user, rid) {
       return;
     }
     if(steps.visual?.status!=='done'){
-      const a=agents.visual||{...DEFAULT_AGENTS.visual,provider:agents.concept.provider,model:agents.concept.model};
+      const a=agents.visual||DEFAULT_AGENTS.visual;
       failureStage='visual';failureAgent=a;
       steps.visual={status:'running',started_at:now()};run('UPDATE generator_runs SET steps=?,updated_at=? WHERE id=?',JSON.stringify(steps),now(),rid);
       const profile=await instagramVisualContext(user,parseJSON(row.targets,[]));checkpoint(user,rid);
