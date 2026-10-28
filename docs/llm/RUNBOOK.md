@@ -49,14 +49,21 @@ never ran, and it failed when run by hand. It was removed on 2026-10-28 rather
 than left asserting an interface that no longer exists and a dialog the product
 rules forbid.
 
-**Gap this leaves:** bulk draft deletion is covered in CI at the service level by
-`test/generator.js` and `test/visual-production.js` (ownership, account scope,
-run state, idempotency), but **no CI test drives the checkboxes and the Delete
-bulk action in the browser**. Adding that to `test/redesign-browser.cjs` was
-attempted and abandoned: the suite is coupled to its exact set of fixture
-sessions, and adding one more plan, at setup or mid-run and on any date, breaks
-the later storyline assertion on `.rd-session-page`. Decoupling that suite is the
-prerequisite, and is worth doing before more browser coverage is added anywhere.
+**Partly closed on 2026-10-28.** The Drafts index had no selection at all, so
+sessions could not be cleared in bulk; it now has a checkbox per session, a
+select-all and a bulk Delete, and `test/redesign-browser.cjs` drives them. That
+test **cancels** the confirm dialog, because the suite is coupled to its exact
+set of fixture sessions and actually deleting them breaks later assertions.
+Adding a throwaway plan to delete for real was tried and abandoned: one more plan
+breaks the later storyline assertion on `.rd-session-page`, whether created at
+setup or mid-run and whatever date it uses.
+
+**Gap that remains:** no CI test deletes through the interface end to end. The
+destructive step is covered against the service by `test/generator.js` and
+`test/visual-production.js` (ownership, account scope, run state, idempotency),
+and the interface is covered up to the confirm. Closing the last gap needs that
+suite decoupled from its fixture count, which is worth doing before more browser
+coverage is added anywhere.
 
 Browser workflow needs Playwright and an installed Chromium executable. Install
 browser tools outside application dependencies, as CI does:
