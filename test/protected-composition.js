@@ -33,6 +33,35 @@ test('final composition uses real source pixels, preserves complete aspect bound
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
 
+test('a watermark logo keeps the original shape while taking an authorised tint and opacity',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'logo-watermark-'));
+ try{
+  // An L shape, so a changed outline would show up as a changed pixel count.
+  const mark=await sharp({create:{width:60,height:60,channels:4,background:{r:0,g:0,b:0,alpha:0}}})
+   .composite([{input:{create:{width:20,height:60,channels:4,background:'#101010'}},left:0,top:0},{input:{create:{width:60,height:20,channels:4,background:'#101010'}},left:0,top:40}]).png().toBuffer();
+  fs.writeFileSync(path.join(dir,'mark.png'),mark);
+  const original=Buffer.from(mark);
+  const background=await sharp({create:{width:1024,height:1024,channels:3,background:'#ffffff'}}).png().toBuffer();
+  const asset=[{role:'logo',media_id:'mark',path:path.join(dir,'mark.png')}];
+
+  const plain=await composeProtectedAssets(background,asset,{logoPlacement:'bottom-right'});
+  assert.ok(plain.placements[0].top>1024*.8,'a lower slot places the mark near the bottom edge');
+  assert.equal(plain.placements[0].tint,null);assert.equal(plain.placements[0].soft,false);
+
+  const treated=await composeProtectedAssets(background,asset,{logoPlacement:'bottom-right',logoTint:'#7b4a86',logoSoft:true});
+  assert.equal(treated.placements[0].tint,'#7b4a86');assert.equal(treated.placements[0].soft,true);
+  assert.deepEqual([treated.placements[0].width,treated.placements[0].height],[plain.placements[0].width,plain.placements[0].height],'treatment never resizes the mark');
+
+  const box=treated.placements[0];
+  const solid=await sharp(treated.buffer).extract({left:box.left+2,top:box.top+2,width:1,height:1}).raw().toBuffer();
+  // 55% of the tint over white: each channel lands between the tint and 255.
+  for(const [i,channel] of [0x7b,0x4a,0x86].entries())assert.ok(solid[i]>channel&&solid[i]<255,'the tint is applied and set back against the background');
+  const empty=await sharp(treated.buffer).extract({left:box.left+box.width-2,top:box.top+2,width:1,height:1}).raw().toBuffer();
+  assert.ok(empty[0]>250&&empty[1]>250&&empty[2]>250,'transparent areas of the cutout stay transparent, so the outline is the original');
+  assert.deepEqual(fs.readFileSync(path.join(dir,'mark.png')),original,'the source file is never rewritten');
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
 test('the original logo moves off generated headline lettering instead of being stamped over it',async()=>{
  const {resolveLogoPlacement}=await import('../src/services/protected-composition.js');
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'logo-collision-'));

@@ -38,7 +38,13 @@
 
 - Keep uploaded source files unchanged. Automatic derivatives may remove simple
   background and empty margins. Complex backgrounds are marked for review.
-- Logos use cleaned source cutouts and must not be AI redrawn. Products default
+- Logos use cleaned source cutouts and must not be AI redrawn. **Amended
+  2026-10-28 on the account owner's instruction:** the server may set a logo back
+  in opacity and flatten it to a single tint taken from the approved palette, so
+  the mark reads as a coordinated watermark rather than a stamp. Shape, edges,
+  lettering and proportions still come from the original file, the source bytes
+  are untouched, and no model ever repaints a logo. The slide records the tint
+  and softness it used. Products default
   to in-scene AI mockups (for example nails worn on fingers), with mandatory human
   product-detail review; optional Exact cutout mode preserves source placement.
   Do not promise pixel-exact AI mockups or invent product facts.
