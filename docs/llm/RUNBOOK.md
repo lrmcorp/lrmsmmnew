@@ -42,6 +42,22 @@ and fail on the current checkout: they still expect the retired Indonesian
 interface. They were already failing before the 2026-10-27 work. Do not treat them
 as a regression, and do not "fix" them incidentally without being asked.
 
+`test/visual-production.js` carried a `PLAYWRIGHT_MODULE`-gated browser block of
+the same kind, aimed at the retired `.draft-tile` gallery with Indonesian labels
+and a native `confirm`. CI never sets that variable for this file, so the block
+never ran, and it failed when run by hand. It was removed on 2026-10-28 rather
+than left asserting an interface that no longer exists and a dialog the product
+rules forbid.
+
+**Gap this leaves:** bulk draft deletion is covered in CI at the service level by
+`test/generator.js` and `test/visual-production.js` (ownership, account scope,
+run state, idempotency), but **no CI test drives the checkboxes and the Delete
+bulk action in the browser**. Adding that to `test/redesign-browser.cjs` was
+attempted and abandoned: the suite is coupled to its exact set of fixture
+sessions, and adding one more plan, at setup or mid-run and on any date, breaks
+the later storyline assertion on `.rd-session-page`. Decoupling that suite is the
+prerequisite, and is worth doing before more browser coverage is added anywhere.
+
 Browser workflow needs Playwright and an installed Chromium executable. Install
 browser tools outside application dependencies, as CI does:
 
