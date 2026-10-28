@@ -74,3 +74,25 @@ fallback, metadata persistence, default mockups without product overlays, PNG/lo
 preservation and placement, prepared upload URLs, cleanup and the full browser workflow.
 Provider calls are mocked: no paid generation or live Instagram publishing is
 claimed as verification of visual fidelity.
+
+## Logo as a coordinated watermark (2026-10-28)
+
+The composited logo read as a sticker: full opacity, original colours, always in
+the top band. On the account owner's instruction the no-recolour rule in
+`PRODUCT_RULES.md` and `ASSET_PRESERVATION` was amended, and the Final Visual
+Conceptor now chooses a treatment per slide alongside the placement.
+
+- `logo_placement` gained the three lower slots, so the mark can take whatever
+  corner the composition actually leaves quiet rather than reflexively the top.
+- `logo_soft` composites at 55% alpha, setting the mark back into the scene.
+- `logo_tint` is empty to keep the original colours, or a `#rrggbb` from the
+  palette the conceptor just recorded. `treatCutout` rewrites only the RGB
+  channels and scales alpha; every pixel's coverage still comes from the original
+  cutout, so shape, edges, lettering and proportions are the source's.
+- The applied tint and softness are stored in `steps.image.protected_placements`
+  for review, and uploaded source files are never rewritten.
+
+This is a deterministic server composite, not a model repainting a logo, which
+remains forbidden. A tint is a flat single colour: a logo whose identity depends
+on its own gradient or multiple colours will lose that, so leave `logo_tint`
+empty for those brands.

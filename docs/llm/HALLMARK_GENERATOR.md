@@ -125,3 +125,19 @@ Cost moves with capability: Claude Opus 5.5 is $4/$20 per MTok against GPT-4.1
 mini's far lower rate, for one call per content item. No measured quality
 improvement is claimed here — this removes a known bottleneck, and the art
 direction panel on each draft is how to judge whether it helped.
+
+## On-image text discipline (2026-10-28)
+
+Reviewed slides carried a headline, a supporting paragraph and a row of captioned
+feature icons. The account owner asked for a title at most. `VISUAL_DESIGN_POLICY`
+now ends with a TEXT DISCIPLINE clause: the picture carries the message and the
+caption carries the detail, so on-image text is at most a short headline and often
+none. Body paragraphs, feature and benefit lists, icon-and-label rows, pricing,
+calls to action and sign-offs belong in the post caption and must not be rendered
+into the artwork. A single supporting line is allowed only when a supplied
+reference plainly shows one. The refused-defaults list gained icon rows, bullet
+lists and benefit badges, and the Visual Conceptor is told the same when it writes
+each slide prompt.
+
+The caption itself is unchanged: it is still written in full by the concept stage
+and is where this detail now lives.
