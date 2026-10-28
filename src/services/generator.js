@@ -365,6 +365,9 @@ function slotsFor(body, user) {
   if (candidates.length < body.content_count) throw err(400,'schedule_capacity',`Only ${candidates.length} posting slots are available for ${body.content_count} items. Add posting times or extend the date range; existing drafts and scheduled posts also reserve slots.`,{available_slots:candidates.length,required_slots:body.content_count,posting_times:[...new Set(times)],timezone:'Asia/Jakarta'});
   return { recommendation, candidate_slots:Array.from({length:Math.min(120,candidates.length)},(_,i)=>candidates[Math.floor(i*candidates.length/Math.min(120,candidates.length))]), slots: Array.from({ length: body.content_count }, (_,i) => candidates[Math.floor(i * candidates.length / body.content_count)]) };
 }
+// A capacity failure names the account it belongs to, since slots are now
+// reserved per account rather than shared across the whole selection.
+const accountLabel=(user,aid)=>{const row=one('SELECT username FROM accounts WHERE id=?',aid);return row?.username?'@'+row.username:aid;};
 const planning = new Map();
 export async function createPlan(user, body) {
   const recommendation = timingRecommendation(user,body.account_ids);
@@ -379,8 +382,15 @@ export async function createPlan(user, body) {
     if (existing.request_hash !== hash) throw err(409, 'idempotency_conflict', 'This request_id was used for a different plan.');
     return { id:existing.id,content_count:existing.content_count,recommendation:parseJSON(existing.recommendation,{}),replayed:true };
   }
-  if(body.produce_media===true){if(body.manual===true||body.confirm_cost!==true)throw err(400,'validation_failed',"AI production requires AI mode.");for(const role of ['concept','revision','visual','image','final'])keyOf(user.id,agents[role].provider);if(one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','concept_review','review')",user.id).n+body.content_count>40)throw err(409,'generator_limit',"A maximum of 40 active drafts is allowed.");}
-  const { slots }=slotsFor(body,user);
+  if(body.produce_media===true){if(body.manual===true||body.confirm_cost!==true)throw err(400,'validation_failed',"AI production requires AI mode.");for(const role of ['concept','revision','visual','image','final'])keyOf(user.id,agents[role].provider);if(one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','concept_review','review')",user.id).n+body.content_count*body.account_ids.length>40)throw err(409,'generator_limit',"A maximum of 40 active drafts is allowed.");}
+  // Each account now receives its own runs, so each gets its own slots. A
+  // conflict on one account no longer blocks the time for the others.
+  const perAccount=new Map();
+  for(const aid of body.account_ids){
+   try{perAccount.set(aid,slotsFor({...body,account_ids:[aid]},user).slots);}
+   catch(e){if(e.code==='schedule_capacity')throw err(400,'schedule_capacity',`${accountLabel(user,aid)}: ${e.message}`);throw e;}
+  }
+  const { slots }=slotsFor({...body,account_ids:[body.account_ids[0]]},user);
   const lock = user.id + ':' + body.request_id;
   if (planning.has(lock)) throw err(409, 'plan_running', "This plan is being prepared. Wait, then retry the same request.");
   planning.set(lock, true);
@@ -396,11 +406,11 @@ export async function createPlan(user, body) {
     }
     for (const aid of body.account_ids) assertAccount(one('SELECT * FROM users WHERE id=?', user.id), aid);
     validateReferences(user,refs.ids,refs.notes,refs.roles);
-    if(body.produce_media===true&&one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','concept_review','review')",user.id).n+body.content_count>40)throw err(409,'generator_limit',"A maximum of 40 active drafts is allowed.");
+    if(body.produce_media===true&&one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','concept_review','review')",user.id).n+body.content_count*body.account_ids.length>40)throw err(409,'generator_limit',"A maximum of 40 active drafts is allowed.");
     const pid = id('plan');
     tx(() => {
       run('INSERT INTO generator_plans(id,user_id,request_id,request_hash,brief,start_date,end_date,content_count,recommendation,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)', pid, user.id, body.request_id, hash, body.brief, body.start_date, body.end_date, body.content_count, JSON.stringify(recommendation), now());
-      ideas.forEach((idea,i) => run(`INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,scheduled_at,status,caption,created_at,updated_at,plan_id,title) VALUES(?,?,?,?,?,?,?,?,?,'planned','',?,?,?,?)`, id('gen'), user.id, `plan-${pid}-${i}`, hash, `${body.brief}\n\n${idea.title}: ${idea.brief}`, JSON.stringify(body.account_ids.map(account_id => ({ account_id }))), body.slide_count || 1, JSON.stringify(agents), slots[i], now(), now(), pid, idea.title));
+      ideas.forEach((idea,i) => body.account_ids.forEach((aid,a) => run(`INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,scheduled_at,status,caption,created_at,updated_at,plan_id,title) VALUES(?,?,?,?,?,?,?,?,?,'planned','',?,?,?,?)`, id('gen'), user.id, `plan-${pid}-${i}-${a}`, hash, `${body.brief}\n\n${idea.title}: ${idea.brief}`, JSON.stringify([{ account_id: aid }]), body.slide_count || 1, JSON.stringify(agents), perAccount.get(aid)[i], now(), now(), pid, idea.title)));
     });
     run('UPDATE generator_runs SET reference_media_ids=?,reference_notes=?,reference_roles=?,draft_touched_at=? WHERE plan_id=?',JSON.stringify(refs.ids),refs.notes,JSON.stringify(refs.roles),now(),pid);
     if(body.produce_media===true)run("UPDATE generator_runs SET status='queued',concept_approved_at=? WHERE plan_id=?",now(),pid);

@@ -7,7 +7,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lrmsmm-generator-'));
 Object.assign(process.env, { META_MOCK: '1', DATA_DIR: tmp, DISABLE_WORKER: '1' });
 const { app } = await import('../src/server.js');
 const { createUser, createApiKey } = await import('../src/auth.js');
-const { run, one } = await import('../src/db.js');
+const { run, one, all } = await import('../src/db.js');
 const { encrypt } = await import('../src/util.js');
 const { setAssignments } = await import('../src/services/scope.js');
 const gen = await import('../src/services/generator.js');
@@ -47,7 +47,8 @@ globalThis.fetch = async (url, opts) => {
 const user = createUser({ email: 'generator@test.id', password: 'fixture-password', name: 'Generator Rep', role: 'rep' });
 const other = createUser({ email: 'other-generator@test.id', password: 'fixture-password', name: 'Other Rep', role: 'rep' });
 run("INSERT INTO accounts(id,platform,platform_user_id,username,token_enc) VALUES('ig-generator','instagram','ig-fixture','fixturebrand',?)", encrypt('fake-meta-token'));
-setAssignments(user.id, ['ig-generator']); setAssignments(other.id, ['ig-generator']);
+run("INSERT INTO accounts(id,platform,platform_user_id,username,token_enc) VALUES('ig-second','instagram','ig-second-fixture','secondbrand',?)", encrypt('fake-meta-token'));
+setAssignments(user.id, ['ig-generator','ig-second']); setAssignments(other.id, ['ig-generator']);
 const server = app.listen(0, '127.0.0.1'); await new Promise(r => server.once('listening', r));
 const base = 'http://127.0.0.1:' + server.address().port;
 async function login(u) {
@@ -336,6 +337,23 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       const legacy=providerCalls.slice(legacyFrom).find(c=>String(c.url).includes('/images/edits'));
       assert.equal(legacy.body.input_fidelity,'high','the gpt-image-1 line still gets the fidelity it needs');
       gen.saveSettings(user,{agents:{...gen.settings(user).agents,image:imageAgent}});
+    });
+    await t.test('a campaign gives each account its own run, slots and creative', async () => {
+      const d=new Date(Date.now()+3*864e5+7*3600000).toISOString().slice(0,10);
+      const plan=await gen.createPlan(user,{request_id:'per-account',brief:'Two brands, one campaign',account_ids:['ig-generator','ig-second'],content_count:2,slide_count:1,start_date:d,end_date:d,times:['09:10','11:10'],manual:true});
+      const runs=all('SELECT * FROM generator_runs WHERE plan_id=? ORDER BY scheduled_at,id',plan.id);
+      assert.equal(runs.length,4,'two posts per account across two accounts');
+      for(const r of runs){
+        const targets=JSON.parse(r.targets);
+        assert.equal(targets.length,1,'a run carries exactly one account, so its creative is that account’s alone');
+      }
+      const byAccount=new Map();
+      for(const r of runs){const aid=JSON.parse(r.targets)[0].account_id;byAccount.set(aid,[...(byAccount.get(aid)||[]),r]);}
+      assert.deepEqual([...byAccount.keys()].sort(),['ig-generator','ig-second']);
+      for(const [aid,rows] of byAccount){assert.equal(rows.length,2,aid+' receives the full content_count');assert.equal(new Set(rows.map(r=>r.scheduled_at)).size,2,aid+' posts at distinct times');}
+      // The same wall-clock slot may serve both accounts: they are different feeds.
+      assert.deepEqual([...byAccount.get('ig-generator')].map(r=>r.scheduled_at).sort(),[...byAccount.get('ig-second')].map(r=>r.scheduled_at).sort(),'an account is not blocked by another account occupying the time');
+      for(const r of runs)run("UPDATE generator_runs SET status='cancelled' WHERE id=?",r.id);
     });
     await t.test('a retired image model never reaches the provider, from settings, a save or an older draft', async () => {
       const {PROVIDERS,currentModel}=await import('../src/llm/providers.js');
