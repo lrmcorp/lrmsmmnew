@@ -34,7 +34,7 @@ try{
   assert.equal(result.status,'review',JSON.stringify({error:result.error,steps:result.steps}));assert.equal(result.caption,'Caption kept intact');assert.equal(result.steps.visual.status,'done');assert.equal(result.steps.visual.profile_context.accounts[0].status,'available');assert.equal(result.steps.visual.profile_context.accounts[0].posts.length,1,'private/non-Meta URLs are never downloaded');
   const visual=calls.find(c=>c.system.includes('Final visual concept only'));
   assert.equal(visual.url,'https://api.anthropic.com/v1/messages','reference inspection runs on a vision model, not the lightweight text default');
-  assert.equal(visual.body.model,'claude-opus-5-5');
+  assert.equal(visual.body.model,'claude-opus-5');
   // Anthropic has no per-image detail flag: it reads what it is sent, so the
   // references arrive whole rather than downsampled by a 'low detail' default.
   assert.equal(visual.body.messages[0].content.filter(p=>p.type==='image').length,3,'uploaded visual/logo references and real feed thumbnail reach visual agent');

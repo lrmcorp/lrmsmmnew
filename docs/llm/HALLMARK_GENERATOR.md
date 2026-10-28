@@ -94,13 +94,19 @@ role **inherit the Conceptor's provider and model** when no explicit visual agen
 was stored. Reference inspection therefore silently used whichever lightweight
 model had been chosen for writing text.
 
-- `DEFAULT_AGENTS.visual` is now `anthropic` / `claude-opus-5-5`.
+- `DEFAULT_AGENTS.visual` is now `anthropic` / `claude-opus-5`, chosen by the user
+  over Opus 5.5. Anthropic's deprecations page lists it Active, with retirement no
+  sooner than 2027-07-24. It is offered in the Anthropic picker so the choice can
+  be changed back in the interface.
 - `DEFAULT_AGENTS.final` is now `anthropic` / `claude-sonnet-5-5`, replacing the
   deprecated `gemini-2.5-flash`. The Final Reviewer also reads images.
 - The visual role no longer inherits the Conceptor's model. It keeps its own
   default unless the user explicitly configures it.
 - `PROVIDERS[*].visionModel` gives each provider a vision-capable fallback
-  (`gpt-4.1`, `claude-opus-5-5`, `gemini-2.5-pro`). When a user lacks the key for
+  (`gpt-4.1`, `claude-opus-5-5`, `gemini-2.5-pro`). Note this stays on Opus 5.5:
+  it is the current generation and applies only when a vision role falls back
+  because its own provider key is missing, which is a different decision from the
+  Visual Conceptor's configured default. When a user lacks the key for
   a vision role's provider, it now falls back to that rather than the provider's
   lightweight `textModel`.
 
