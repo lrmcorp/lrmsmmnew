@@ -2,7 +2,7 @@
 
 This is the coding-agent handoff for **lrmcorp/lrmsmmnew**, serving
 `https://lrmsosmed.playgo.id`. Last substantive implementation documented:
-**2026-10-22, PR #8**. Documentation language is English for agent readability;
+**2026-10-28, PR #21**. Documentation language is English for agent readability;
 product UI defaults to English.
 
 ## Read in this order

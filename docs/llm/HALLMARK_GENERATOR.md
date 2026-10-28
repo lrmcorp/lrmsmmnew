@@ -59,6 +59,22 @@ Three causes were found and fixed.
 visual output, and retrying only their image stage omits the section rather than
 failing. Retrying the visual stage applies the new contract.
 
+**This has not yet been exercised by a real generation.** `processRun` skips a
+stage whose status is `done`, so every draft retried during the 2026-10-27/28 work
+reused a visual output created before the contract existed and sent no
+`art_direction` at all. Judge this work only from a **new** campaign; see the
+retried-drafts section in [HANDOFF.md](HANDOFF.md).
+
+## One brand mark per slide (2026-10-28)
+
+The image model drew a second brand wordmark beside the one the server composites,
+because `referenceDirection` asks it to carry over the references' text hierarchy
+and those references are the brand's own images, wordmark included. The prompt now
+resolves that conflict explicitly and states the one-mark rule late, where the logo
+is reserved; the Final Reviewer counts marks per slide and treats a second drawn
+one as blocking. Lettering genuinely printed on the product or its packaging in the
+scene remains allowed. See [HANDOFF.md](HANDOFF.md) for the full note.
+
 ## Verification
 
 - Hallmark static sweep of the two new CSS files: 0 FAIL, 0 REFLEX, 0 WARN.

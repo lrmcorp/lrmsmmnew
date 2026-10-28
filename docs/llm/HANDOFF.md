@@ -1,21 +1,29 @@
 # Engineering handoff
 
-## Snapshot: 2026-10-22
+## Snapshot: 2026-10-28
 
 - Correct repository: **lrmcorp/lrmsmmnew**. `lrmsocmedauto` is retired; do not
   deploy its Temporal/Postgres/Redis architecture or copy its old environment.
 - Public application: `https://lrmsosmed.playgo.id`.
 - Last verified deployed application commit:
-  **`e31af9a820276867667563d0dca01bf1e15ccb57`**, PR [#8](https://github.com/lrmcorp/lrmsmmnew/pull/8).
-- Deployment run [39727925380](https://github.com/lrmcorp/lrmsmmnew/actions/runs/39727925380)
-  succeeded after one failed receiver attempt and a failed-job rerun. The successful
-  attempt passed production-image tests, receiver deployment and public health.
-  The first failure's root cause was not established; do not label it a confirmed
-  networking or disk issue.
-- Last verified checks: **40 application e2e**, **56 backend checks**, browser
-  workflows, Bahasa/SVG gates, actual non-root production-image gates.
+  **`248243d4ce64f74bcdb7ee1bf64baf15dacfdd55`**, PR [#21](https://github.com/lrmcorp/lrmsmmnew/pull/21).
+- Deployment run [40634260426](https://github.com/lrmcorp/lrmsmmnew/actions/runs/40634260426)
+  passed the non-root production-image test, the dedicated receiver and the public
+  health check.
+- Last verified checks: **40 application e2e**, **72 backend checks**, 6 deployment
+  tests, browser workflows and the English/SVG gates.
 - These are historical observations, not a present-time uptime guarantee. Tests
   simulated AI/Meta and did not demonstrate a real paid generation or live post.
+- `npm test` reported 39/40 once on 2026-10-27 and the failing check was not
+  identified; it passed 8 consecutive runs afterwards and in CI. Treat a repeat as
+  a real intermittent failure, most likely in publish-retry timing, not as noise.
+
+### Prior snapshot, superseded
+
+PR [#8](https://github.com/lrmcorp/lrmsmmnew/pull/8) (`e31af9a`) was recorded here as
+the deployed commit until 2026-10-27, long after releases #15 and later had shipped.
+Check the actual latest successful `deploy.yml` run on `main` rather than trusting
+this section, and update it whenever a release deploys.
 
 ## Current implementation update: 2026-10-23
 
@@ -127,6 +135,78 @@ Checked while reading that page: `temperature`, `top_p` and `top_k` return 400
 from Anthropic API version `2026-10-21`. This application sends none of them and
 pins `anthropic-version: 2023-06-01`, so it is unaffected.
 
+## Duplicate brand wordmark: 2026-10-28
+
+A reviewed slide carried two brand wordmarks: the original the server composites
+into the reserved header, plus one the image model drew. A third, printed on the
+product box in the scene, is legitimate packaging.
+
+The rule against drawing a logo existed but sat early in the prompt in a single
+clause, while `referenceDirection` immediately above it asked the model to carry
+over the references' **text hierarchy**. The uploaded references are the brand's
+own marketing images and prominently feature its wordmark, so reproducing it read
+as following the instruction. The prompt contradicted itself and the earlier,
+weaker clause lost.
+
+`protectedLayout` now states the rule where a logo will actually be composited,
+late in the prompt and as its own block: one official mark is added by the server,
+so brand lettering drawn as a design element is a duplicate. It resolves the
+conflict in words — a reference's text hierarchy means its type sizes, weights and
+spacing, and the position its wordmark occupies is reserved empty space. Brand
+lettering genuinely printed on the product or packaging in the scene stays allowed.
+The Final Reviewer counts brand marks per slide and treats a second drawn one as
+blocking. This improves the odds and guarantees human review; no server-side check
+detects drawn lettering, and a generative model cannot be made to comply.
+
+## Retried drafts reuse their completed stages
+
+`processRun` skips any stage whose status is already `done`
+(`if(steps.visual?.status!=='done')`). This is deliberate: a retry must not charge
+the user again for concept, revision and visual work that succeeded.
+
+The consequence cost real time during the 2026-10-27/28 work. Every image reviewed
+that session came from **retried** drafts whose visual stage had completed before
+the `art_direction` contract shipped. Those runs reused their old slide prompt,
+`plan.art_direction` was `undefined`, `formatArtDirection` returned an empty string
+and the whole block was omitted. The art direction therefore never reached the
+image model, and the output still showed the flat-lay and props the new policy
+names and refuses.
+
+**Only a new campaign exercises a visual-stage change.** When judging whether
+prompt work has any effect, create a fresh run; do not retry an existing draft, and
+do not conclude a visual-stage change failed until a run that actually executed
+that stage has been reviewed. As of this writing the art-direction work still has
+no such review.
+
+## Deployment incident: ghcr.io unreachable from the VPS
+
+On 2026-10-27 two consecutive `deploy.yml` runs failed at **Deploy to the dedicated
+VPS receiver** while build, non-root production-image test and image publish all
+passed. The receiver could not reach the registry:
+
+- first attempt: `docker login` succeeded, then the manifest `HEAD` timed out after
+  60s (`dial tcp 20.205.243.164:443: i/o timeout`);
+- second attempt: `docker login` itself timed out (`Client.Timeout exceeded while
+  awaiting headers`).
+
+Failing earlier on the second attempt looked like a degrading path and was reported
+as sustained. It was not: a plain re-run roughly five hours later
+([40633566477](https://github.com/lrmcorp/lrmsmmnew/actions/runs/40633566477))
+succeeded with no change to the VPS, the workflow or the registry.
+
+Lessons for the next occurrence:
+
+- The receiver pulls **before** stopping the running container, so a pull failure
+  leaves the current release serving and changes nothing. It is not an outage.
+- Do not route around it. The deploy account is a forced-command receiver with no
+  shell and no Docker-group access, and altering DNS, firewall, proxy or the
+  registry as an incidental fix is forbidden by `AGENTS.md`.
+- Re-run, then wait. Mirroring the image to another registry is a real option only
+  if ghcr.io stays unreachable for an extended period, and it needs the user's
+  decision and a new secret.
+- `githubstatus.com` was outside the session container's allowed network domains,
+  so a GitHub-side incident could not be confirmed either way.
+
 ## Recent implemented releases
 
 | Release | Changes | Evidence |
@@ -136,6 +216,13 @@ pins `anthropic-version: 2023-06-01`, so it is unaffected.
 | #6 (`8c2103f`) | H1 Beranda, scoped actions, timeline/account health and accurate KPIs | `docs/redesign/qa/home/` |
 | #7 (`874511c`) | Named story-memory sessions, selection, rename and deletion | `docs/redesign/qa/story-memory/` |
 | #8 (`e31af9a`) | Reference-first images, original asset composition, PNG source retention and real Ide cepat prompts | `docs/redesign/qa/visual-quick-ideas/` |
+| #15 (`5c851a4`) | Hallmark craft on Generator CSS and reference-led visual agents | `HALLMARK_GENERATOR.md` |
+| #16 (`7bd0b83`) | Required `art_direction` contract, anti-slop policy list, measured logo placement | `HALLMARK_GENERATOR.md`, `BRAND_CUTOUTS_AND_MOCKUPS.md` |
+| #17 (`e1b8b08`) | Provider rejection reasons stored instead of a generic guess | `ACCOUNT_AGENT_SESSIONS.md` |
+| #18 (`9ad08d7`) | `gpt-image-2.5-sunburst` replaces the retired `gpt-image-1`, plus superseded-id remapping | this page |
+| #19 (`134b559`) | `input_fidelity` sent only to the gpt-image-1 line | this page |
+| #20 (`685581e`) | Current Claude models; `claude-opus-4-1` and `claude-sonnet-4-5` remapped | this page |
+| #21 (`248243d`) | One-wordmark rule in the image prompt and a blocking review check | this page |
 
 ## Current user-facing behavior
 
@@ -166,6 +253,11 @@ pins `anthropic-version: 2023-06-01`, so it is unaffected.
 
 ## Known limitations and follow-up checks
 
+0. **The art-direction work is unverified against a real run.** Every slide
+   reviewed on 2026-10-27/28 came from a retried draft that skipped its completed
+   visual stage, so no paid generation has yet received an `art_direction` block.
+   Whether reference fidelity actually improved is unknown. A new campaign, not a
+   retry, is required to find out. Do not report this work as effective until then.
 1. Visual similarity is not measured as a percentage. JPEG encoding/scaling means
    exported pixels are not bit-identical. Source composition currently uses fixed
    reserved logo/product panels, not arbitrary reference-derived placement.

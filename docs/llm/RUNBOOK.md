@@ -27,12 +27,20 @@ run affected tests and satisfy required workflow gates.
     node scripts/check-no-emoji.mjs
     npm test
     python3 -m unittest discover -s deploy/tests -v
-    node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js
+    NODE_ENV=production node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js test/account-specialist-session.js
     git diff --check
 
-Use .github/workflows/deploy.yml as the current executable list. As of #8, npm test
-reports 40 checks and the backend list reports 56. Counts can change; meaningful
-passing behavior matters more than preserving historical numbers.
+Use .github/workflows/deploy.yml as the current executable list. The backend list
+above now matches it, including `test/account-specialist-session.js` and
+`NODE_ENV=production`, both of which CI uses and an earlier copy of this page
+omitted. As of #21, npm test reports 40 checks and the backend list reports 72.
+Counts can change; meaningful passing behavior matters more than preserving
+historical numbers.
+
+`test/browser-storytelling.cjs` and `test/browser-components.cjs` are **not** in CI
+and fail on the current checkout: they still expect the retired Indonesian
+interface. They were already failing before the 2026-10-27 work. Do not treat them
+as a regression, and do not "fix" them incidentally without being asked.
 
 Browser workflow needs Playwright and an installed Chromium executable. Install
 browser tools outside application dependencies, as CI does:
