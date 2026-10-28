@@ -119,3 +119,36 @@ midnight rollover). The backend still excludes slots within five minutes and
 existing account conflicts; the UI counts only future slots when checking capacity.
 Saved future date choices are preserved. Generation starts on submission; publishing
 still requires final approval. If production outlasts the slot, reschedule at approval.
+
+## Separate creative per account (2026-10-28)
+
+A campaign used to put every selected account on every run
+(`body.account_ids.map(account_id => ({account_id}))`), so one concept, one art
+direction and one image set were shared by all of them. Two brands selected
+together received identical posts, which defeats the account specialisation the
+rest of the pipeline is built on.
+
+`createPlan` now fans out: one run per idea **per account**, each carrying a
+single account in `targets`. A plan's `content_count` keeps its existing meaning
+of posts per account, which is what the interface already said, so a campaign of
+2 posts across 2 accounts creates 4 runs. Each run then goes through its own
+concept, revision, visual and image stages with `accountSpecialistContext` for
+that one account, so the Brand Kit, references, memory and published history
+driving the creative are that account's alone.
+
+Scheduling follows. `slotsFor` reserved a time only when it was free for **every**
+selected account; it is now called once per account, so an account is not blocked
+by a conflict belonging to a different feed, and two accounts may legitimately
+post at the same wall-clock time. A capacity failure names the account it belongs
+to rather than reporting a single pooled number.
+
+Both active-run guards now count `content_count * account_ids.length`, since that
+is what the plan creates.
+
+Unchanged: `createRun` for a single content item still accepts several accounts
+and produces one multi-target run. Changing it would break the documented REST
+contract of `POST /v1/generator/runs`, which returns one run. The campaign path
+is what the interface uses and what produced the shared creative.
+
+Cost moves with the fan-out: a campaign now runs the full agent pipeline once per
+account instead of once in total.
