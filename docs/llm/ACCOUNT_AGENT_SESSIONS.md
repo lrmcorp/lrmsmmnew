@@ -92,6 +92,28 @@ the provider's `message` never does.
 This reports the rejection; it does not prevent one. A 400 on the Image Creator
 stage is still to be diagnosed from the identifier it now records.
 
+### Image prompt budget (2026-10-28)
+
+The guard fired again at 33,295 characters. The craft policy had grown through the
+day, but the real fault was that nothing bounded the variable inputs: a campaign
+brief may be 10,000 characters and reference notes 6,000, and both were being sent
+to the image model whole.
+
+Both had already been read by the Conceptor and are expressed in the slide prompt
+and the recorded art direction, so this is the same duplication the 2026-10-23 fix
+removed, in a different place. They now travel as short context: brief 700
+characters, reference direction 2,000, story episode 400, each elided rather than
+cut mid-word.
+
+What the image model actually needs is never truncated: the slide prompt, the art
+direction, `VISUAL_DESIGN_POLICY`, `protectedLayout` and `ASSET_PRESERVATION`
+arrive whole. Budgeting the duplicated parts is what keeps room for them.
+
+`test/generator.js` builds a prompt with every input at its validated maximum at
+once and asserts it stays under the limit, that the 6,000-character slide prompt
+survives intact, that the policy and asset rules are present, and that the brief
+was reduced. A deliberately maximal run now measures about 29,100 characters.
+
 ### Image prompt limit regression (2026-10-23)
 
 Production diagnostics showed all text/visual stages complete, GPT Image 1 failing
