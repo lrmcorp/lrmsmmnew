@@ -15,6 +15,10 @@ test('final composition uses real source pixels, preserves complete aspect bound
   assert.ok(logoBox.left>=1024*.64&&logoBox.left+logoBox.width<=1024*.94,'logo is a small upper-right signature, clear of a left-aligned headline');
   assert.ok(logoBox.top>=1024*.06&&logoBox.top+logoBox.height<=1024*.16,'logo remains inside the reserved quiet area');
   const headlineSpace=await sharp(result.buffer).extract({left:80,top:80,width:1,height:1}).raw().toBuffer();assert.ok(headlineSpace[0]>200&&headlineSpace[1]<30,'upper-left artwork stays unobstructed');
+  assert.match(protectedLayout([{role:'logo'}]),/NO SECOND BRAND MARK/,'the one-logo rule is stated wherever a logo will be composited');
+  assert.match(protectedLayout([{role:'logo'}]),/genuinely printed on the physical product/,'packaging that really carries the brand is not banned');
+  assert.match(protectedLayout([{role:'logo'}]),/reserved empty space/,'a reference showing the wordmark is reserved space, not something to redraw');
+  assert.doesNotMatch(protectedLayout([{role:'product'}]),/NO SECOND BRAND MARK/,'slides with no composited logo are not given a rule about one');
   assert.match(protectedLayout([{role:'logo'}]),/upper-right/);
   assert.match(protectedLayout([{role:'logo'}],true,'top-left'),/upper-left/);
   assert.doesNotMatch(protectedLayout([{role:'logo'}]),/REFERENCE PRIORITY/,'no visual reference is claimed when none was uploaded');
