@@ -20,17 +20,44 @@ export function formatArtDirection(direction){
 // they travel here only as short context. What the image model actually needs,
 // the slide prompt, the art direction, the craft policy and the asset rules, is
 // never truncated; budgeting the duplicated parts is what keeps room for them.
-const BRIEF_CONTEXT=700, DIRECTION_CONTEXT=2000, EPISODE_CONTEXT=400;
+const BRIEF_CONTEXT=500, DIRECTION_CONTEXT=1400, EPISODE_CONTEXT=300;
 const clip=(value,limit)=>{const text=String(value??'');return text.length>limit?text.slice(0,limit).trimEnd()+'…':text;};
+// The reference direction ends with the user's own notes, the most deliberate
+// part of it, so a head-only clip would throw exactly that away. Keep both ends.
+const clipMiddle=(value,limit)=>{const text=String(value??'');if(text.length<=limit)return text;const head=Math.floor(limit*.55),tail=limit-head;return text.slice(0,head).trimEnd()+' … '+text.slice(-tail).trimStart();};
+// The brand name is the one word a model reproduces most readily, because every
+// reference it is shown carries it. Naming the actual words is far more
+// effective than asking for no wordmark in the abstract, and it generalises:
+// the words come from whichever account the run belongs to.
+export function brandWords(accounts=[]){
+ const words=new Set();
+ for(const c of accounts){
+  const a=c&&typeof c.account==='object'?c.account:{};
+  for(const raw of [a.username,a.name,typeof c.account==='string'?c.account:'']){
+   const text=String(raw||'').replace(/^@/,'').trim();
+   if(!text)continue;
+   // The whole handle and name, plus the handle's distinctive first segment.
+   // Splitting a display name would ban its category noun too, and "Nails" is
+   // a legitimate word for a nail brand to use in a headline.
+   words.add(text);
+   const head=text.split(/[.\s_-]+/)[0];
+   if(head&&head.length>2&&!/\s/.test(text.split(/[.]/)[0]||''))words.add(head);
+  }
+ }
+ return [...words].filter(w=>w.length>2&&w.length<40).slice(0,8);
+}
 export function buildImagePrompt({instructions,direction,artDirection,accounts=[],layout,title,brief,episode,slideIndex,slideCount,slidePrompt,designReason='',revision=''}){
  const identities=accounts.map(c=>({account:c.account,identity:c.identity||{},foundation:String(c.foundation||'').slice(0,1000)}));
- const prompt=[instructions,VISUAL_DESIGN_POLICY,clip(direction,DIRECTION_CONTEXT),formatArtDirection(artDirection),'ACCOUNT IDENTITY: '+JSON.stringify(identities),
+ const banned=brandWords(accounts);
+ const prompt=[instructions,VISUAL_DESIGN_POLICY,clipMiddle(direction,DIRECTION_CONTEXT),formatArtDirection(artDirection),'ACCOUNT IDENTITY: '+JSON.stringify(identities),
   'Use the approved visual concept below. It already incorporates this account’s story, history and product selection. Do not invent a later episode, change the selected products or introduce another brand.',
   'Campaign: '+title,'Brief: '+clip(brief,BRIEF_CONTEXT),episode?'Story episode: '+clip(episode,EPISODE_CONTEXT):'',
   `Slide ${slideIndex+1}/${slideCount}: ${slidePrompt}`,
   designReason?'DESIGN DECISION: '+designReason:'',
   revision?'The last attached image is the current slide. Preserve its composition except for the requested changes. Any logo visible there was placed by the server: use its position for layout only, do not copy or redraw it; the server will add the original again. Human revision for this slide: '+revision:'',
   layout,
+  'ON-IMAGE TEXT IS VERBATIM: render any text quoted in the slide prompt exactly as written, character for character, in that same language. Never translate it, never substitute a phrase of your own and never add lines that were not asked for.',
+  banned.length?`BRAND NAME IS NOT ARTWORK: the server composites the one official mark after generation, so the brand name must appear zero times in any lettering you draw. Do not write ${banned.map(w=>JSON.stringify(w)).join(', ')} anywhere: not as a headline, a signature, a caption, a watermark, a sign-off, a "with" line, a hashtag or small print. The only exception is lettering genuinely printed on the physical product or its packaging inside the scene, which is part of the product.`:'',
   ASSET_PRESERVATION].filter(Boolean).join('\n');
  if(prompt.length>IMAGE_PROMPT_LIMIT)throw err(400,'image_prompt_too_long',`Image instructions contain ${prompt.length} characters after removing duplicated history; the limit is ${IMAGE_PROMPT_LIMIT}. Shorten the image-agent instructions or this slide’s visual prompt. Your story and completed stages are retained.`);
  return prompt;

@@ -6,13 +6,13 @@ import sharp from 'sharp';
 // brands build the whole composition around a large centred wordmark; a logo
 // confined to a corner band cannot express that layout at all.
 const LOGO_BOXES={
- 'top-left':{left:.06,top:.06,width:.30,height:.10},
- 'top-center':{left:.35,top:.06,width:.30,height:.10},
- 'top-right':{left:.64,top:.06,width:.30,height:.10},
- 'bottom-left':{left:.06,top:.84,width:.30,height:.10},
- 'bottom-center':{left:.35,top:.84,width:.30,height:.10},
- 'bottom-right':{left:.64,top:.84,width:.30,height:.10},
- 'hero-center':{left:.27,top:.36,width:.46,height:.17},
+ 'top-left':{left:.06,top:.06,width:.20,height:.07},
+ 'top-center':{left:.40,top:.06,width:.20,height:.07},
+ 'top-right':{left:.74,top:.06,width:.20,height:.07},
+ 'bottom-left':{left:.06,top:.87,width:.20,height:.07},
+ 'bottom-center':{left:.40,top:.87,width:.20,height:.07},
+ 'bottom-right':{left:.74,top:.87,width:.20,height:.07},
+ 'hero-center':{left:.33,top:.38,width:.34,height:.13},
 };
 const LOGO_AREAS={'top-left':'upper-left','top-center':'upper-centre','top-right':'upper-right','bottom-left':'lower-left','bottom-center':'lower-centre','bottom-right':'lower-right','hero-center':'centre of the frame, as the hero element'};
 export const LOGO_PLACEMENTS=Object.keys(LOGO_BOXES);

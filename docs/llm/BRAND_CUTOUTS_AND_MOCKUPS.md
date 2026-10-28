@@ -123,3 +123,36 @@ the Brand Kit holds. These references show a purple gradient wordmark while the
 uploaded asset is a flat black script, so a hero placement will enlarge the black
 script unless the styled artwork is uploaded. A flat tint cannot substitute: it
 would discard the gradient. See the tint caveat above.
+
+## Four corrections from reviewed output (2026-10-28)
+
+- **Logo size.** Corner placements were 30% of the width and 10% of the height,
+  which read as oversized. They are now 20% by 7%, and `hero-center` drops from
+  46% by 17% to 34% by 13%.
+- **The brand name as drawn lettering.** Asking for "no wordmark" in the abstract
+  kept failing: a model reproduces the brand name readily because every reference
+  it is shown carries it, and it does not recognise "WITH MANISKY" or a watermark
+  as a wordmark. `brandWords` derives the actual words from whichever account owns
+  the run (handle, its distinctive first segment, display name) and the prompt
+  names them: these strings must appear zero times in any drawn lettering, as
+  headline, signature, caption, watermark, sign-off, "with" line, hashtag or small
+  print. Lettering genuinely printed on the product or packaging remains allowed.
+  The derivation deliberately does not split a display name, so a nail brand can
+  still write "Nails" in a headline. No account, no ban: nothing is invented.
+- **Product detail.** `ASSET_PRESERVATION` said perspective and lighting may adapt.
+  It now says they are the **only** things that may: colours and their placement,
+  every pattern, motif and decal, finish, shape and length of each piece, the count
+  of pieces, and packaging form, print and lettering are copied from the reference.
+  Inventing a colourway, a motif, a different count or a restyled box is refused,
+  as is filling an unclear detail from imagination.
+- **On-image language.** The interface already prepends "Write captions and
+  on-image text in English" to every agent's instructions, but the image model
+  follows the slide prompt, and a slide prompt written in Indonesian produced
+  Indonesian artwork. The Conceptor must now write on-image text in the language
+  its instructions name and quote it in double quotes exactly as it must appear;
+  the image prompt requires quoted text to be rendered verbatim, character for
+  character, never translated or substituted.
+
+The prompt budget absorbed these: a deliberately maximal case measures about
+29,600 of 32,000. `clipMiddle` keeps both ends of the reference direction, because
+the user's own notes sit at its tail and a head-only clip discarded them.

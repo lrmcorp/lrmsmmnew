@@ -328,6 +328,9 @@ test('personal credentials, provider contracts, durable pipeline and final hando
         assert.ok(worst.includes('s'.repeat(6000)),'the slide prompt is never truncated');
         assert.ok(worst.includes(VISUAL_DESIGN_POLICY)&&worst.includes(ASSET_PRESERVATION),'the craft policy and asset rules arrive whole');
         assert.ok(!worst.includes('b'.repeat(900)),'the brief the Conceptor already read travels as short context');
+        assert.ok(worst.includes('d'.repeat(300))&&worst.endsWith(ASSET_PRESERVATION),'a clipped reference direction keeps both ends, since the user notes sit at its tail');
+        const kept=buildImagePrompt({instructions:'x',accounts:[],slidePrompt:'s',slideIndex:0,slideCount:1,title:'t',brief:'b',direction:'HEAD'+'z'.repeat(4000)+'USER NOTES AT THE TAIL'});
+        assert.ok(kept.includes('HEAD')&&kept.includes('USER NOTES AT THE TAIL'),'the deliberate direction at the end survives the budget');
       }
       assert.throws(()=>buildImagePrompt({instructions:'x'.repeat(32001),slidePrompt:'visual'}),error=>error.code==='image_prompt_too_long');
       const before=providerCalls.length;const {generateImage}=await import('../src/llm/providers.js');await assert.rejects(()=>generateImage({provider:'openai',model:'gpt-image-1',key:secret,prompt:'x'.repeat(32001)}),error=>error.code==='image_prompt_too_long');assert.equal(providerCalls.length,before,'oversized requests never reach the paid provider');
@@ -372,6 +375,18 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       // The same wall-clock slot may serve both accounts: they are different feeds.
       assert.deepEqual([...byAccount.get('ig-generator')].map(r=>r.scheduled_at).sort(),[...byAccount.get('ig-second')].map(r=>r.scheduled_at).sort(),'an account is not blocked by another account occupying the time');
       for(const r of runs)run("UPDATE generator_runs SET status='cancelled' WHERE id=?",r.id);
+    });
+    await t.test('the brand name is banned from drawn lettering for whatever account owns the run', async () => {
+      const {brandWords,buildImagePrompt}=await import('../src/services/image-prompt.js');
+      assert.deepEqual(brandWords([{account:{username:'manisky.id',name:'Manisky Nails'}}]),['manisky.id','manisky','Manisky Nails']);
+      assert.ok(!brandWords([{account:{username:'manisky.id',name:'Manisky Nails'}}]).includes('Nails'),'a category noun a brand may legitimately write is not banned');
+      assert.deepEqual(brandWords([{account:'@moonjasmine.id'}]),['moonjasmine.id','moonjasmine'],'the rule is derived per account, not hard-coded to one brand');
+      const prompt=buildImagePrompt({instructions:'x',accounts:[{account:{username:'hannabeauty.kr',name:'Hanna Beauty'}}],slidePrompt:'a slide',slideIndex:0,slideCount:1,title:'t',brief:'b'});
+      assert.match(prompt,/BRAND NAME IS NOT ARTWORK/);
+      assert.match(prompt,/"hannabeauty"/,'the actual words are named rather than described in the abstract');
+      assert.match(prompt,/genuinely printed on the physical product/,'packaging lettering stays allowed');
+      assert.match(prompt,/ON-IMAGE TEXT IS VERBATIM/,'quoted text must not be translated');
+      assert.equal(buildImagePrompt({instructions:'x',accounts:[],slidePrompt:'a slide',slideIndex:0,slideCount:1,title:'t',brief:'b'}).includes('BRAND NAME IS NOT ARTWORK'),false,'no account, no invented ban');
     });
     await t.test('a retired image model never reaches the provider, from settings, a save or an older draft', async () => {
       const {PROVIDERS,currentModel}=await import('../src/llm/providers.js');
