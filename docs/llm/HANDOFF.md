@@ -6,10 +6,17 @@
   deploy its Temporal/Postgres/Redis architecture or copy its old environment.
 - Public application: `https://lrmsosmed.playgo.id`.
 - Last verified deployed application commit:
-  **`e11075c`**, PR [#29](https://github.com/lrmcorp/lrmsmmnew/pull/29).
-- Deployment run [40634260426](https://github.com/lrmcorp/lrmsmmnew/actions/runs/40634260426)
+  **`d8042cf`**, PR [#30](https://github.com/lrmcorp/lrmsmmnew/pull/30).
+- Deployment run [40693634301](https://github.com/lrmcorp/lrmsmmnew/actions/runs/40693634301)
   passed the non-root production-image test, the dedicated receiver and the public
-  health check.
+  health check on its **third** attempt. Attempts 1 and 2 failed at the receiver
+  with `ssh: connect to host *** port ***: Connection timed out`, about fifteen
+  seconds each, matching the client's `ConnectTimeout=15`: the runner never opened
+  a TCP connection. Nothing before that step was involved, the tested image was
+  already published, and attempt 3 succeeded with no change to the code or the
+  workflow. Treat a receiver timeout as the VPS, its `sshd` or the firewall in
+  front of it, not as a fault in the release, and re-run the failed job rather
+  than rebuilding.
 - Last verified checks: **40 application e2e**, **77 backend checks**, 6 deployment
   tests, browser workflows and the English/SVG gates.
 - These are historical observations, not a present-time uptime guarantee. Tests
@@ -274,7 +281,7 @@ Lessons for the next occurrence:
 | #27 (`86a1972`) | One run and one creative per account in a campaign | `ACCOUNT_AGENT_SESSIONS.md` |
 | #28 (`4c1c8fd`) | `hero-center` placement, reference reading, image-prompt budget | `HALLMARK_GENERATOR.md` |
 | #29 (`e11075c`) | Smaller logo boxes, brand-name ban, product detail held, on-image language | `HALLMARK_GENERATOR.md` |
-| #30 | Per-content shot types and emptiest-area logo seating | this page |
+| #30 (`d8042cf`) | Per-content shot types and emptiest-area logo seating | this page |
 
 ## Current user-facing behavior
 
