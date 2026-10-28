@@ -141,3 +141,25 @@ each slide prompt.
 
 The caption itself is unchanged: it is still written in full by the concept stage
 and is where this detail now lives.
+
+## Headline voice (2026-10-28)
+
+Generated headlines read as interchangeable category claims — "Beautiful Nails,
+Made Easy", "Effortless Beauty, Every Day", "Effortless Manicure, Daily Luxury" —
+while the account's own references carry a distinct voice: "small ritual, big
+mood.", "soft confidence". `VISUAL_DESIGN_POLICY` now ends with a HEADLINE VOICE
+clause requiring the line to match the register, length and rhythm of the lines
+visible in the references, and rejecting the filler vocabulary that makes a line
+fit every competitor unchanged. Where the references show no on-image lines, no
+headline is preferred over an invented slogan.
+
+The idea was taken from the `content realism` section of the third-party
+`elayadesign/ai-design-skills` landing-page skill, which the user asked about.
+**That skill was not installed.** No runtime code reads `.claude/skills` or
+`.agents/skills`, so a skill cannot affect generated images at all; and its
+concrete rules are web-specific (Tailwind type scale, spacing tokens, radius
+formulas, icon libraries, motion) or would actively conflict with an account's
+brand, since it mandates Geist/Manrope/Poppins and forbids italics while these
+references use an editorial serif. Only the transferable idea was adapted, and it
+is grounded in the account's own references rather than in that skill's
+web-oriented word list.
