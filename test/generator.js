@@ -359,6 +359,19 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.equal(legacy.body.input_fidelity,'high','the gpt-image-1 line still gets the fidelity it needs');
       gen.saveSettings(user,{agents:{...gen.settings(user).agents,image:imageAgent}});
     });
+    await t.test('contents in one campaign are assigned different shot types', async () => {
+      const d=new Date(Date.now()+5*864e5+7*3600000).toISOString().slice(0,10);
+      const plan=await gen.createPlan(user,{request_id:'shot-variety',brief:'Three posts, one brand',account_ids:['ig-generator'],content_count:3,slide_count:1,start_date:d,end_date:d,times:['08:10','12:10','16:10'],manual:true});
+      const runs=all("SELECT * FROM generator_runs WHERE plan_id=? ORDER BY created_at,id",plan.id);
+      assert.equal(runs.length,3);
+      const shots=runs.map(r=>gen.shotTypeFor(r));
+      assert.ok(shots.every(Boolean),'every content in a plan is assigned a shot');
+      assert.deepEqual(shots.map(s=>s.index),[0,1,2],'position is stable across the campaign');
+      assert.equal(new Set(shots.map(s=>s.shot)).size,3,'three contents receive three different framings, not one repeated');
+      assert.deepEqual(shots.map(s=>s.total),[3,3,3]);
+      assert.equal(gen.shotTypeFor({plan_id:null,targets:'[]'}),null,'a single content outside a campaign is not forced into a rotation');
+      for(const r of runs)run("UPDATE generator_runs SET status='cancelled' WHERE id=?",r.id);
+    });
     await t.test('a campaign gives each account its own run, slots and creative', async () => {
       const d=new Date(Date.now()+3*864e5+7*3600000).toISOString().slice(0,10);
       const plan=await gen.createPlan(user,{request_id:'per-account',brief:'Two brands, one campaign',account_ids:['ig-generator','ig-second'],content_count:2,slide_count:1,start_date:d,end_date:d,times:['09:10','11:10'],manual:true});

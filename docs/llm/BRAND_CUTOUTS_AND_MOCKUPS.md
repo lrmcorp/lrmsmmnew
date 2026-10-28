@@ -34,9 +34,14 @@ because the full source bounds were scaled. This was principally a system issue.
 - The reserved header is now verified before the logo is stamped. The prompt asks
   the image model to keep that area clear, but it frequently puts the headline
   there anyway and the server used to composite the original straight over the
-  lettering. `resolveLogoPlacement` measures the greyscale spread of all three
-  candidate slots in the finished background and keeps the chosen slot unless it
-  is occupied and another is clearly calmer, in which case the logo moves there.
+  lettering. `resolveLogoPlacement` measures the greyscale spread of every
+  candidate slot in the finished background and moves the logo to the calmest
+  corner either when its slot is outright busy and that corner reads clearly
+  calmer, or when its slot simply sits `PREFER_CALMER_BY` stdev or more above the
+  calmest corner. The second rule was added because the first left the mark in a
+  merely-adequate corner while a genuinely empty one went unused. `hero-center` is
+  excluded from both sides of the decision: a hero mark owns the centre by design,
+  so it is never relocated and never a fallback.
   The geometry is defined once and shared by the prompt text, the measurement and
   the composite. Each slide records `requested`, `applied`, `moved`, `occupied`,
   `still_occupied` and the readings in `steps.image.logo_placement`. When no slot

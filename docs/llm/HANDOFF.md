@@ -6,11 +6,11 @@
   deploy its Temporal/Postgres/Redis architecture or copy its old environment.
 - Public application: `https://lrmsosmed.playgo.id`.
 - Last verified deployed application commit:
-  **`248243d4ce64f74bcdb7ee1bf64baf15dacfdd55`**, PR [#21](https://github.com/lrmcorp/lrmsmmnew/pull/21).
+  **`e11075c`**, PR [#29](https://github.com/lrmcorp/lrmsmmnew/pull/29).
 - Deployment run [40634260426](https://github.com/lrmcorp/lrmsmmnew/actions/runs/40634260426)
   passed the non-root production-image test, the dedicated receiver and the public
   health check.
-- Last verified checks: **40 application e2e**, **72 backend checks**, 6 deployment
+- Last verified checks: **40 application e2e**, **77 backend checks**, 6 deployment
   tests, browser workflows and the English/SVG gates.
 - These are historical observations, not a present-time uptime guarantee. Tests
   simulated AI/Meta and did not demonstrate a real paid generation or live post.
@@ -158,6 +158,49 @@ The Final Reviewer counts brand marks per slide and treats a second drawn one as
 blocking. This improves the odds and guarantees human review; no server-side check
 detects drawn lettering, and a generative model cannot be made to comply.
 
+## Identical layouts across one campaign: 2026-10-28
+
+Every content in a campaign came back with the same composition and only the text
+differed. Nothing in the pipeline asked for variety: each content's visual stage
+runs independently, gets the same references, the same art direction and the same
+policy, so the model converges on the one arrangement that best fits the brand. The
+art direction is deliberately prescriptive about palette, light and typography, and
+that is correct — the repetition was in *framing*, which nothing had an opinion
+about.
+
+`generator.js` now assigns a shot type. `SHOT_TYPES` holds five compositional
+archetypes (product as sculptural hero in empty space; tight crop on finish and
+texture; held or in use with the person partly cropped; type-led frame with the
+product small against a calm area; off-centre lifestyle moment). `shotTypeFor(row)`
+finds the row's position among its same-plan, same-account siblings ordered by
+`created_at, id` and returns `{index,total,shot}`, cycling through the list. The
+visual system prompt opens with that assignment and states plainly that the other
+contents in the campaign are getting different framings on purpose, and that
+palette, light, typography and treatment still come from the references — only the
+framing is assigned. A run with no campaign siblings gets `null` and no clause.
+
+Position is derived at prompt time rather than stored, so a retried draft that
+re-runs its visual stage keeps the same index. Six contents reuse the first shot
+type; that is intended, five distinct framings is the variety the complaint was
+about.
+
+## Logo seated in the emptiest area: 2026-10-28
+
+`resolveLogoPlacement` measured every slot but only moved the mark when its
+requested slot was outright busy (greyscale stdev above `BUSY_STDEV`) *and* a
+calmer slot read below 75% of it. A mark in a merely-adequate corner therefore
+stayed there while a genuinely empty corner went unused, which is what "not
+properly seated where the blank space most" described.
+
+Relocation now also fires on a plain margin: `PREFER_CALMER_BY = 5` stdev above the
+calmest corner is enough on its own, with the old busy/`CLEARLY_CALMER` rule kept
+for the clearly-occupied case. `CORNER_PLACEMENTS` excludes `hero-center` from both
+sides of the decision: a hero mark owns the centre by design, so it is never
+relocated and never a fallback to drift into.
+
+Still a measurement of *quietness*, not of contrast. A flat area the logo's own
+colours disappear into reads as ideal. Contrast remains a human review point.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -223,6 +266,15 @@ Lessons for the next occurrence:
 | #19 (`134b559`) | `input_fidelity` sent only to the gpt-image-1 line | this page |
 | #20 (`685581e`) | Current Claude models; `claude-opus-4-1` and `claude-sonnet-4-5` remapped | this page |
 | #21 (`248243d`) | One-wordmark rule in the image prompt and a blocking review check | this page |
+| #22 (`79dc499`) | Handoff documents brought up to the deployed state | this page |
+| #23 (`a979212`) | Reference inspection restricted to vision-capable models | `HALLMARK_GENERATOR.md` |
+| #24 (`a4fdd99`) | Logo as a coordinated watermark; text kept off the artwork | `BRAND_CUTOUTS_AND_MOCKUPS.md` |
+| #25 (`c9220c9`) | Mass selection and deletion on the Drafts index | `ACCOUNT_AGENT_SESSIONS.md` |
+| #26 (`18bf786`) | Headline voice rule: the account, not the category | `HALLMARK_GENERATOR.md` |
+| #27 (`86a1972`) | One run and one creative per account in a campaign | `ACCOUNT_AGENT_SESSIONS.md` |
+| #28 (`4c1c8fd`) | `hero-center` placement, reference reading, image-prompt budget | `HALLMARK_GENERATOR.md` |
+| #29 (`e11075c`) | Smaller logo boxes, brand-name ban, product detail held, on-image language | `HALLMARK_GENERATOR.md` |
+| #30 | Per-content shot types and emptiest-area logo seating | this page |
 
 ## Current user-facing behavior
 
