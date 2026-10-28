@@ -45,7 +45,36 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
  async function noOverflow(label){assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),label+' horizontal overflow');}
  try{
   await page.goto(base+'/#/login');await page.getByRole('heading',{name:t('login.title'),exact:true}).waitFor();await page.getByLabel(t('login.email'),{exact:true}).fill(owner.email);await page.getByLabel(t('login.password'),{exact:true}).fill('wrong');await page.getByRole('button',{name:t('login.cta'),exact:true}).click();await page.locator('.auth-error:not([hidden])').waitFor();assert.equal(await page.locator('#toast>div').count(),0);await page.getByLabel(t('login.password'),{exact:true}).fill('fixture-password');assert.equal(await page.locator('.auth-error:not([hidden])').count(),0);await screenshot('login-1280');await page.getByRole('button',{name:t('login.cta'),exact:true}).click();await page.getByRole('heading',{name:'Hi, Reyner',exact:true}).waitFor();await page.locator('.hp-primary-grid').waitFor();assert.equal(await page.locator('.hp-primary-grid > .hp-card').count(),2);assert.equal(await page.locator('.hp-kpi').count(),4);assert.equal(await page.locator('.hp-schedule .hp-accounts').count(),1);assert.ok((await page.locator('.hp-date').innerText()).length>10);await screenshot('home-1280');await page.setViewportSize({width:375,height:812});await noOverflow('Home375');await screenshot('home-375');await page.setViewportSize({width:1280,height:1000});assert.ok(!(await page.locator('main').innerText()).includes('Connect your first account'));
-  await visit('/generator/drafts');await page.locator('.rd-session-row').first().waitFor();assert.equal(await page.locator('.rd-session-row').count(),4);assert.ok(!(await page.locator('main').innerText()).includes('# BRAND'));await screenshot('drafts-1280');await noOverflow('drafts');
+  await visit('/generator/drafts');await page.locator('.rd-session-row').first().waitFor();assert.equal(await page.locator('.rd-session-row').count(),4);
+  // Mass deletion from the Drafts index. The session detail view had per-run
+  // checkboxes; this list, where sessions are actually managed, had none. The
+  // confirm is cancelled here so the suite's fixtures survive: the deletion
+  // itself is covered against the service in test/generator.js and
+  // test/visual-production.js.
+  {
+   const native=[];const onDialog=d=>{native.push(d.message());d.dismiss();};page.on('dialog',onDialog);
+   const before=all("SELECT id FROM generator_runs WHERE status='deleted'").length;
+   const boxes=page.locator('.df-session-select input[type=checkbox]');
+   assert.equal(await boxes.count(),4,'every session on the index offers a checkbox');
+   assert.equal(await page.locator('.df-session-bulk .btn.danger').count(),0,'no bulk action until something is selected');
+   await boxes.nth(0).check();
+   assert.match(await page.locator('.df-session-selectall').innerText(),/1 of 4 selected/);
+   await page.getByRole('checkbox',{name:'Select all displayed sessions'}).check();
+   assert.match(await page.locator('.df-session-selectall').innerText(),/4 of 4 selected/,'select all takes every displayed session');
+   await page.getByRole('button',{name:'Delete drafts',exact:true}).first().click();
+   const confirm=page.locator('dialog[open]');await confirm.waitFor();
+   const text=await confirm.innerText();
+   assert.match(text,/from 4 session/,'the dialog states how many sessions are affected');
+   assert.match(text,/Approved posts, plans and story memory are kept/,'the dialog says what survives');
+   assert.deepEqual(native,[],'the confirm is an application dialog, never a native one');
+   await confirm.getByRole('button',{name:'Cancel',exact:true}).click();
+   await confirm.waitFor({state:'hidden'});
+   assert.equal(all("SELECT id FROM generator_runs WHERE status='deleted'").length,before,'cancelling deletes nothing');
+   await page.getByRole('button',{name:'Clear',exact:true}).click();
+   assert.equal(await page.locator('.df-session-bulk .btn.danger').count(),0,'clearing the selection retires the bulk action');
+   page.off('dialog',onDialog);
+  }
+    assert.ok(!(await page.locator('main').innerText()).includes('# BRAND'));await screenshot('drafts-1280');await noOverflow('drafts');
   await page.locator('.ui-company').click();await page.getByRole('button',{name:/LRM Corporation/}).click();await page.locator('dialog').waitFor({state:'detached'});await page.locator('.ui-account-row button[data-account-control="chip-a1"]').focus();await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>document.activeElement?.dataset.accountControl),'chip-a1');await page.keyboard.press('ArrowRight');assert.ok((await page.evaluate(()=>document.activeElement?.dataset.accountControl))?.startsWith('chip-'));await visit('/calendar');assert.ok((await page.locator('.ui-company').textContent()).includes('LRM Corporation'));
   await visit('/generator/drafts/'+plan.id);await page.getByRole('button',{name:'Create 2 concepts',exact:true}).click();await page.locator('dialog[open]').waitFor();assert.ok((await page.getByRole('dialog').innerText()).toLowerCase().includes('images'));await page.keyboard.press('Escape');assert.equal(paidRequests,0,'cancelled cost performs no generation');
   await page.locator('.rd-run-select input').first().check();await page.locator('.rd-run-select input').nth(1).check();await page.locator('.ui-bulkbar').getByRole('button',{name:'Delete',exact:true}).click();await page.locator('dialog[open]').waitFor();assert.equal(await page.evaluate(()=>document.activeElement.textContent),t('dialog.cancel'));await page.keyboard.press('Escape');assert.equal(all('SELECT id FROM generator_runs WHERE plan_id=? AND status!=?',plan.id,'deleted').length,2);await page.locator('.ui-bulkbar').getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Delete drafts',exact:true}).click();await page.getByText('Session drafts deleted',{exact:true}).waitFor();assert.equal(all("SELECT id FROM generator_runs WHERE plan_id=? AND status='deleted'",plan.id).length,2);
