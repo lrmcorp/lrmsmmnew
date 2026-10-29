@@ -312,6 +312,13 @@ for(const [column,definition] of [['story_job_id','TEXT'],['story_episode','INTE
  if(!db.prepare('PRAGMA table_info(generator_runs)').all().some(c=>c.name===column))db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
 }
 
+// The caption/on-image language a session chose, resolved once at creation.
+// Empty on runs created before this column existed; those fall back to the
+// account's Brand Kit default exactly as they did then.
+for(const [column,definition] of [['caption_language',"TEXT NOT NULL DEFAULT ''"]]){
+ if(!db.prepare('PRAGMA table_info(generator_runs)').all().some(c=>c.name===column))db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
+}
+
 for(const [column,definition] of [['schedule_reason',"TEXT NOT NULL DEFAULT ''"],['content_type',"TEXT NOT NULL DEFAULT 'image'"]]){
  if(!db.prepare('PRAGMA table_info(generator_runs)').all().some(c=>c.name===column))db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
 }

@@ -949,6 +949,7 @@ export async function generatorWorkspace(ctx, workspace) {
               account_id: a.id,
               memory_session_id: state.brandProfiles[a.id]?.memory_session_id,
               direction: (brief.value + '\n' + rules).trim(),
+              caption_language: languageFor(a),
               content_count: n,
               slide_count: Number(slides.value),
               start_date: start.value,
@@ -976,6 +977,7 @@ export async function generatorWorkspace(ctx, workspace) {
               request_id: batch.id + '-' + i,
               account_ids: [a.id],
               brief: (brief.value + '\n' + rules).slice(0, 10000),
+              caption_language: languageFor(a),
               content_count: n,
               slide_count: Number(slides.value),
               start_date: start.value,
@@ -1174,7 +1176,7 @@ export async function generatorWorkspace(ctx, workspace) {
     const ids=selected().map(a=>a.id);if(!ids.length){toast('Choose accounts first so ideas reflect their Brand Kits and history.',true);return;}
     if(!await ui.confirmDialog({title:'Create prompt '+x+'?',tone:'cost',body:'Conceptor will use your personal API key to read Brand Kits, story memory and previous sessions, then prepare a detailed prompt. No images or published posts are created yet.',confirmLabel:'Create prompt'}))return;
     const before=brief.value;quickIdeas.inert=true;quickIdeas.setAttribute('aria-busy','true');const progress=h('span',{class:'small muted',role:'status'},'Conceptor is preparing a prompt…');quickIdeas.append(progress);
-    try{const result=await api('POST','/v1/generator/quick-idea',{account_ids:ids,kind,direction:before,agents,memory_sessions:Object.fromEntries(ids.map(id=>[id,state.brandProfiles[id]?.memory_session_id])),confirm_cost:true});
+    try{const result=await api('POST','/v1/generator/quick-idea',{account_ids:ids,kind,direction:before,agents,caption_language:languageFor(selected()[0]||{id:ids[0]}),memory_sessions:Object.fromEntries(ids.map(id=>[id,state.brandProfiles[id]?.memory_session_id])),confirm_cost:true});
       if(stopped)return;
       if(brief.value!==before||JSON.stringify(selected().map(a=>a.id))!==JSON.stringify(ids)){const text=h('textarea',{rows:12,'aria-label':'Prompt Conceptor'},result.prompt);const d=modal('Prompt '+x,h('div',{},h('p',{},'Direction or account selection changed during generation. Review the prompt before using it.'),text),[B('Use prompt',()=>{brief.value=text.value;d.close();update();})]);}
       else{brief.value=result.prompt;brief.focus();update();toast('A detailed Conceptor prompt is ready. You can edit it.');}

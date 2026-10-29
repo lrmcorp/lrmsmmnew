@@ -391,15 +391,82 @@ test('personal credentials, provider contracts, durable pipeline and final hando
     });
     await t.test('the brand name is banned from drawn lettering for whatever account owns the run', async () => {
       const {brandWords,buildImagePrompt}=await import('../src/services/image-prompt.js');
-      assert.deepEqual(brandWords([{account:{username:'manisky.id',name:'Manisky Nails'}}]),['manisky.id','manisky','Manisky Nails']);
+      // Longest first, so a handle is stripped before the bare name inside it.
+      assert.deepEqual(brandWords([{account:{username:'manisky.id',name:'Manisky Nails'}}]),['Manisky Nails','manisky.id','manisky']);
       assert.ok(!brandWords([{account:{username:'manisky.id',name:'Manisky Nails'}}]).includes('Nails'),'a category noun a brand may legitimately write is not banned');
       assert.deepEqual(brandWords([{account:'@moonjasmine.id'}]),['moonjasmine.id','moonjasmine'],'the rule is derived per account, not hard-coded to one brand');
+      assert.match(buildImagePrompt({instructions:'x',accounts:[{account:{username:'manisky.id'}}],slidePrompt:'a slide',slideIndex:0,slideCount:1,title:'t',brief:'b'}),/outranks the verbatim rule/,'the ban wins when quoted text still carries the brand');
       const prompt=buildImagePrompt({instructions:'x',accounts:[{account:{username:'hannabeauty.kr',name:'Hanna Beauty'}}],slidePrompt:'a slide',slideIndex:0,slideCount:1,title:'t',brief:'b'});
       assert.match(prompt,/BRAND NAME IS NOT ARTWORK/);
       assert.match(prompt,/"hannabeauty"/,'the actual words are named rather than described in the abstract');
       assert.match(prompt,/genuinely printed on the physical product/,'packaging lettering stays allowed');
       assert.match(prompt,/ON-IMAGE TEXT IS VERBATIM/,'quoted text must not be translated');
       assert.equal(buildImagePrompt({instructions:'x',accounts:[],slidePrompt:'a slide',slideIndex:0,slideCount:1,title:'t',brief:'b'}).includes('BRAND NAME IS NOT ARTWORK'),false,'no account, no invented ban');
+    });
+    await t.test('one language reaches every stage, and the Brand Kit cannot contradict it', async () => {
+      const {saveBuffer}=await import('../src/services/media.js');
+      const ref=await saveBuffer(user.id,image,{inLibrary:false});
+      providerCalls=[];
+      const notes='Match the warm palette.\n[LRM BRAND IDENTITY]\nWrite captions and on-image text in Bahasa Indonesia.\n[/LRM BRAND IDENTITY]\nCaption language: id';
+      const result=await execute(make({slide_count:1,produce_media:true,caption_language:'en',reference_media_ids:[ref.id],reference_roles:{[ref.id]:'visual'},reference_notes:notes}));
+      assert.equal(result.status,'review');
+      const systems=providerCalls.map(c=>c.body?.system||c.body?.messages?.[0]?.content||c.body?.systemInstruction?.parts?.[0]?.text||'').filter(Boolean);
+      assert.ok(systems.length>=3,'concept, revision and visual all ran');
+      for(const system of systems){
+        assert.match(system,/OUTPUT LANGUAGE: .*English/,'every text stage is told the resolved language');
+        assert.ok(!/Write captions and on-image text in Bahasa Indonesia/.test(system),'the Brand Kit sentence no longer competes with it');
+        assert.ok(!/Caption language:/.test(system),'nor does the trailing marker');
+      }
+      assert.ok(systems.some(x=>x.includes('Final visual concept only')&&x.includes('THE BRAND NAME IS NOT A HEADLINE')),'the Conceptor is told not to write the brand into the quoted headline');
+      assert.ok(!systems.some(x=>/Write caption in the brief's language/.test(x)),"the contract no longer defers to the brief's own language");
+      const prompt=providerCalls.findLast(c=>c.form)?.form.get('prompt')||providerCalls.findLast(c=>String(c.url).includes('/images/'))?.body?.prompt||'';
+      assert.match(prompt,/OUTPUT LANGUAGE: .*English/,'the image model is told it too');
+      assert.match(prompt,/Match the warm palette/,'the rest of the brand direction still travels');
+    });
+    await t.test('the brand name is removed from the headline the Conceptor quoted', async () => {
+      const {stripBrandFromQuotes,brandWords}=await import('../src/services/image-prompt.js');
+      const words=brandWords([{account:{username:'manisky.id',name:'Manisky Nails'}}]);
+      // The real failure: a quoted headline is rendered character for character,
+      // so a brand name inside it is drawn beside the composited mark.
+      assert.equal(stripBrandFromQuotes('Headline reading "Manicure Cantik Tanpa Kerumitan dengan MANISKY" top left.',words),
+        'Headline reading "Manicure Cantik Tanpa Kerumitan" top left.','the brand and the connector that introduced it both go');
+      assert.equal(stripBrandFromQuotes('Headline "Manisky" centred.',words),'Headline centred.','a quote that was only the brand leaves nothing behind');
+      assert.equal(stripBrandFromQuotes('The box is printed with the Manisky wordmark.',words),
+        'The box is printed with the Manisky wordmark.','lettering described on the packaging is not quoted and is left alone');
+      assert.equal(stripBrandFromQuotes('Headline "Press on, go out" and a calm wall.',words),
+        'Headline "Press on, go out" and a calm wall.','a headline without the brand is untouched');
+      assert.equal(stripBrandFromQuotes('Headline "Anything at all".',[]),'Headline "Anything at all".','no account, nothing stripped');
+    });
+    await t.test('the session language outranks the Brand Kit and the brief it was written in', async () => {
+      const {resolveOutputLanguage,stripLanguageDirectives,outputLanguageClause}=await import('../src/services/output-language.js');
+      const notes='Keep it warm.\n[LRM BRAND IDENTITY]\nWrite captions and on-image text in Bahasa Indonesia.\nThe Final Reviewer must flag captions in the wrong language (Bahasa Indonesia).\n[/LRM BRAND IDENTITY]\nCaption language: id';
+      assert.equal(resolveOutputLanguage({requested:'en',notes}),'en','the session choice wins over the account default');
+      assert.equal(resolveOutputLanguage({notes}),'id','without a session choice the Brand Kit decides');
+      assert.equal(resolveOutputLanguage({requested:'nonsense',notes}),'id','an unknown value falls back rather than being passed on');
+      assert.equal(resolveOutputLanguage({}),'id');
+      const stripped=stripLanguageDirectives(notes);
+      assert.ok(!/Bahasa Indonesia/.test(stripped),'no competing language sentence survives into the prompt');
+      assert.ok(!/Caption language:/.test(stripped),'nor the trailing marker');
+      assert.match(stripped,/Keep it warm\./,'the rest of the brand rules are kept');
+      assert.match(outputLanguageClause('en'),/English/);
+      assert.match(outputLanguageClause('en'),/overrides any other language statement/,'it is stated as outranking, not as one more opinion');
+      assert.match(outputLanguageClause(''),/Bahasa Indonesia/,'an empty language still names one');
+    });
+    await t.test('a plan records the language its session chose', async () => {
+      const body={account_ids:['ig-generator'],brief:'Campaign brief written in Indonesian',content_count:1,slide_count:1,start_date:'2026-11-02',end_date:'2026-11-02',times:['09:00'],manual:true,reference_notes:'Caption language: id'};
+      const created=await http('POST','/plans',{...body,request_id:'lang-'+Date.now(),caption_language:'en'});
+      assert.equal(created.status,201,JSON.stringify(created.json));
+      const runs=all('SELECT caption_language FROM generator_runs WHERE plan_id=?',created.json.id);
+      assert.ok(runs.length,'the plan created runs');
+      for(const r of runs)assert.equal(r.caption_language,'en','the session choice is stored, not the Brand Kit default');
+      run("UPDATE generator_runs SET status='cancelled' WHERE plan_id=?",created.json.id);
+      const inherited=await http('POST','/plans',{...body,request_id:'lang-default-'+Date.now()});
+      assert.equal(inherited.status,201,JSON.stringify(inherited.json));
+      for(const r of all('SELECT caption_language FROM generator_runs WHERE plan_id=?',inherited.json.id))assert.equal(r.caption_language,'id','with no session choice the Brand Kit default is recorded');
+      run("UPDATE generator_runs SET status='cancelled' WHERE plan_id=?",inherited.json.id);
+      const rejected=await http('POST','/plans',{...body,request_id:'lang-bad-'+Date.now(),caption_language:'klingon'});
+      assert.equal(rejected.status,400);
+      assert.match(JSON.stringify(rejected.json),/id, en or mixed/);
     });
     await t.test('a retired image model never reaches the provider, from settings, a save or an older draft', async () => {
       const {PROVIDERS,currentModel}=await import('../src/llm/providers.js');
