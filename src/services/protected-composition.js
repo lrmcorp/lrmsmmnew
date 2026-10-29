@@ -5,14 +5,20 @@ import sharp from 'sharp';
 // Each placement is a box in canvas fractions. hero-center exists because some
 // brands build the whole composition around a large centred wordmark; a logo
 // confined to a corner band cannot express that layout at all.
+// A corner mark is a signature, not a banner: 13% of the width and 4.5% of the
+// height, which is roughly a third of the area it used to take. Every corner
+// box sits on the same 6% margin as the artwork, and the three bottom boxes end
+// exactly on it, so the mark lines up with the frame instead of floating near
+// it. hero-center is the one deliberate exception and stays large, though it no
+// longer fills a third of the canvas.
 const LOGO_BOXES={
- 'top-left':{left:.06,top:.06,width:.20,height:.07},
- 'top-center':{left:.40,top:.06,width:.20,height:.07},
- 'top-right':{left:.74,top:.06,width:.20,height:.07},
- 'bottom-left':{left:.06,top:.87,width:.20,height:.07},
- 'bottom-center':{left:.40,top:.87,width:.20,height:.07},
- 'bottom-right':{left:.74,top:.87,width:.20,height:.07},
- 'hero-center':{left:.33,top:.38,width:.34,height:.13},
+ 'top-left':{left:.06,top:.06,width:.13,height:.045},
+ 'top-center':{left:.435,top:.06,width:.13,height:.045},
+ 'top-right':{left:.81,top:.06,width:.13,height:.045},
+ 'bottom-left':{left:.06,top:.895,width:.13,height:.045},
+ 'bottom-center':{left:.435,top:.895,width:.13,height:.045},
+ 'bottom-right':{left:.81,top:.895,width:.13,height:.045},
+ 'hero-center':{left:.38,top:.40,width:.24,height:.09},
 };
 const LOGO_AREAS={'top-left':'upper-left','top-center':'upper-centre','top-right':'upper-right','bottom-left':'lower-left','bottom-center':'lower-centre','bottom-right':'lower-right','hero-center':'centre of the frame, as the hero element'};
 export const LOGO_PLACEMENTS=Object.keys(LOGO_BOXES);
@@ -50,7 +56,7 @@ export function protectedLayout(assets,hasVisualReference=false,logoPlacement='t
  const logo=assets.some(a=>a.role==='logo'),exact=assets.some(a=>a.role==='product');
  const logoArea=LOGO_AREAS[logoPlacement]||LOGO_AREAS['top-right'];
  return [hasVisualReference?'REFERENCE PRIORITY: Build the slide from the attached visual references. Match their observable palette, background treatment, subject scale and placement, typography hierarchy, spacing and lighting. Preserve that design language across the campaign while adapting content to this slide; avoid a generic product-ad layout.':'',
-  logo?`The server will place the original logo in the ${logoArea} of the finished image, within a ${pct(boxOf(logoPlacement).width)}% wide area roughly ${pct(boxOf(logoPlacement).top)}–${pct(boxOf(logoPlacement).top+boxOf(logoPlacement).height)}% from the top.${logoPlacement==='hero-center'?' This slide is built around the mark: it is the largest element and the focal point, so hold the centre of the frame completely empty for it and let the scene, light and any subject arrange themselves around that space. Any eyebrow line sits above it and any supporting line below it, both much smaller than the mark.':''} Treat this location and any headline as one editorial header, with aligned spacing, a shared palette and a calm background that gives the supplied logo colors clear contrast. That area must contain no lettering, headline, face, hand or product detail whatsoever: start the headline below it or place it on the opposite side, because the logo is stamped over whatever you draw there. Compose the headline and scene around it.
+  logo?`The server will place the original logo in the ${logoArea} of the finished image, within a ${pct(boxOf(logoPlacement).width)}% wide area roughly ${pct(boxOf(logoPlacement).top)}–${pct(boxOf(logoPlacement).top+boxOf(logoPlacement).height)}% from the top.${logoPlacement==='hero-center'?' This slide is built around the mark: it is the largest element and the focal point, so hold the centre of the frame completely empty for it and let the scene, light and any subject arrange themselves around that space. Any eyebrow line sits above it and any supporting line below it, both much smaller than the mark.':''} The mark is a small signature at that size, not a banner: leave it that clear area and no more, and do not open an oversized empty band or a dedicated header strip for it. Treat this location and any headline as one editorial header, with aligned spacing, a shared palette and a calm background that gives the supplied logo colors clear contrast. That area must contain no lettering, headline, face, hand or product detail whatsoever: start the headline below it or place it on the opposite side, because the logo is stamped over whatever you draw there. Compose the headline and scene around it.
 NO SECOND BRAND MARK: the server stamps the one official logo after generation, so any brand lettering you draw becomes a duplicate in the finished slide. Do not draw the brand name, a wordmark or a logo lockup anywhere as a design element: not in a corner, header, badge, watermark, caption or sign-off. The brand name may appear only where it is genuinely printed on the physical product or its packaging within the scene. The attached style references were made by this same brand and therefore show its wordmark: that is the part the server supplies, so treat the position it occupies as reserved empty space and reproduce only its placement, scale and spacing, never its lettering.`:'',
   exact?'Products explicitly set to EXACT CUTOUT receive an original-source overlay; reserve a clean lower area for those products.':'',
   'Products in PRODUCT MOCKUP mode must be rendered naturally in the approved scene, never as a pasted photo or catalog rectangle. Preserve recognizable product details and flag any uncertainty for review.'].filter(Boolean).join(' ');

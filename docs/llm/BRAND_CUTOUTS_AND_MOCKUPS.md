@@ -31,6 +31,11 @@ because the full source bounds were scaled. This was principally a system issue.
   reduces duplicate or imitated wordmarks. The planner and reviewer still see the
   original logo. Existing runs
   without this metadata retain the prior upper-right fallback.
+- A corner mark is a signature: 13% of the canvas width by 4.5% of its height,
+  on the same 6% margin as the artwork, with the bottom placements ending exactly
+  on that margin. `hero-center` is the one deliberate exception at 24% by 9%. The
+  prompt also says the mark is small and that no oversized band or header strip
+  should be opened for it.
 - The reserved header is now verified before the logo is stamped. The prompt asks
   the image model to keep that area clear, but it frequently puts the headline
   there anyway and the server used to composite the original straight over the

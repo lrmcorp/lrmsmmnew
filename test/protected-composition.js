@@ -12,8 +12,12 @@ test('final composition uses real source pixels, preserves complete aspect bound
   fs.writeFileSync(path.join(dir,'logo.png'),logo);fs.writeFileSync(path.join(dir,'product.png'),product);
   const result=await composeProtectedAssets(background,[{role:'logo',media_id:'logo',path:path.join(dir,'logo.png')},{role:'product',media_id:'product',path:path.join(dir,'product.png')}]);
   assert.equal(result.placements.length,2);const logoBox=result.placements.find(p=>p.role==='logo'),productBox=result.placements.find(p=>p.role==='product');assert.equal(logoBox.width/logoBox.height,2);assert.equal(productBox.width/productBox.height,.5);
-  assert.ok(logoBox.left>=1024*.64&&logoBox.left+logoBox.width<=1024*.94,'logo is a small upper-right signature, clear of a left-aligned headline');
-  assert.ok(logoBox.top>=1024*.06&&logoBox.top+logoBox.height<=1024*.16,'logo remains inside the reserved quiet area');
+  assert.ok(logoBox.left>=1024*.64&&logoBox.left+logoBox.width<=Math.ceil(1024*.94),'logo is a small upper-right signature, clear of a left-aligned headline');
+  // Pixel positions are integers, so compare against the floored boundary.
+  assert.ok(logoBox.top>=Math.floor(1024*.06)&&logoBox.top+logoBox.height<=1024*.16,'logo remains inside the reserved quiet area');
+  assert.ok(logoBox.width<=1024*.14&&logoBox.height<=1024*.05,'a corner mark is a signature, not a banner');
+  const bottom=(await composeProtectedAssets(background,[{role:'logo',media_id:'logo',path:path.join(dir,'logo.png')}],{logoPlacement:'bottom-right'})).placements[0];
+  assert.ok(Math.abs(bottom.top+bottom.height-1024*.94)<=2,'a bottom mark ends on the same 6% margin the artwork uses');
   const headlineSpace=await sharp(result.buffer).extract({left:80,top:80,width:1,height:1}).raw().toBuffer();assert.ok(headlineSpace[0]>200&&headlineSpace[1]<30,'upper-left artwork stays unobstructed');
   assert.match(protectedLayout([{role:'logo'}]),/NO SECOND BRAND MARK/,'the one-logo rule is stated wherever a logo will be composited');
   assert.match(protectedLayout([{role:'logo'}]),/genuinely printed on the physical product/,'packaging that really carries the brand is not banned');
@@ -43,9 +47,11 @@ test('hero-center makes the composited original the focal element, not a corner 
   const corner=(await composeProtectedAssets(background,asset,{logoPlacement:'top-right'})).placements[0];
   const hero=(await composeProtectedAssets(background,asset,{logoPlacement:'hero-center'})).placements[0];
   assert.ok(hero.width>corner.width*1.4,'the hero mark is substantially larger than a corner mark');
+  assert.ok(corner.width<=1024*.14,'and a corner mark stays small');
   assert.ok(Math.abs(hero.left+hero.width/2-512)<=2,'the hero mark is centred horizontally');
   assert.ok(hero.top>1024*.3&&hero.top+hero.height<1024*.6,'the hero mark sits in the middle band, not against an edge');
-  assert.equal(hero.width/hero.height,corner.width/corner.height,'scaling up never changes the proportions of the mark');
+  // Both are integer pixel sizes, so the 3:1 source holds to within one pixel.
+  for(const box of [hero,corner])assert.ok(Math.abs(box.width-box.height*3)<=1,'scaling never changes the proportions of the mark');
   const {protectedLayout}=await import('../src/services/protected-composition.js');
   assert.match(protectedLayout([{role:'logo'}],true,'hero-center'),/hold the centre of the frame completely empty/,'the model is told the centre is reserved');
   assert.doesNotMatch(protectedLayout([{role:'logo'}],true,'top-right'),/hold the centre of the frame completely empty/,'a corner mark does not reserve the centre');
