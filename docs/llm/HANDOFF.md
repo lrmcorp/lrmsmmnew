@@ -257,6 +257,26 @@ packaging in the scene is left alone. The image prompt now says the ban outranks
 the verbatim rule. The Final Reviewer flags lettering in the wrong language and
 any brand name drawn as lettering.
 
+## Logo sized as a signature: 2026-10-29
+
+Corner placements were 20% of the width by 7% of the height, which still read as
+a banner at the top of the slide. They are now **13% by 4.5%**, roughly a third
+of the previous area, and `hero-center` drops from 34% by 13% to 24% by 9%.
+
+Placement was tidied at the same time. Every corner box sits on the same 6%
+margin the artwork uses, and the three bottom boxes now end exactly on it
+(`top: .895` + `height: .045` = `.94`), so the mark lines up with the frame
+rather than floating near it. `protectedLayout` tells the model the mark is a
+small signature and not to open an oversized empty band or a header strip for
+it, since the reserved area shrinking is useless if the composition still leaves
+a banner-sized gap.
+
+Two assertions in `test/protected-composition.js` had to be corrected rather
+than loosened: they compared integer pixel positions against float boundaries
+and compared two rounded aspect ratios for exact equality, both of which only
+held by luck at the old sizes. They now compare against the floored boundary and
+assert each rendered box matches its source ratio to within one pixel.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -331,7 +351,8 @@ Lessons for the next occurrence:
 | #28 (`4c1c8fd`) | `hero-center` placement, reference reading, image-prompt budget | `HALLMARK_GENERATOR.md` |
 | #29 (`e11075c`) | Smaller logo boxes, brand-name ban, product detail held, on-image language | `HALLMARK_GENERATOR.md` |
 | #30 (`d8042cf`) | Per-content shot types and emptiest-area logo seating | this page |
-| #32 | One output language per run; brand name out of the quoted headline | this page |
+| #32 (`f2b0a31`) | One output language per run; brand name out of the quoted headline | this page |
+| #33 | Logo sized as a small signature and aligned to the artwork margin | this page |
 
 ## Current user-facing behavior
 
