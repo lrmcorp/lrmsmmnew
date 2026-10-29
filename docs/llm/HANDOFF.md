@@ -208,6 +208,55 @@ relocated and never a fallback to drift into.
 Still a measurement of *quietness*, not of contrast. A flat area the logo's own
 colours disappear into reads as ideal. Contrast remains a human review point.
 
+## One output language per run: 2026-10-29
+
+A session set to English produced an Indonesian headline and caption, and the
+headline ended "dengan MANISKY" beside the composited mark.
+
+The language was stated in three places that could disagree. The workspace
+prepends the session choice to every agent's instructions. The account's Brand
+Kit compiles "Write captions and on-image text in Bahasa Indonesia." into
+`brand_notes`, which travel into the prompt twice: as `reference_notes` inside
+`referenceDirection`, and as `brand_rules` inside the account specialization. The
+JSON contract added "Write caption in the brief's language", and the brief is
+whatever the user typed. Both competing statements sit *later* in the system
+prompt than the session choice, so the session choice lost — the same
+self-contradiction that caused the duplicate wordmark.
+
+`output-language.js` resolves it once: session choice, else the Brand Kit default
+parsed from the notes, else `id`. `generator_runs.caption_language` stores the
+answer at creation (empty on older rows, which fall back to the Brand Kit exactly
+as before). `stripLanguageDirectives` removes every language sentence and the
+`Caption language:` marker from the notes before they are embedded, the contract
+line is gone, and `outputLanguageClause` states the answer last and says in words
+that it outranks the brand rules, the account profile and the brief's own
+language. It is appended to the planner, concept, revision, visual, image and
+Final Reviewer prompts, and to the Storyteller and Manager. `quickIdea` no longer
+hard-codes Bahasa Indonesia: the brief it writes becomes the campaign brief, so
+that one line was enough to carry Indonesian through the whole pipeline.
+
+The language is derived state, so it stays out of the idempotency hash on both
+paths, like `base_revision`.
+
+## The brand name in the quoted headline: 2026-10-29
+
+Release #29 banned the brand name from drawn lettering, and it still appeared.
+The ban was only in the image prompt, while the headline is authored one stage
+earlier. The Visual Conceptor wrote "… dengan MANISKY" into the slide prompt as
+quoted on-image text, and the prompt also says quoted text is rendered verbatim,
+character for character. Two rules, flat contradiction, and verbatim won.
+
+Fixed at all three points. The Visual Conceptor is now given the account's own
+banned words and told the headline must read complete without them.
+`stripBrandFromQuotes` then removes those words from inside the quoted spans of
+every slide prompt, together with a connector that only existed to introduce
+them, so "Manicure Cantik Tanpa Kerumitan dengan MANISKY" becomes "Manicure
+Cantik Tanpa Kerumitan"; a quote that was nothing but the brand is dropped
+entirely. Only quoted spans are touched, so the brand described as printed on
+packaging in the scene is left alone. The image prompt now says the ban outranks
+the verbatim rule. The Final Reviewer flags lettering in the wrong language and
+any brand name drawn as lettering.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -282,6 +331,7 @@ Lessons for the next occurrence:
 | #28 (`4c1c8fd`) | `hero-center` placement, reference reading, image-prompt budget | `HALLMARK_GENERATOR.md` |
 | #29 (`e11075c`) | Smaller logo boxes, brand-name ban, product detail held, on-image language | `HALLMARK_GENERATOR.md` |
 | #30 (`d8042cf`) | Per-content shot types and emptiest-area logo seating | this page |
+| #32 | One output language per run; brand name out of the quoted headline | this page |
 
 ## Current user-facing behavior
 

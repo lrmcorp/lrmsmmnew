@@ -140,6 +140,31 @@ mini's far lower rate, for one call per content item. No measured quality
 improvement is claimed here — this removes a known bottleneck, and the art
 direction panel on each draft is how to judge whether it helped.
 
+## One output language (2026-10-29)
+
+The caption/on-image language is resolved once per run by `output-language.js`
+(session choice, else the Brand Kit default, else `id`) and stored in
+`generator_runs.caption_language`. Every competing language sentence is stripped
+out of the notes embedded in prompts, and `outputLanguageClause` states the
+answer last, saying explicitly that it outranks the brand rules, the account
+profile and the language the brief itself is written in. It reaches the planner,
+concept, revision, visual, image and Final Reviewer stages, and the Storyteller
+and Manager. Before this, a session set to English still produced Indonesian
+whenever the account's Brand Kit said Indonesian, because the Brand Kit sentence
+sat later in the prompt than the session choice.
+
+## The brand name is not a headline (2026-10-29)
+
+The ban on drawing the brand name lived only in the image prompt, one stage after
+the headline is written. A Visual Conceptor that wrote the brand into the quoted
+on-image text put it in direct conflict with the verbatim-rendering rule, and
+verbatim won. The Conceptor is now given the account's banned words and told the
+headline must read complete without them; `stripBrandFromQuotes` removes them
+from the quoted spans of every slide prompt, along with a connector left dangling
+in front of them, and drops a quote that was nothing but the brand; and the image
+prompt states that the ban outranks the verbatim rule. Text describing lettering
+printed on packaging in the scene is not quoted and is untouched.
+
 ## On-image text discipline (2026-10-28)
 
 Reviewed slides carried a headline, a supporting paragraph and a row of captioned
