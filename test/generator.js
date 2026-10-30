@@ -373,6 +373,21 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.equal(gen.shotTypeFor({plan_id:null,targets:'[]'}),null,'a single content outside a campaign is not forced into a rotation');
       for(const r of runs)run("UPDATE generator_runs SET status='cancelled' WHERE id=?",r.id);
     });
+    await t.test('a brief at the stated limit is accepted and an oversized one says so', async () => {
+      const d=new Date(Date.now()+13*864e5+7*3600000).toISOString().slice(0,10);
+      // The workspace used to append its rules to the user's own text, so a
+      // brief typed to the field's own maxlength went over the server limit and
+      // failed the whole session under a message about request_id.
+      const full='x'.repeat(10000);
+      const ok=await http('POST','/plans',{request_id:'limit-ok-'+Date.now(),account_ids:['ig-generator'],brief:full,content_count:1,slide_count:1,start_date:d,end_date:d,times:['06:40'],manual:true});
+      assert.equal(ok.status,201,JSON.stringify(ok.json));
+      run("UPDATE generator_runs SET status='cancelled' WHERE plan_id=?",ok.json.id);
+      const over=await http('POST','/plans',{request_id:'limit-over-'+Date.now(),account_ids:['ig-generator'],brief:full+'y',content_count:1,slide_count:1,start_date:d,end_date:d,times:['06:40'],manual:true});
+      assert.equal(over.status,400);
+      assert.match(JSON.stringify(over.json),/10001 characters; the limit is 10,000/,'the message names the real fault, not request_id');
+      const noId=await http('POST','/plans',{account_ids:['ig-generator'],brief:'b',content_count:1,slide_count:1,start_date:d,end_date:d,times:['06:40'],manual:true});
+      assert.match(JSON.stringify(noId.json),/Invalid request_id/,'and a missing request_id still says that');
+    });
     await t.test('a campaign is not twelve product photographs', async () => {
       const d=new Date(Date.now()+9*864e5+7*3600000).toISOString().slice(0,10);
       const plan=await gen.createPlan(user,{request_id:'format-mix',brief:'Twelve posts, one brand',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:d,end_date:d,times:['06:05','07:05','08:05','09:05','10:05','11:05','13:05','14:05','15:05','16:05','17:05','18:05'],manual:true});

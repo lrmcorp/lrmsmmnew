@@ -438,7 +438,9 @@ function languageOf(body,notes){
 }
 export async function createPlan(user, body) {
   const recommendation = timingRecommendation(user,body.account_ids);
-  if (typeof body.brief !== 'string' || !body.brief.trim() || body.brief.length > 10000 || typeof body.request_id !== 'string' || !body.request_id || body.request_id.length > 100) throw err(400, 'validation_failed', "Brief and request_id are required.");
+  if (typeof body.request_id !== 'string' || !body.request_id || body.request_id.length > 100) throw err(400, 'validation_failed', "Invalid request_id.");
+  if (typeof body.brief !== 'string' || !body.brief.trim()) throw err(400, 'validation_failed', "A campaign brief is required.");
+  if (body.brief.length > 10000) throw err(400, 'validation_failed', `The campaign brief is ${body.brief.length} characters; the limit is 10,000. Shorten it and try again.`);
   if (!Number.isInteger(body.slide_count ?? 1) || (body.slide_count ?? 1) < 1 || (body.slide_count ?? 1) > 10) throw err(400, 'validation_failed', "Select 1–10 slides per post.");
   if (new Set(body.account_ids).size !== body.account_ids.length) throw err(400, 'validation_failed', "Destination accounts must be unique.");
   const agents = cleanAgents(body.agents || settings(user).agents);
