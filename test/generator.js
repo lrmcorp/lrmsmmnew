@@ -574,6 +574,14 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.equal(rejected.status,400);
       assert.match(JSON.stringify(rejected.json),/id, en or mixed/);
     });
+    await t.test('the story roles default to a model that can actually tell a story', async () => {
+      const s=gen.settings(user);
+      // gpt-4.1-mini returned a content type the session could not produce and
+      // wrote thin episodes; the storyteller carries the session's whole arc.
+      assert.equal(s.agents.storyteller.provider,'anthropic');
+      assert.equal(s.agents.storyteller.model,'claude-sonnet-5-5');
+      assert.equal(s.agents.visual.model,'claude-opus-5','the visual conceptor keeps the model chosen for it');
+    });
     await t.test('a retired image model never reaches the provider, from settings, a save or an older draft', async () => {
       const {PROVIDERS,currentModel}=await import('../src/llm/providers.js');
       assert.equal(PROVIDERS.openai.imageModel,'gpt-image-2.5-sunburst');

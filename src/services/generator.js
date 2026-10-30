@@ -28,7 +28,7 @@ export const ROLES = ['concept', 'revision', 'image', 'final', 'storyteller', 'm
 const VISION_ROLES = new Set(['visual', 'final']);
 export const DEFAULT_AGENTS = {
   visual:{provider:'anthropic',model:'claude-opus-5',instructions:'You are the Final Visual Conceptor. Finalize each slide using uploaded references, original logos/products and actual available Instagram feed visuals. Specify composition, colors, typography, lighting and continuity. Never change logo or product details or copy unsupported reference claims.'},
-  storyteller:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are a world-class Instagram storyteller. Continue the brand story from its saved foundation, choose real catalog products and evolve episodes without restarting the story.'},
+  storyteller:{provider:'anthropic',model:'claude-sonnet-5-5',instructions:'You are a world-class Instagram storyteller. Continue the brand story from its saved foundation, choose real catalog products and evolve episodes without restarting the story.'},
   manager:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Social Media Manager. Check story continuity, brand consistency, claims, variety, product selection and each episode objective. Correct proposals before production.'},
   scheduler:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Scheduler. Consider Manager findings, choose available times for each episode based on story and content type, and explain the reason. Never claim access to performance data that was not supplied.'},
   concept: { provider: 'openai', model: 'gpt-4.1-mini', instructions: 'Create clear, account-specific social concepts grounded in the Brand Kit. Never invent facts or product claims.' },
