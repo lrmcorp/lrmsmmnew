@@ -210,7 +210,9 @@
 .df-caption-counter{font-size:10px}
 .df-caption-editor>.df-between{margin-bottom:7px}
 .df-caption-editor>.df-between>.df-field-label{margin:0}
-.df-caption-editor>textarea{width:100%;min-height:95px;font-size:12px;line-height:1.7}
+/* A caption is several short paragraphs with blank lines between them, so the
+   editor needs room to show them and to add one without scrolling. */
+.df-caption-editor>textarea{width:100%;min-height:260px;resize:vertical;font-size:12px;line-height:1.7}
 .df-prompt-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .df-prompt-card{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;min-width:0}
 .df-prompt-card>b{font-size:10px;color:#667085;text-transform:uppercase;letter-spacing:.03em}
