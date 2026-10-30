@@ -140,6 +140,23 @@ mini's far lower rate, for one call per content item. No measured quality
 improvement is claimed here — this removes a known bottleneck, and the art
 direction panel on each draft is how to judge whether it helped.
 
+## Product rotation and non-product content (2026-10-30)
+
+The workspace attaches the first Brand Kit product to a whole campaign, so every
+content showed the same one. `createPlan` now rotates: `catalogProducts` reads
+the account's product assets in Brand Kit order and `rotateProductReference`
+gives content *n* the *n*-th product, keeping the session's logo and visual
+references and the four-reference cap. Twelve contents against twelve products
+use twelve different ones; fewer products cycle evenly; fewer than two change
+nothing.
+
+`SHOT_TYPES` entries carry a `product` flag, and one of the six is a typographic
+card: one short line in the account's own voice, no product, packaging or hands
+in the frame. For those contents the product references are filtered out before
+the concept stage reads them, so no stage can return to a packshot with a line
+over it. One content in six is type-led, set by the list length and that entry's
+position.
+
 ## One output language (2026-10-29)
 
 The caption/on-image language is resolved once per run by `output-language.js`

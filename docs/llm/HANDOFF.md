@@ -277,6 +277,30 @@ and compared two rounded aspect ratios for exact equality, both of which only
 held by luck at the old sizes. They now compare against the floored boundary and
 assert each rendered box matches its source ratio to within one pixel.
 
+## One product per content, and not every content a product: 2026-10-30
+
+Twelve posts in a campaign showed the same product twelve times. The cause was
+in the workspace, not the agents: it picks the **first** product asset in the
+Brand Kit and attaches it to the whole plan, and `createPlan` then wrote one
+reference set across every run.
+
+`catalogProducts` reads the account's own `account_brand_assets` of category
+`product`, ordered by the Brand Kit's own order, and `rotateProductReference`
+swaps this content's product into the client's reference set while keeping its
+logo and visual picks and respecting the four-reference contract. Twelve
+contents against twelve products use twelve different ones; against four they
+cycle evenly. Each rotated set is validated like any other before it reaches a
+run, and with fewer than two products nothing changes.
+
+Separately, a feed of nothing but product photographs reads like a catalogue.
+`SHOT_TYPES` entries now carry a `product` flag and one of the six is a
+typographic card: one short line in the account's voice, no product, no
+packaging, no hands. `product:false` also filters the product references out of
+that run **before** the concept stage reads them, so no stage can drift back to
+a packshot with words over it, `mockupDirection` is empty and
+`steps.image.product_mockup` is false. One content in six is type-led; the ratio
+is the length of the list and the position of that entry in it.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -352,7 +376,8 @@ Lessons for the next occurrence:
 | #29 (`e11075c`) | Smaller logo boxes, brand-name ban, product detail held, on-image language | `HALLMARK_GENERATOR.md` |
 | #30 (`d8042cf`) | Per-content shot types and emptiest-area logo seating | this page |
 | #32 (`f2b0a31`) | One output language per run; brand name out of the quoted headline | this page |
-| #33 | Logo sized as a small signature and aligned to the artwork margin | this page |
+| #33 (`338266d`) | Logo sized as a small signature and aligned to the artwork margin | this page |
+| #34 | Product rotation across a campaign and a typographic non-product format | this page |
 
 ## Current user-facing behavior
 
