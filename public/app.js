@@ -79,15 +79,27 @@ const icon = k => {
   const p = HERO[ICO[k] || k];
   return p ? svg(`<svg class="hi" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">${p}</svg>`) : h('span');
 };
+// The lockup is served at its own 2000x569 and sized by height alone, so the
+// browser scales it on its native proportions and never stretches it. The light
+// variant is the same artwork in white, for the dark panel on the sign-in page.
 const logo = (tag = 'a', attrs = {}) => h(tag, {
   class: 'logo',
   href: tag === 'a' ? '#/' : null,
   ...attrs
-}, h('span', {
-  class: 'word'
-}, 'LRM', h('span', {}, 'smm')), h('span', {
-  class: 'tag'
-}, 'SMM'));
+}, h('img', {
+  class: 'logo-dark',
+  src: '/brand/lrm-logo.png',
+  alt: 'Liando Reyfort Management',
+  width: 2000,
+  height: 569
+}), h('img', {
+  class: 'logo-light',
+  src: '/brand/lrm-logo-light.png',
+  alt: '',
+  'aria-hidden': 'true',
+  width: 2000,
+  height: 569
+}));
 const pref = {
   get: (k, d) => {
     try {
