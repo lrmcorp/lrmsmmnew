@@ -191,3 +191,19 @@ preservation is added server-side, so appending them again only pushed a
 full-length brief past the 10,000-character limit. Validation messages for the
 brief, the session direction and `request_id` are now separate, and an oversized
 one states the actual length.
+
+## Posting density (2026-10-30)
+
+`perDayFor(count, days)` and `fillPostingTimes(times, perDay)` in
+`public/schedule-times.js` derive the posting times a session needs from the
+ones the user chose. The chosen times are always kept and never moved; extra
+ones land in the widest gaps between them, inside 06:00-21:00 WIB, at least
+thirty minutes apart. Twelve posts over three days produces four a day without
+the user adding anything, and a session started after the day's last chosen time
+keeps its first day instead of being refused.
+
+`slotsFor` begins at the arithmetic need and adds one time a day at a time until
+the posts fit, so times already past and slots held by other drafts are absorbed
+too. A `schedule_capacity` error now means the range cannot hold the count even
+at full density. The workspace imports the same module for its readiness gate,
+so what it allows and what the scheduler produces cannot drift apart.

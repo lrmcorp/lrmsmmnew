@@ -2,6 +2,7 @@ import {memorySessionPicker,rememberedMemory} from './story-memory.js';
 import {brandReadiness} from './brand-readiness.js';
 import {workflowCanvas} from './workflow-canvas.js';
 import { autosave, fmtSlot, readSessionGroups } from './ui.js';
+import { fillPostingTimes, perDayFor } from './schedule-times.js';
 const replace = (el, ...nodes) => el.replaceChildren(...nodes.flat(Infinity).filter(x => x != null && x !== false));
 export async function generatorWorkspace(ctx, workspace) {
   const {
@@ -319,14 +320,19 @@ export async function generatorWorkspace(ctx, workspace) {
     const inclusiveDays = Math.floor((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1;
     const validTimes = ts.length && ts.length <= 12 && ts.every(value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value));
     let capacity = 0;
+    // The server spreads extra times across each day to fit the count and the
+    // range the user chose, so the gate has to measure what it will actually
+    // get. Measuring only the chosen times refused twelve posts over six days
+    // whenever the session started after the day's last chosen time.
+    const effectiveTimes = validTimes ? fillPostingTimes(ts, perDayFor(Number.isInteger(n) ? n : 0, inclusiveDays)) : ts;
     if (validTimes && Number.isFinite(inclusiveDays) && inclusiveDays > 0 && inclusiveDays <= 91) {
       for (let day = Date.parse(start.value + 'T00:00:00+07:00'); day <= Date.parse(end.value + 'T00:00:00+07:00'); day += 864e5) {
         const date = new Date(day + 7 * 3600000).toISOString().slice(0, 10);
-        capacity += [...new Set(ts)].filter(time => Date.parse(`${date}T${time}:00+07:00`) > Date.now() + 5 * 60000).length;
+        capacity += [...new Set(effectiveTimes)].filter(time => Date.parse(`${date}T${time}:00+07:00`) > Date.now() + 5 * 60000).length;
       }
     }
     if (validTimes && inclusiveDays > 0 && inclusiveDays <= 91 && Number.isInteger(n) && n > capacity) items.push({
-      text: `Schedule capacity is ${capacity} future posts per account, but ${n} are requested. Use Start now, add posting times, extend the dates or reduce the count.`,
+      text: `${n} posts do not fit ${inclusiveDays} ${inclusiveDays === 1 ? 'day' : 'days'} for one account, even with up to ${effectiveTimes.length} posting times a day. Extend the dates or reduce the count.`,
       fix: () => schedulePopover('times')
     });
     return items;
@@ -456,7 +462,12 @@ export async function generatorWorkspace(ctx, workspace) {
           'aria-pressed': String(date >= start.value && date <= end.value)
         });
       })));
-      rhythm.textContent = `${count.value} posts across ${Math.max(1, Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1)} days per account. WIB slots: ${times.value}. Content is distributed evenly in order.`;
+      const spanDays = Math.max(1, Math.round((Date.parse(end.value) - Date.parse(start.value)) / 864e5) + 1);
+      const chosen = [...new Set(times.value.split(',').map(x => x.trim()).filter(Boolean))];
+      const perDay = perDayFor(Number(count.value) || 0, spanDays);
+      const spread = fillPostingTimes(chosen, perDay);
+      const added = spread.length > chosen.length ? ` ${perDay} a day are needed, so these times are used: ${spread.join(', ')}.` : '';
+      rhythm.textContent = `${count.value} posts across ${spanDays} days per account. WIB slots: ${times.value}.${added} Content is distributed evenly in order.`;
     }
     function presetRange(days, nextMonday = false) {
       let date = new Date(Date.now() + 7 * 3600000);

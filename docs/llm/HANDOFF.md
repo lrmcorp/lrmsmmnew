@@ -334,6 +334,35 @@ states the actual length and the limit.
 
 =======
 >>>>>>> origin/claude/elegant-edison-a2xv8m
+## The count and the date range decide, not the posting times: 2026-10-30
+
+Twelve posts over six days with two chosen times was refused, and twelve posts
+over three days was impossible. Capacity was `days x chosen times`, minus any
+time already past today and any slot held by an existing draft, so a session
+started in the afternoon lost its first day and the workspace told the user to
+extend the range. The count and the range are what the user actually decided.
+
+`public/schedule-times.js` holds `perDayFor(count, days)` and
+`fillPostingTimes(times, perDay)`. The times the user chose are always kept;
+extra ones are placed in the widest gaps between them, within 06:00-21:00 WIB
+and at least thirty minutes apart, rounded to five minutes so they read like a
+person set them. Twelve posts over three days becomes four a day on its own:
+`11:19, 15:00` becomes `08:40, 11:19, 15:00, 18:00`. `slotsFor` starts at the
+arithmetic need and adds one more time a day until the posts fit or a day cannot
+hold another, which also absorbs times already past and slots reserved by other
+drafts. `createPlan` returns the effective `posting_times`.
+
+The module is shared verbatim by the workspace and the scheduler, because the
+gate that decides whether a session may start and the code that places the posts
+must agree. It is dependency-free and holds no DOM or database access.
+
+**Behaviour change, deliberate.** A plan whose chosen times have all passed today
+no longer fails: a later time is added that same day. A capacity error now means
+the range genuinely cannot hold the count, and its message says so rather than
+suggesting more times. Two tests asserted the old refusals and were updated, not
+loosened: `test/generator.js` same-day planning and
+`test/account-specialist-session.js` six episodes in two days.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -412,7 +441,8 @@ Lessons for the next occurrence:
 | #33 (`338266d`) | Logo sized as a small signature and aligned to the artwork margin | this page |
 <<<<<<< HEAD
 | #34 (`8413a6c`) | Product rotation across a campaign and a typographic non-product format | this page |
-| #35 | Per-session story content types and the 10,000-character session direction | this page |
+| #35 (`0c50c16`) | Per-session story content types and the 10,000-character session direction | this page |
+| #36 | Posting times spread automatically to fit the count and the date range | this page |
 =======
 | #34 | Product rotation across a campaign and a typographic non-product format | this page |
 >>>>>>> origin/claude/elegant-edison-a2xv8m
