@@ -174,3 +174,20 @@ is what the interface uses and what produced the shared creative.
 
 Cost moves with the fan-out: a campaign now runs the full agent pipeline once per
 account instead of once in total.
+
+## Session content types and the direction limit (2026-10-30)
+
+`storyContentTypes({slideCount,hasVideo})` decides what a Storyline session may
+produce, and the same list builds the agent JSON schema and the sentence naming
+it in the prompt. A one-image session is offered `image` only; `carousel` needs
+two or more slides and `reel` needs a video in the account catalogue. Before
+this the schema always offered all three and a session could fail outright on a
+type it could never have produced.
+
+The workspace no longer appends its language, emoji and asset rules to the
+user's brief or session direction. Those rules reach every agent through its
+instructions, the language also travels as `caption_language`, and asset
+preservation is added server-side, so appending them again only pushed a
+full-length brief past the 10,000-character limit. Validation messages for the
+brief, the session direction and `request_id` are now separate, and an oversized
+one states the actual length.

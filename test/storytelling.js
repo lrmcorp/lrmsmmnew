@@ -46,6 +46,17 @@ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listeni
 async function cookie(u){return (await real(base+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:u.email,password:'fixture-password'})})).headers.get('set-cookie').split(';')[0];}
 const sid=await cookie(user),otherSid=await cookie(other);
 async function http(method,url,data,credential=sid){return real(base+'/v1/generator'+url,{method,headers:{cookie:credential,'content-type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});}
+test('a session is only offered the content types it can actually produce',async()=>{
+ const {storyContentTypes}=await import('../src/services/storytelling.js');
+ // The failure this prevents: a one-image session returned a carousel, repair
+ // failed, and the whole session died on a choice it was never able to use.
+ assert.deepEqual(storyContentTypes({slideCount:1,hasVideo:false}),['image'],'no carousel without slides and no reel without a video');
+ assert.deepEqual(storyContentTypes({slideCount:1,hasVideo:true}),['image','reel']);
+ assert.deepEqual(storyContentTypes({slideCount:3,hasVideo:false}),['image','carousel']);
+ assert.deepEqual(storyContentTypes({slideCount:3,hasVideo:true}),['image','carousel','reel']);
+ assert.deepEqual(storyContentTypes(),['image','carousel','reel'],'the default stays permissive');
+});
+
 test('persistent brand kit, story continuity, manager and scheduler',async t=>{try{
  await t.test('account scoped assets survive GC and private keys stay private',async()=>{
   story.saveProfile(user,'story-account',{seed:'Start from zero: tell a truthful wellness story that evolves every episode.',brand_notes:'Use green and cream. Never invent benefits.'});

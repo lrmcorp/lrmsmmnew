@@ -301,6 +301,39 @@ a packshot with words over it, `mockupDirection` is empty and
 `steps.image.product_mockup` is false. One content in six is type-led; the ratio
 is the length of the list and the position of that entry in it.
 
+<<<<<<< HEAD
+## Two Storyline session failures: 2026-10-30
+
+**"Carousels require at least two slides. Automatic repair also failed."** The
+Storyteller returned `content_type: carousel` for a one-image session. The system
+prompt did ask for carousels only when `requested_slides` is at least two, but
+`sessionSchema` offered `['image','carousel','reel']` unconditionally, so a
+lightweight model could pick a type the session could not produce, and the whole
+session died on it. The schema is now built per session: `storyContentTypes`
+offers `carousel` only at two or more slides and `reel` only when the account has
+an uploaded video, and the prompt names the same list. The `validate` check stays
+as the backstop. This also removes the matching "Reels must use a video available
+in the account catalog" failure for accounts with no video.
+
+**"@manisky.id: Invalid request_id or session direction."** The workspace
+appended its own rules (language, emoji, asset preservation) to the user's text
+before sending: `direction: (brief.value + '\n' + rules).trim()`. The field's
+`maxlength` is 10,000 and so is the server's limit, so a brief typed to the end
+of the field always went over and failed the session. The campaign path sliced
+to 10,000 instead, silently cutting the rules off the end.
+
+Those rules were pure duplication: they are prepended to every agent's
+instructions, the language also travels as `caption_language`, and asset
+preservation is appended server-side at every stage. The client now sends the
+user's own text unchanged.
+
+Both validators were also splitting one message across unrelated faults. A
+full-length direction reported itself as an invalid `request_id`, which sent
+diagnosis the wrong way. Each fault now has its own message and an oversized one
+states the actual length and the limit.
+
+=======
+>>>>>>> origin/claude/elegant-edison-a2xv8m
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -377,7 +410,12 @@ Lessons for the next occurrence:
 | #30 (`d8042cf`) | Per-content shot types and emptiest-area logo seating | this page |
 | #32 (`f2b0a31`) | One output language per run; brand name out of the quoted headline | this page |
 | #33 (`338266d`) | Logo sized as a small signature and aligned to the artwork margin | this page |
+<<<<<<< HEAD
+| #34 (`8413a6c`) | Product rotation across a campaign and a typographic non-product format | this page |
+| #35 | Per-session story content types and the 10,000-character session direction | this page |
+=======
 | #34 | Product rotation across a campaign and a typographic non-product format | this page |
+>>>>>>> origin/claude/elegant-edison-a2xv8m
 
 ## Current user-facing behavior
 

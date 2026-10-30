@@ -937,6 +937,10 @@ export async function generatorWorkspace(ctx, workspace) {
           continue;
         }
         const p = state.brandProfiles[a.id] || {},
+          // The rules travel on every agent's instructions and in caption_language.
+          // Appending them to the user's own text as well pushed a full-length
+          // brief past the 10,000-character limit, which failed the whole
+          // session, and on the campaign path silently truncated the rules away.
           rules = instructionsFor(a),
           configured = Object.fromEntries(Object.entries(agents).map(([role, v]) => [role, {
             ...v,
@@ -948,7 +952,7 @@ export async function generatorWorkspace(ctx, workspace) {
               request_id: batch.id + '-' + i,
               account_id: a.id,
               memory_session_id: state.brandProfiles[a.id]?.memory_session_id,
-              direction: (brief.value + '\n' + rules).trim(),
+              direction: brief.value.trim(),
               caption_language: languageFor(a),
               content_count: n,
               slide_count: Number(slides.value),
@@ -976,7 +980,7 @@ export async function generatorWorkspace(ctx, workspace) {
             const result = await api('POST', '/v1/generator/plans', {
               request_id: batch.id + '-' + i,
               account_ids: [a.id],
-              brief: (brief.value + '\n' + rules).slice(0, 10000),
+              brief: brief.value.slice(0, 10000),
               caption_language: languageFor(a),
               content_count: n,
               slide_count: Number(slides.value),
