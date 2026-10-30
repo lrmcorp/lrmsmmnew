@@ -46,6 +46,13 @@ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listeni
 async function cookie(u){return (await real(base+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:u.email,password:'fixture-password'})})).headers.get('set-cookie').split(';')[0];}
 const sid=await cookie(user),otherSid=await cookie(other);
 async function http(method,url,data,credential=sid){return real(base+'/v1/generator'+url,{method,headers:{cookie:credential,'content-type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});}
+// The storyteller runs on Anthropic and the other roles on OpenAI, so a request
+// is identified by the schema it carries, whatever shape the provider uses.
+const schemaOf=body=>body.response_format?.json_schema?.schema||body.tools?.[0]?.input_schema||body.generationConfig?.responseJsonSchema;
+const isStoryCall=c=>{const s=schemaOf(c.body);return !!s?.properties?.bible&&!s.properties.approved;};
+const imageBlocks=body=>{const content=body.messages?.find(m=>m.role==='user')?.content;return Array.isArray(content)?content.filter(p=>p.type==='image_url'||p.type==='image').length:(body.contents?.[0]?.parts||[]).filter(p=>p.inlineData).length;};
+const userTextOf=body=>{const content=body.messages?.find(m=>m.role==='user')?.content;return Array.isArray(content)?content.find(p=>p.type==='text')?.text:body.contents?.[0]?.parts?.[0]?.text||content;};
+
 test('a session is only offered the content types it can actually produce',async()=>{
  const {storyContentTypes}=await import('../src/services/storytelling.js');
  // The failure this prevents: a one-image session returned a carousel, repair
@@ -76,8 +83,8 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
   const rows=gen.listRuns(user).filter(r=>r.story_job_id===done.id);assert.equal(rows.length,2);assert.ok(rows.every(r=>r.status==='planned'&&r.schedule_reason&&r.caption&&r.reference_media_ids.length===3));assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);
   const before=calls.length;assert.equal(gen.queueStory(user,request).id,queued.id);assert.equal(calls.length,before);
   const second=await execute(gen.queueStory(user,body({})));assert.equal(second.status,'completed',second.error);assert.equal(story.profile(user,'story-account').next_episode,5);
-  const storytellerCall=calls.slice(before).find(c=>c.body.response_format?.json_schema?.schema.properties.bible&&!c.body.response_format.json_schema.schema.properties.approved);
-  const context=JSON.parse(storytellerCall.body.messages[1].content[0].text);assert.ok(context.first_prompt.includes('Start from zero'));assert.equal(context.next_episode,3);assert.equal(context.recent_episodes.length,2);assert.ok(context.memory.includes('2'));assert.ok(storytellerCall.body.messages[1].content.some(p=>p.type==='image_url'));
+  const storytellerCall=calls.slice(before).find(isStoryCall);
+  const context=JSON.parse(userTextOf(storytellerCall.body));assert.ok(context.first_prompt.includes('Start from zero'));assert.equal(context.next_episode,3);assert.equal(context.recent_episodes.length,2);assert.ok(context.memory.includes('2'));assert.ok(imageBlocks(storytellerCall.body)>0,'the product catalogue sheets are attached to the storyteller');
   assert.ok(!JSON.stringify(story.profile(user,'story-account')).includes('fixture-story-private-key'));
  });
  await t.test('manager rejection, invalid products and invalid schedules never advance memory',async()=>{
@@ -93,11 +100,11 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
   const queued=gen.queueStory(user,body({content_count:6})),done=await execute(queued);
   assert.equal(done.status,'completed',done.error);
   assert.equal(gen.listRuns(user).filter(r=>r.story_job_id===queued.id).length,6);
-  const attempts=calls.slice(before).filter(c=>c.body.response_format?.json_schema?.schema?.properties?.bible&&!c.body.response_format.json_schema.schema.properties.approved);
+  const attempts=calls.slice(before).filter(isStoryCall);
   assert.equal(attempts.length,2);
-  assert.equal(attempts[0].body.response_format.json_schema.schema.properties.episodes.minItems,6);
-  assert.equal(attempts[0].body.response_format.json_schema.schema.properties.episodes.maxItems,6);
-  assert.match(attempts[1].body.messages[1].content[0].text,/returned 5 episodes; this session requires exactly 6/);
+  assert.equal(schemaOf(attempts[0].body).properties.episodes.minItems,6);
+  assert.equal(schemaOf(attempts[0].body).properties.episodes.maxItems,6);
+  assert.match(userTextOf(attempts[1].body),/returned 5 episodes; this session requires exactly 6/);
   assert.equal(done.steps.storyteller.repair_attempt,1);
  });
  await t.test('repeated malformed story stops without creating drafts or advancing memory',async()=>{
@@ -147,7 +154,7 @@ test('persistent brand kit, story continuity, manager and scheduler',async t=>{t
   assert.equal((await http('PATCH','/accounts/story-account/memory-sessions/'+second.memory_session_id,{title:'Season two'})).status,200);
   assert.throws(()=>story.profile(user,'outside-account',second.memory_session_id),e=>e.status===404);
   const request=body({memory_session_id:second.memory_session_id,content_count:1,start_date:date(40),end_date:date(43),times:['08:15']});const result=await execute(gen.queueStory(user,request));assert.equal(result.status,'completed',result.error);
-  const context=JSON.parse(calls.filter(c=>c.body.response_format?.json_schema?.schema?.properties?.bible&&!c.body.response_format.json_schema.schema.properties.approved).at(-1).body.messages[1].content[0].text);assert.equal(context.memory,'');assert.equal(context.recent_episodes.length,0);assert.equal(context.next_episode,1);
+  const context=JSON.parse(userTextOf(calls.filter(isStoryCall).at(-1).body));assert.equal(context.memory,'');assert.equal(context.recent_episodes.length,0);assert.equal(context.next_episode,1);
   const updated=story.profile(user,'story-account',second.memory_session_id);assert.equal(updated.next_episode,2);assert.equal(updated.episodes[0].episode_number,1);assert.equal(story.profile(user,'story-account',first).memory,original.memory);assert.equal(story.profile(user,'story-account',first).next_episode,original.next_episode);
   const memory=updated.episodes[0],contentId=memory.run_id;
   assert.throws(()=>story.deleteMemory(user,'story-account',first,memory.id),e=>e.status===404);

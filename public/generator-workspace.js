@@ -777,11 +777,18 @@ export async function generatorWorkspace(ctx, workspace) {
       const textProvider = keys.has('openai') ? 'openai' : keys.has('anthropic') ? 'anthropic' : keys.has('gemini') ? 'gemini' : null,
         imageProvider = keys.has('openai') ? 'openai' : keys.has('gemini') ? 'gemini' : null;
       if (!textProvider) {
-        toast('Add an API key for terlebih dahulu.', true);
+        toast('Add an API key for a provider first.', true);
         return;
       }
       for (const role of Object.keys(draft)) {
-        const p = role === 'image' ? imageProvider : textProvider;
+        // A preset chooses the model tier, not the provider. Collapsing every
+        // text role onto one provider is what put the Storyteller on a
+        // lightweight OpenAI model although its own default is Claude: a role
+        // keeps its provider whenever there is a key for it.
+        const own = draft[role].provider;
+        const p = role === 'image'
+          ? (keys.has(own) && config.providers[own]?.image ? own : imageProvider)
+          : (keys.has(own) ? own : textProvider);
         if (!p) continue;
         const list = models(p, role);
         let model = list[0];

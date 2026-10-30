@@ -360,6 +360,29 @@ suggesting more times. Two tests asserted the old refusals and were updated, not
 loosened: `test/generator.js` same-day planning and
 `test/account-specialist-session.js` six episodes in two days.
 
+## Storyteller on Claude Sonnet, and why a preset overrode it: 2026-10-30
+
+The Storyteller carries a whole session's arc and ran on `gpt-4.1-mini`, which
+is also the model that returned a content type the session could not produce.
+Its default is now `anthropic / claude-sonnet-5-5`, chosen by the account owner.
+
+A default alone would not have reached this account. `applyPreset` in the
+workspace set **every** text role to one provider, `keys.has('openai') ? 'openai'
+: ...`, so choosing Economy, Balanced or Quality moved the Storyteller back to
+OpenAI whatever its default said. A preset picks the model tier, not the
+provider: each role now keeps its own provider whenever there is a key for it,
+and only moves when there is none.
+
+A saved configuration still wins. Anyone who has saved AI settings keeps the
+stored Storyteller model until they change it in the interface or press a preset
+again, which is deliberate.
+
+`test/storytelling.js` identified requests by `response_format.json_schema`,
+which is the OpenAI shape, so every storyteller assertion broke the moment the
+role moved to Anthropic. The helpers now read the schema, the user text and the
+attached images from whichever shape the provider uses, which is what those
+tests were always about.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -438,7 +461,8 @@ Lessons for the next occurrence:
 | #33 (`338266d`) | Logo sized as a small signature and aligned to the artwork margin | this page |
 | #34 (`8413a6c`) | Product rotation across a campaign and a typographic non-product format | this page |
 | #35 (`0c50c16`) | Per-session story content types and the 10,000-character session direction | this page |
-| #36 | Posting times spread automatically to fit the count and the date range | this page |
+| #36 (`fa10d84`) | Posting times spread automatically to fit the count and the date range | this page |
+| #37 | Storyteller on claude-sonnet-5-5; presets no longer override a role's provider | this page |
 
 ## Current user-facing behavior
 
