@@ -301,6 +301,7 @@ a packshot with words over it, `mockupDirection` is empty and
 `steps.image.product_mockup` is false. One content in six is type-led; the ratio
 is the length of the list and the position of that entry in it.
 
+<<<<<<< HEAD
 ## Two Storyline session failures: 2026-10-30
 
 **"Carousels require at least two slides. Automatic repair also failed."** The
@@ -331,6 +332,8 @@ full-length direction reported itself as an invalid `request_id`, which sent
 diagnosis the wrong way. Each fault now has its own message and an oversized one
 states the actual length and the limit.
 
+=======
+>>>>>>> origin/claude/elegant-edison-a2xv8m
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -407,8 +410,12 @@ Lessons for the next occurrence:
 | #30 (`d8042cf`) | Per-content shot types and emptiest-area logo seating | this page |
 | #32 (`f2b0a31`) | One output language per run; brand name out of the quoted headline | this page |
 | #33 (`338266d`) | Logo sized as a small signature and aligned to the artwork margin | this page |
+<<<<<<< HEAD
 | #34 (`8413a6c`) | Product rotation across a campaign and a typographic non-product format | this page |
 | #35 | Per-session story content types and the 10,000-character session direction | this page |
+=======
+| #34 | Product rotation across a campaign and a typographic non-product format | this page |
+>>>>>>> origin/claude/elegant-edison-a2xv8m
 
 ## Current user-facing behavior
 
