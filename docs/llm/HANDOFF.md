@@ -462,6 +462,37 @@ The draft editor's caption box was four rows, which could not show a
 multi-paragraph caption or leave room to add one. It is now twelve rows, 260px
 minimum, and vertically resizable.
 
+## A failed save hid its reason and silently blocked Approve: 2026-10-30
+
+Reported together: editing a draft showed "Could not save. Something went wrong.
+Try again.", and pressing Approve on a 26-draft selection did nothing at all.
+
+They are one chain. `approve()` in `content-workspace.js` began with
+
+```js
+for(const saver of drawerSaves){await saver.flush();if(saver.error)return;}
+```
+
+so once any open drawer's autosave was in an error state, Approve returned
+without a word. It now names the problem and tells the user to fix or close that
+draft first.
+
+`autosave` discarded the server's message and printed `common.error`. `errMsg`
+already produces a good sentence from a validation failure, so the information
+existed and was thrown away at the last step. `errorReason` in `ui.js` now
+reports what the server said, falling back to the status and code. This is the
+third generic message this week that sent diagnosis the wrong way, after
+`Invalid request_id or session direction` and `Brief and request_id are
+required`.
+
+**The underlying save failure is not diagnosed.** `updateContent` was exercised
+against a plan-created run carrying rotated references, in `review` status with
+real media, over caption-only, caption-with-schedule, caption-with-media and
+repeat saves. Every one succeeded, and `getRun` returns `media_ids` as an array,
+so the client's `mids.join(...)` comparison is sound. `audit()` swallows its own
+errors and cannot fail a request. The next report will carry the server's actual
+message; do not guess before then.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -544,7 +575,8 @@ Lessons for the next occurrence:
 | #37 (`3976789`) | Storyteller on claude-sonnet-5-5; presets no longer override a role's provider | this page |
 | #38 (`b65982b`) | Text-only stages on Gemini Flash and a way back to the recommended team | this page |
 | #39 (`49f75ed`) | Liando Reyfort Management logo and favicon | this page |
-| #40 | Captions written as short paragraphs, and an editor with room for them | this page |
+| #40 (`e7e8f82`) | Captions written as short paragraphs, and an editor with room for them | this page |
+| #41 | Save failures report their reason; Approve no longer aborts silently | this page |
 
 ## Current user-facing behavior
 

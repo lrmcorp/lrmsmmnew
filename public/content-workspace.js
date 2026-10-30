@@ -113,7 +113,15 @@ async function revise(items,direction='') {items=items.filter(r=>['review','conc
 
 
 async function approve(items) {
-  for(const saver of drawerSaves){await saver.flush();if(saver.error)return;}
+  // A draft that could not be saved used to abort this silently, so pressing
+  // Approve appeared to do nothing at all. Say what happened and why.
+  for(const saver of drawerSaves){
+    await saver.flush();
+    if(saver.error){
+      replace(notice,h('div',{class:'rd-callout warn',role:'alert'},`Nothing was approved: an open draft could not be saved. ${errMsg(saver.error)} Fix or close that draft, then approve again.`));
+      return;
+    }
+  }
   items=items.map(r=>s.runs.find(x=>x.id===r.id)||r).filter(r=>r.status==='review');if(!items.length)return;
   const missing=items.filter(r=>!r.scheduled_at||Date.parse(r.scheduled_at)<Date.now()+60000);if(missing.length){replace(notice,h('div',{class:'rd-callout warn'},`${missing.length} posts do not have a future schedule. Edit their schedules first.`));return;}
   const from=new Date(Math.min(...items.map(r=>Date.parse(r.scheduled_at)))-60000).toISOString(),to=new Date(Math.max(...items.map(r=>Date.parse(r.scheduled_at)))+60000).toISOString(),response=await api('GET',`/v1/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),posts=response.data||response.posts||[],clashes=items.filter((r,i)=>posts.some(p=>Math.abs(Date.parse(p.scheduled_at)-Date.parse(r.scheduled_at))<60000&&p.targets?.some(t=>r.targets.some(x=>x.account_id===t.account_id)))||items.slice(0,i).some(p=>Math.abs(Date.parse(p.scheduled_at)-Date.parse(r.scheduled_at))<60000&&p.targets.some(t=>r.targets.some(x=>x.account_id===t.account_id))));
