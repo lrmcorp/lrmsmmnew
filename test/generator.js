@@ -121,7 +121,10 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       const r=make();const before=providerCalls.length;
       gen.runGeneratorTick();await gen.waitGenerator();
       const concept=gen.getRun(user,r.id);assert.equal(concept.status,'concept_review');assert.equal(concept.media.length,0);
-      const calls=providerCalls.slice(before);assert.equal(calls.length,2);assert.ok(calls[0].body.response_format?.json_schema?.strict);assert.equal(calls[1].body.tool_choice?.name,'submit_content_plan');
+      const calls=providerCalls.slice(before);assert.equal(calls.length,2);
+      // Concept and revision run on Gemini, so the contract travels as a
+      // response schema rather than an OpenAI json_schema or an Anthropic tool.
+      for(const call of calls)assert.ok(call.body.generationConfig?.responseJsonSchema?.properties?.slides,'each stage sends its structured-output contract');
       assert.throws(()=>gen.approveConcept(user,r.id,{confirm_cost:false}),/Confirm/);
       assert.throws(()=>gen.approveConcept(other,r.id,{confirm_cost:true}),/not found/);
       const edited={...concept.steps.revision.output,caption:'Human approved concept caption'};
@@ -346,7 +349,7 @@ test('personal credentials, provider contracts, durable pipeline and final hando
     await t.test('null structured concepts are validation errors with saved stage diagnostics',async()=>{
       for(const output of ['null','null-slide']){
         malformed=output;const result=await execute(make({slide_count:1}));malformed=false;
-        assert.equal(result.status,'failed');assert.equal(result.steps.failure.stage,'concept');assert.equal(result.steps.failure.code,'generator_format');assert.equal(result.steps.failure.model,'gpt-4.1-mini');assert.match(result.error,/Conceptor/);assert.equal(result.media.length,0);assert.ok(!JSON.stringify(result.steps.failure).includes(secret));gen.cancelRun(user,result.id);
+        assert.equal(result.status,'failed');assert.equal(result.steps.failure.stage,'concept');assert.equal(result.steps.failure.code,'generator_format');assert.equal(result.steps.failure.model,'gemini-2.5-flash');assert.match(result.error,/Conceptor/);assert.equal(result.media.length,0);assert.ok(!JSON.stringify(result.steps.failure).includes(secret));gen.cancelRun(user,result.id);
       }
     });
     await t.test('input_fidelity is sent only to the models that accept it', async () => {
@@ -574,6 +577,24 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.equal(rejected.status,400);
       assert.match(JSON.stringify(rejected.json),/id, en or mixed/);
     });
+    await t.test('text-only stages run on a cheap model and a saved team can return to the defaults', async () => {
+      const before=gen.settings(user).agents;
+      // Only the stages that look at images or carry a story arc pay for a
+      // capable model; the rest move text around and run on Gemini Flash.
+      for(const role of ['concept','revision','manager','scheduler']){
+        assert.equal(before[role].provider,'gemini',role+' is a text-only stage');
+        assert.equal(before[role].model,'gemini-2.5-flash');
+      }
+      assert.equal(before.visual.provider,'anthropic','reference inspection keeps its model');
+      assert.equal(before.final.provider,'anthropic','so does the reviewer that looks at the finished images');
+      assert.equal(before.image.provider,'openai');
+      const saved=gen.saveSettings(user,{agents:Object.fromEntries(Object.entries(before).map(([role,a])=>[role,{...a,provider:role==='image'?'openai':'openai',model:role==='image'?'gpt-image-2.5-sunburst':'gpt-4.1-mini'}]))});
+      assert.equal(saved.agents.concept.model,'gpt-4.1-mini','a deliberate choice is stored and wins over the default');
+      const reset=gen.resetSettings(user);
+      assert.equal(reset.agents.concept.provider,'gemini','and there is a way back to the recommended team');
+      assert.equal(reset.agents.storyteller.model,'claude-sonnet-5-5');
+      assert.equal(one('SELECT COUNT(*) n FROM generator_settings WHERE user_id=?',user.id).n,0,'the stored row is gone, not overwritten with a copy of the defaults');
+    });
     await t.test('the story roles default to a model that can actually tell a story', async () => {
       const s=gen.settings(user);
       // gpt-4.1-mini returned a content type the session could not produce and
@@ -592,7 +613,8 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.equal(currentModel('claude-sonnet-4-5'),'claude-sonnet-5-5','a Claude model with an announced retirement date is replaced ahead of it');
       assert.equal(currentModel('claude-haiku-4-5'),'claude-haiku-4-5','a model that is merely older but still Active is left alone');
       assert.equal(PROVIDERS.anthropic.textModel,'claude-sonnet-5-5');
-      assert.equal(gen.settings(user).agents.revision.model,'claude-sonnet-5-5','the Concept Reviewer default is a current model');
+      assert.equal(gen.settings(user).agents.revision.model,'gemini-2.5-flash','the Concept Reviewer is a text-only stage on the cheap model');
+      assert.equal(gen.settings(user).agents.final.model,'claude-sonnet-5-5','the reviewer that looks at the images is not');
       assert.equal(gen.settings(user).agents.image.model,'gpt-image-2.5-sunburst','the default no longer names the retired model');
 
       const saved=gen.saveSettings(user,{agents:{...gen.settings(user).agents,image:{provider:'openai',model:'gpt-image-1',instructions:'Create square designs.'}}});

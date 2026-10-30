@@ -26,6 +26,9 @@ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listeni
 const login=await real(base+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:user.email,password:'fixture-password'})}),cookie=login.headers.get('set-cookie').split(';')[0];
 const request=async(body,cred=cookie,machine=false)=>real(base+'/v1/generator/drafts/delete',{method:'POST',headers:{'content-type':'application/json',[machine?'authorization':'cookie']:machine?'Bearer '+cred:cred},body:JSON.stringify(body)});
 try{
+ // The Conceptor runs on Gemini, so read the user text from whichever shape the
+ // provider uses rather than assuming OpenAI's messages array.
+ const userTextOf=body=>{const content=body.messages?.find(m=>m.role==='user')?.content;return Array.isArray(content)?content.find(p=>p.type==='text')?.text:body.contents?.[0]?.parts?.[0]?.text||content;};
  await test('one click produces a full reviewed proposal using reference and connected Instagram visuals',async()=>{
   const asset=await media.saveBuffer(user.id,image,{inLibrary:false}),visualRef=await media.saveBuffer(user.id,await sharp({create:{width:800,height:800,channels:3,background:'#c71'}}).png().toBuffer(),{inLibrary:false});
   const stored=media.getMedia(asset.id);assert.deepEqual(fs.readFileSync(stored.source_path),image,'uploaded PNG is retained byte-for-byte for protected composition');assert.ok(!('source_path' in asset),'private original paths are not exposed');
@@ -62,7 +65,7 @@ try{
   run("INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,status,created_at,updated_at) VALUES('other-private',?,'other-private','fixture','PRIVATE_OTHER_SESSION',?,1,'{}','planned',?,?)",other.id,JSON.stringify([{account_id:'visual-brand'}]),new Date().toISOString(),new Date().toISOString());
   const before=calls.length,imageCount=calls.filter(c=>c.url.includes('/images/')).length;
   const result=await real(base+'/v1/generator/quick-idea',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify({account_ids:['visual-brand'],kind:'Edukasi produk',direction:'Next brand chapter',confirm_cost:true})});assert.equal(result.status,200);assert.ok((await result.json()).prompt.length>1000);
-  const call=calls.slice(before).find(c=>c.system.includes('account-aware Conceptor')),context=JSON.parse(call.body.messages[1].content[0].text);assert.ok(context.accounts[0].recent_proposals.length>0);assert.equal(context.kind,'Edukasi produk');assert.ok(!JSON.stringify(context).includes('PRIVATE_OTHER_SESSION'),'another member private sessions never reach Conceptor');assert.ok(!JSON.stringify(context).includes('fixture-private-key'));assert.equal(calls.filter(c=>c.url.includes('/images/')).length,imageCount);assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);
+  const call=calls.slice(before).find(c=>c.system.includes('account-aware Conceptor')),context=JSON.parse(userTextOf(call.body));assert.ok(context.accounts[0].recent_proposals.length>0);assert.equal(context.kind,'Edukasi produk');assert.ok(!JSON.stringify(context).includes('PRIVATE_OTHER_SESSION'),'another member private sessions never reach Conceptor');assert.ok(!JSON.stringify(context).includes('fixture-private-key'));assert.equal(calls.filter(c=>c.url.includes('/images/')).length,imageCount);assert.equal(one('SELECT COUNT(*) n FROM posts').n,0);
   await assert.rejects(()=>gen.quickIdea(other,{account_ids:['visual-brand'],kind:'Promo',confirm_cost:true}),e=>e.status===404);
   await assert.rejects(()=>gen.quickIdea(user,{account_ids:['visual-brand'],kind:'Promo',confirm_cost:false}),e=>e.code==='cost_confirmation_required');
  });

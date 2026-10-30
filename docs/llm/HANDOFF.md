@@ -383,6 +383,34 @@ role moved to Anthropic. The helpers now read the schema, the user text and the
 attached images from whichever shape the provider uses, which is what those
 tests were always about.
 
+## Text-only stages on Gemini Flash: 2026-10-30
+
+Chosen by the account owner to cut running cost without waiting on OpenAI's
+Sign in with ChatGPT approval. The split is by what a stage actually does:
+
+| Stage | Provider | Why |
+|---|---|---|
+| concept, revision, manager, scheduler | `gemini / gemini-2.5-flash` | moves text around; Flash is multimodal, so the references it receives still arrive |
+| storyteller | `anthropic / claude-sonnet-5-5` | carries a session's whole arc |
+| visual | `anthropic / claude-opus-5` | reads the uploaded references at full detail |
+| final | `anthropic / claude-sonnet-5-5` | looks at the finished images before a human does |
+| image | `openai / gpt-image-2.5-sunburst` | no alternative at this quality |
+
+Gemini also has a free tier, so these stages may cost nothing at this volume. A
+missing Gemini key is not a failure: `settings()` already falls back to whichever
+provider the account has a key for.
+
+**Stored settings still win, and that is why `resetSettings` exists.** An account
+that saved an agent team once could never pick up a better default. `DELETE
+/v1/generator/settings` removes the stored row so the defaults apply again, and
+the Agent team dialog offers it as "Use recommended team" behind a confirm. It is
+audited as `generator.settings.reset`.
+
+Tests that identified a stage by `response_format.json_schema` or read
+`messages[1].content[0].text` were asserting the OpenAI request shape, not the
+thing they were about. They now read the schema and the user text from whichever
+shape the provider uses. Expect more of these whenever a role's provider moves.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -462,7 +490,8 @@ Lessons for the next occurrence:
 | #34 (`8413a6c`) | Product rotation across a campaign and a typographic non-product format | this page |
 | #35 (`0c50c16`) | Per-session story content types and the 10,000-character session direction | this page |
 | #36 (`fa10d84`) | Posting times spread automatically to fit the count and the date range | this page |
-| #37 | Storyteller on claude-sonnet-5-5; presets no longer override a role's provider | this page |
+| #37 (`3976789`) | Storyteller on claude-sonnet-5-5; presets no longer override a role's provider | this page |
+| #38 | Text-only stages on Gemini Flash and a way back to the recommended team | this page |
 
 ## Current user-facing behavior
 
