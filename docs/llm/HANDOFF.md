@@ -438,6 +438,30 @@ Noted while checking the rendered pages and **not** fixed here, to keep this
 change to branding: the Home page's "Today's schedule" card links out with the
 label `Kalender`, which the English UI gate does not catch.
 
+## Captions came back as one block of prose: 2026-10-30
+
+A reviewed caption ran as a single unbroken paragraph. The display was not at
+fault: both the phone preview and `.cap` already set `white-space: pre-wrap`, so
+newlines would have rendered. The caption genuinely had none.
+
+Nothing asked for them. The JSON contract said only `Caption <=2200 characters`,
+and a model writing into a JSON string does not add real newlines unless told
+to. `caption-policy.js` holds `CAPTION_SHAPE`: a hook of one or two lines, which
+is all a reader sees before "more", then one to three short paragraphs separated
+by blank lines, a closing line of its own, and hashtags on a final line. It says
+explicitly to use real newline characters.
+
+It is applied at every stage that writes or keeps a caption, because a caption
+that gains its paragraphs at one stage and loses them at the next is no better
+than one that never had them: the concept and revision contract, the Storyteller,
+the Manager as a correction to make rather than approve, the visual stage which
+now carries the caption forward "including its blank lines", and the Final
+Reviewer as a check.
+
+The draft editor's caption box was four rows, which could not show a
+multi-paragraph caption or leave room to add one. It is now twelve rows, 260px
+minimum, and vertically resizable.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -519,7 +543,8 @@ Lessons for the next occurrence:
 | #36 (`fa10d84`) | Posting times spread automatically to fit the count and the date range | this page |
 | #37 (`3976789`) | Storyteller on claude-sonnet-5-5; presets no longer override a role's provider | this page |
 | #38 (`b65982b`) | Text-only stages on Gemini Flash and a way back to the recommended team | this page |
-| #39 | Liando Reyfort Management logo and favicon | this page |
+| #39 (`49f75ed`) | Liando Reyfort Management logo and favicon | this page |
+| #40 | Captions written as short paragraphs, and an editor with room for them | this page |
 
 ## Current user-facing behavior
 

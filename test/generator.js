@@ -434,6 +434,23 @@ test('personal credentials, provider contracts, durable pipeline and final hando
         run("UPDATE generator_runs SET status='cancelled' WHERE plan_id=?",dense.id);
       }finally{Date.now=originalNow;}
     });
+    await t.test('every stage that writes or keeps a caption is told its shape', async () => {
+      const {CAPTION_SHAPE}=await import('../src/services/caption-policy.js');
+      assert.match(CAPTION_SHAPE,/separated by one blank line/);
+      assert.match(CAPTION_SHAPE,/Use real newline characters/,'the contract is JSON, so the newlines have to be asked for explicitly');
+      const {saveBuffer}=await import('../src/services/media.js');
+      const ref=await saveBuffer(user.id,image,{inLibrary:false});
+      providerCalls=[];
+      const result=await execute(make({slide_count:1,produce_media:true,reference_media_ids:[ref.id],reference_roles:{[ref.id]:'visual'}}));
+      assert.equal(result.status,'review');
+      const systems=providerCalls.map(c=>c.body?.system||c.body?.messages?.[0]?.content||c.body?.systemInstruction?.parts?.[0]?.text||'').filter(Boolean);
+      // The caption is written at concept, reviewed at revision, carried by the
+      // visual stage and checked by the reviewer. A caption that gains its
+      // paragraphs at one stage and loses them at the next is no better.
+      assert.ok(systems.filter(x=>x.includes('CAPTION SHAPE')).length>=2,'the stages that write the caption are told the shape');
+      assert.ok(systems.some(x=>x.includes('including its blank lines between paragraphs')),'the visual stage is told to carry it unchanged');
+      assert.ok(systems.some(x=>x.includes('not one block of prose')),'the final reviewer checks it');
+    });
     await t.test('a campaign is not twelve product photographs', async () => {
       const d=new Date(Date.now()+9*864e5+7*3600000).toISOString().slice(0,10);
       const plan=await gen.createPlan(user,{request_id:'format-mix',brief:'Twelve posts, one brand',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:d,end_date:d,times:['06:05','07:05','08:05','09:05','10:05','11:05','13:05','14:05','15:05','16:05','17:05','18:05'],manual:true});
