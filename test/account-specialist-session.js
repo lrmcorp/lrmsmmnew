@@ -15,10 +15,14 @@ after(()=>{db.close();fs.rmSync(dir,{recursive:true,force:true});});
 test('agents receive only selected account foundation and permitted private history',()=>{
  const [context]=accountSpecialistContext(owner,[{account_id:'nails'}]);assert.equal(context.account.username,'nails');assert.match(context.foundation,/Gentle nail care/);assert.equal(context.previous_proposals.length,1);assert.match(context.previous_proposals[0].brief,/nail-care/);assert.ok(!JSON.stringify(context).includes('PRIVATE_COFFEE_DIRECTION'));assert.ok(!JSON.stringify(context).includes('PRIVATE_OTHER_USER'));assert.throws(()=>accountSpecialistContext(other,[{account_id:'nails'}]),e=>e.status===404);
 });
-test('six episodes in two days with two times returns actionable capacity before queueing; three times succeeds',()=>{
+test('six episodes in two days fit without the user adding times; an impossible day still says so',()=>{
  gen.saveKey(owner,'openai','fixture-key');const p=story.createMemorySession(owner,'nails',{title:'First six episodes'}),date=n=>new Date(Date.now()+n*864e5+7*3600000).toISOString().slice(0,10),body={account_id:'nails',memory_session_id:p.memory_session_id,request_id:'six-slots',content_count:6,slide_count:1,start_date:date(40),end_date:date(41),times:['12:15','19:15'],confirm_cost:true};
- assert.throws(()=>gen.queueStory(owner,body),e=>{assert.equal(e.code,'schedule_capacity');assert.equal(e.details.available_slots,4);assert.equal(e.details.required_slots,6);assert.match(e.message,/Add posting times/);return true;});assert.equal(one('SELECT COUNT(*) n FROM story_jobs').n,0);
- const j=gen.queueStory(owner,{...body,times:['09:15','12:15','19:15']});assert.equal(j.status,'queued');assert.equal(j.memory_session_id,p.memory_session_id);story.cancel(owner,j.id);
+ // Two chosen times over two days used to be refused with "add posting times".
+ // The count and the range are the user's decision, so a third time a day is
+ // derived instead and the two they chose are kept.
+ const j=gen.queueStory(owner,body);assert.equal(j.status,'queued');assert.equal(j.memory_session_id,p.memory_session_id);story.cancel(owner,j.id);
+ // A day cannot hold thirty posts half an hour apart, and that still says so.
+ assert.throws(()=>gen.queueStory(owner,{...body,request_id:'thirty-slots',content_count:30,start_date:date(44),end_date:date(44)}),e=>{assert.equal(e.code,'schedule_capacity');assert.equal(e.details.required_slots,30);assert.ok(e.details.available_slots<30);assert.match(e.message,/Extend the date range or reduce the count/);return true;});
 });
 
 test('actual Conceptor and Revision calls carry server-owned account specialization',async()=>{

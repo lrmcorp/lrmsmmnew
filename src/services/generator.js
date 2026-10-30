@@ -3,6 +3,9 @@ import {assetMetadata} from './brand-metadata.js';
 import {VISUAL_DESIGN_POLICY} from './visual-design-policy.js';
 import {buildImagePrompt,ART_DIRECTION_FIELDS,brandWords,stripBrandFromQuotes} from './image-prompt.js';
 import {resolveOutputLanguage,stripLanguageDirectives,outputLanguageClause,normalizeLanguage} from './output-language.js';
+// Shared verbatim with the workspace: the gate that decides whether a session
+// may start and the scheduler that places the posts have to agree.
+import {fillPostingTimes,perDayFor} from '../../public/schedule-times.js';
 import {accountSpecialistContext,ACCOUNT_SPECIALIST_POLICY} from './account-specialist.js';
 import {composeProtectedAssets,protectedLayout,LOGO_PLACEMENTS,isHex} from './protected-composition.js';
 import {ASSET_PRESERVATION} from './brand-asset-policy.js';
@@ -375,16 +378,35 @@ function slotsFor(body, user) {
   const targetSet=new Set(body.account_ids);
   const occupied=all("SELECT t.account_id,p.scheduled_at FROM post_targets t JOIN posts p ON p.id=t.post_id WHERE t.status IN ('pending','publishing') AND p.removed_at IS NULL AND p.scheduled_at IS NOT NULL").filter(r=>targetSet.has(r.account_id)).map(r=>Date.parse(r.scheduled_at));
   for(const r of all("SELECT targets,scheduled_at FROM generator_runs WHERE status IN ('planned','queued','running','concept_review','review','failed','drafted') AND scheduled_at IS NOT NULL")) if(parseJSON(r.targets,[]).some(t=>targetSet.has(t.account_id)))occupied.push(Date.parse(r.scheduled_at));
-  const candidates = [];
-  for (let day = start; day <= end; day += 864e5) {
-    const date = new Date(day + 7 * 3600000).toISOString().slice(0,10);
-    for (const time of [...new Set(times)].sort()) {
-      const at = new Date(`${date}T${time}:00+07:00`).toISOString();
-      if (Date.parse(at) > Date.now() + 5 * 60000 && !occupied.some(time=>Math.abs(time-Date.parse(at))<30*60000)) candidates.push(at);
+  const buildCandidates = active => {
+    const found = [];
+    for (let day = start; day <= end; day += 864e5) {
+      const date = new Date(day + 7 * 3600000).toISOString().slice(0,10);
+      for (const time of [...new Set(active)].sort()) {
+        const at = new Date(`${date}T${time}:00+07:00`).toISOString();
+        if (Date.parse(at) > Date.now() + 5 * 60000 && !occupied.some(taken=>Math.abs(taken-Date.parse(at))<30*60000)) found.push(at);
+      }
     }
+    return found;
+  };
+  // The count and the date range are the user's decision; the posting times give
+  // way. Twelve posts in three days becomes four a day on its own, and a session
+  // started after today's chosen times no longer loses the first day. The times
+  // the user picked are kept and extra ones fill the widest gaps between them.
+  const days = Math.round((end - start) / 864e5) + 1;
+  const chosen = [...new Set(times)].sort();
+  let perDay = Math.max(chosen.length, perDayFor(body.content_count, days));
+  let active = fillPostingTimes(chosen, perDay), candidates = buildCandidates(active);
+  // Past times today and slots held by existing drafts can still leave it short,
+  // so keep adding a time a day until it fits or the day cannot hold another.
+  while (candidates.length < body.content_count) {
+    const filled = fillPostingTimes(chosen, ++perDay);
+    if (filled.length <= active.length) break;
+    active = filled;
+    candidates = buildCandidates(active);
   }
-  if (candidates.length < body.content_count) throw err(400,'schedule_capacity',`Only ${candidates.length} posting slots are available for ${body.content_count} items. Add posting times or extend the date range; existing drafts and scheduled posts also reserve slots.`,{available_slots:candidates.length,required_slots:body.content_count,posting_times:[...new Set(times)],timezone:'Asia/Jakarta'});
-  return { recommendation, candidate_slots:Array.from({length:Math.min(120,candidates.length)},(_,i)=>candidates[Math.floor(i*candidates.length/Math.min(120,candidates.length))]), slots: Array.from({ length: body.content_count }, (_,i) => candidates[Math.floor(i * candidates.length / body.content_count)]) };
+  if (candidates.length < body.content_count) throw err(400,'schedule_capacity',`Only ${candidates.length} posting slots are available for ${body.content_count} items, even after spreading ${active.length} times across each day. Extend the date range or reduce the count; existing drafts and scheduled posts also reserve slots.`,{available_slots:candidates.length,required_slots:body.content_count,posting_times:active,timezone:'Asia/Jakarta'});
+  return { recommendation, posting_times:active, candidate_slots:Array.from({length:Math.min(120,candidates.length)},(_,i)=>candidates[Math.floor(i*candidates.length/Math.min(120,candidates.length))]), slots: Array.from({ length: body.content_count }, (_,i) => candidates[Math.floor(i * candidates.length / body.content_count)]) };
 }
 // A capacity failure names the account it belongs to, since slots are now
 // reserved per account rather than shared across the whole selection.
@@ -460,7 +482,7 @@ export async function createPlan(user, body) {
    try{perAccount.set(aid,slotsFor({...body,account_ids:[aid]},user).slots);}
    catch(e){if(e.code==='schedule_capacity')throw err(400,'schedule_capacity',`${accountLabel(user,aid)}: ${e.message}`);throw e;}
   }
-  const { slots }=slotsFor({...body,account_ids:[body.account_ids[0]]},user);
+  const { slots, posting_times }=slotsFor({...body,account_ids:[body.account_ids[0]]},user);
   const lock = user.id + ':' + body.request_id;
   if (planning.has(lock)) throw err(409, 'plan_running', "This plan is being prepared. Wait, then retry the same request.");
   planning.set(lock, true);
@@ -499,7 +521,7 @@ export async function createPlan(user, body) {
       });
     }
     if(body.produce_media===true)run("UPDATE generator_runs SET status='queued',concept_approved_at=? WHERE plan_id=?",now(),pid);
-    return { id: pid, content_count: body.content_count, recommendation, slots };
+    return { id: pid, content_count: body.content_count, recommendation, slots, posting_times };
   } finally { planning.delete(lock); }
 }
 export function listPlans(user) {

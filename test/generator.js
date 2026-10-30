@@ -174,7 +174,14 @@ test('personal credentials, provider contracts, durable pipeline and final hando
         assert.deepEqual(plan.slots, ['2027-01-12T03:06:00.000Z']);
         assert.equal(one('SELECT COUNT(*) n FROM posts').n, before);
         assert.equal(gen.listRuns(user).find(r => r.plan_id === plan.id).status, 'planned');
-        await assert.rejects(() => gen.createPlan(user, {request_id:'today-past', brief:'Past slots', account_ids:['ig-generator'], content_count:1, slide_count:1, start_date:'2027-01-12', end_date:'2027-01-12', times:['09:00','10:05'], confirm_cost:true}), /posting slots are available/);
+        // Chosen times that have already passed are still skipped, but the
+        // session is no longer refused for it: a later time is added that day.
+        const late=await gen.createPlan(user, {request_id:'today-past', brief:'Past slots', account_ids:['ig-generator'], content_count:1, slide_count:1, start_date:'2027-01-12', end_date:'2027-01-12', times:['09:00','10:05'], confirm_cost:true});
+        assert.equal(late.slots.length,1);
+        assert.ok(Date.parse(late.slots[0])>fixed,'the post lands in the future, never on the past time the user picked');
+        assert.ok(late.posting_times.length>2,'the times the user chose were kept and more were added around them');
+        for(const t of ['09:00','10:05'])assert.ok(late.posting_times.includes(t),'a chosen time is never dropped');
+        await assert.rejects(() => gen.createPlan(user, {request_id:'today-impossible', brief:'No room at all', account_ids:['ig-generator'], content_count:30, slide_count:1, start_date:'2027-01-12', end_date:'2027-01-12', times:['09:00'], confirm_cost:true}), /posting slots are available/);
       } finally { Date.now = originalNow; }
     });
     await t.test('12-content date range planning, manual upload/edit and approval enter calendar only after approval', async () => {
@@ -387,6 +394,42 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.match(JSON.stringify(over.json),/10001 characters; the limit is 10,000/,'the message names the real fault, not request_id');
       const noId=await http('POST','/plans',{account_ids:['ig-generator'],brief:'b',content_count:1,slide_count:1,start_date:d,end_date:d,times:['06:40'],manual:true});
       assert.match(JSON.stringify(noId.json),/Invalid request_id/,'and a missing request_id still says that');
+    });
+    await t.test('the count and the date range win; posting times are spread to fit', async () => {
+      const {fillPostingTimes,perDayFor}=await import('../public/schedule-times.js');
+      assert.equal(perDayFor(12,3),4,'twelve posts in three days is four a day');
+      assert.equal(perDayFor(12,6),2);
+      assert.deepEqual(fillPostingTimes(['11:19','15:00'],4),['08:40','11:19','15:00','18:00'],'the chosen times are kept and the widest gaps are filled');
+      assert.deepEqual(fillPostingTimes(['11:19','15:00'],2),['11:19','15:00'],'nothing is added when the chosen times already suffice');
+      assert.deepEqual(fillPostingTimes([],3),[],'no chosen time, nothing invented');
+      const spread=fillPostingTimes(['09:00'],8);
+      assert.equal(new Set(spread).size,spread.length,'generated times never collide');
+      for(let i=1;i<spread.length;i++){
+        const gap=(Number(spread[i].slice(0,2))*60+Number(spread[i].slice(3)))-(Number(spread[i-1].slice(0,2))*60+Number(spread[i-1].slice(3)));
+        assert.ok(gap>=30,'generated times stay at least half an hour apart');
+      }
+      const originalNow=Date.now, fixed=Date.parse('2027-02-10T16:00:00+07:00');
+      Date.now=()=>fixed;
+      try{
+        // The reported case: twelve posts over six days with two chosen times,
+        // started after both of today's times had passed.
+        const plan=await gen.createPlan(user,{request_id:'dense-'+fixed,brief:'Twelve posts, six days',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:'2027-02-10',end_date:'2027-02-15',times:['11:19','15:00'],manual:true});
+        assert.equal(plan.slots.length,12,'all twelve are scheduled inside the range the user chose');
+        assert.equal(new Set(plan.slots).size,12,'no two posts share a slot');
+        for(const at of plan.slots){
+          assert.ok(Date.parse(at)>fixed,'nothing is scheduled in the past');
+          assert.ok(at.slice(0,10)>='2027-02-09'&&at.slice(0,10)<='2027-02-15','and nothing outside the range');
+        }
+        run("UPDATE generator_runs SET status='cancelled' WHERE plan_id=?",plan.id);
+        // Twelve posts in three days: four a day, without the user adding times.
+        const dense=await gen.createPlan(user,{request_id:'dense3-'+fixed,brief:'Twelve posts, three days',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:'2027-03-01',end_date:'2027-03-03',times:['11:19','15:00'],manual:true});
+        assert.equal(dense.slots.length,12);
+        assert.equal(dense.posting_times.length,4,'four times a day were derived from the two chosen');
+        for(const t of ['11:19','15:00'])assert.ok(dense.posting_times.includes(t),'the chosen times are still there');
+        const perDate=dense.slots.reduce((m,at)=>(m[at.slice(0,10)]=(m[at.slice(0,10)]||0)+1,m),{});
+        assert.deepEqual(Object.values(perDate).sort(),[4,4,4],'four posts on each of the three days');
+        run("UPDATE generator_runs SET status='cancelled' WHERE plan_id=?",dense.id);
+      }finally{Date.now=originalNow;}
     });
     await t.test('a campaign is not twelve product photographs', async () => {
       const d=new Date(Date.now()+9*864e5+7*3600000).toISOString().slice(0,10);
