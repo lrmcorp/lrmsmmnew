@@ -19,6 +19,7 @@ const realFetch = globalThis.fetch;
 let providerCalls = [], failImage = false, malformed = false, gate = null, blocked = null, failAfterSlide = 0, imageCalls = 0;
 let catalogReads=0;
 const secret = 'fixture-secret-DO-NOT-EXPOSE';
+const parseJSON2 = value => { try { return JSON.parse(value); } catch { return []; } };
 // Intercept only official provider origins; application HTTP still exercises Express/auth/SQLite.
 globalThis.fetch = async (url, opts) => {
   const origin = new URL(url).origin;
@@ -371,6 +372,53 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.deepEqual(shots.map(s=>s.total),[3,3,3]);
       assert.equal(gen.shotTypeFor({plan_id:null,targets:'[]'}),null,'a single content outside a campaign is not forced into a rotation');
       for(const r of runs)run("UPDATE generator_runs SET status='cancelled' WHERE id=?",r.id);
+    });
+    await t.test('a campaign is not twelve product photographs', async () => {
+      const d=new Date(Date.now()+9*864e5+7*3600000).toISOString().slice(0,10);
+      const plan=await gen.createPlan(user,{request_id:'format-mix',brief:'Twelve posts, one brand',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:d,end_date:d,times:['06:05','07:05','08:05','09:05','10:05','11:05','13:05','14:05','15:05','16:05','17:05','18:05'],manual:true});
+      const formats=all("SELECT * FROM generator_runs WHERE plan_id=? ORDER BY created_at,id",plan.id).map(r=>gen.shotTypeFor(r));
+      assert.equal(formats.length,12);
+      const withoutProduct=formats.filter(f=>f.product===false);
+      assert.equal(withoutProduct.length,2,'one content in six carries no product at all');
+      for(const f of withoutProduct)assert.match(f.shot,/No product, no packaging and no hands/,'the no-product format says so plainly');
+      assert.ok(formats.filter(f=>f.product===true).length===10,'the rest still lead with the product');
+      assert.equal(new Set(formats.map(f=>f.shot)).size,6,'twelve contents cycle evenly through the six formats');
+      run("UPDATE generator_runs SET status='cancelled' WHERE plan_id=?",plan.id);
+    });
+    await t.test('a no-product content never sees a product reference at any stage', async () => {
+      const {saveBuffer}=await import('../src/services/media.js');
+      const prod=await saveBuffer(user.id,image,{inLibrary:false}),vis=await saveBuffer(user.id,image,{inLibrary:false});
+      const d=new Date(Date.now()+11*864e5+7*3600000).toISOString().slice(0,10);
+      const plan=await gen.createPlan(user,{request_id:'quote-card',brief:'Four posts',account_ids:['ig-generator'],content_count:4,slide_count:1,start_date:d,end_date:d,times:['06:20','07:20','08:20','09:20'],manual:true,
+        reference_media_ids:[vis.id,prod.id],reference_roles:{[vis.id]:'visual',[prod.id]:'product'}});
+      const runs=all("SELECT * FROM generator_runs WHERE plan_id=? ORDER BY created_at,id",plan.id);
+      const quote=runs[3];
+      assert.equal(gen.shotTypeFor(quote).product,false,'the fourth content is the typographic one');
+      assert.ok(parseJSON2(quote.reference_media_ids).includes(prod.id),'the product is still attached to the row');
+      providerCalls=[];
+      run("UPDATE generator_runs SET status='queued',concept_approved_at=? WHERE id=?",new Date().toISOString(),quote.id);
+      const done=await execute({id:quote.id});
+      assert.equal(done.status,'review',JSON.stringify(done.error||''));
+      const visual=providerCalls.find(c=>(c.body?.system||c.body?.messages?.[0]?.content||'').includes('Final visual concept only'));
+      assert.match(visual.body.system||visual.body.messages[0].content,/carries NO PRODUCT/,'the stage is told this content has no product');
+      const edit=providerCalls.findLast(c=>c.form);
+      assert.equal(edit.form.getAll('image[]').length,1,'only the visual reference reaches the image model, never the product');
+      assert.ok(!gen.getRun(user,quote.id).steps.image.product_mockup,'no mockup mode on a content with no product');
+      run("UPDATE generator_runs SET status='cancelled' WHERE plan_id=?",plan.id);
+    });
+    await t.test('each content in a campaign takes the next product in the catalogue', async () => {
+      const {rotateProductReference}=gen;
+      const refs={ids:['logo-1','vis-1','prod-a'],roles:{'logo-1':'logo','vis-1':'visual','prod-a':'product'}};
+      const products=['prod-a','prod-b','prod-c'];
+      const picked=[0,1,2,3].map(i=>rotateProductReference(refs,products,i));
+      assert.deepEqual(picked.map(p=>p.ids.find(mid=>p.roles[mid]==='product')),['prod-a','prod-b','prod-c','prod-a'],'the catalogue is cycled, not re-picked at random');
+      for(const p of picked){
+        assert.ok(p.ids.includes('logo-1')&&p.ids.includes('vis-1'),"the session's own logo and visual references are kept");
+        assert.ok(p.ids.length<=4,'the four-reference contract is never exceeded');
+        assert.equal(p.ids.filter(mid=>p.roles[mid]==='product').length,1,'exactly one product travels with a content');
+      }
+      assert.deepEqual(rotateProductReference(refs,['prod-a'],1),refs,'one product in the catalogue means nothing to rotate');
+      assert.deepEqual(rotateProductReference(refs,[],0),refs,'an empty catalogue changes nothing');
     });
     await t.test('a campaign gives each account its own run, slots and creative', async () => {
       const d=new Date(Date.now()+3*864e5+7*3600000).toISOString().slice(0,10);
