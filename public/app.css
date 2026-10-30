@@ -43,10 +43,15 @@ code, .code { font-family: var(--mono); font-size: .75rem; font-weight: 600; bac
 .app { display: flex; min-height: 100vh; }
 .side { width: var(--side-w); flex: none; background: #fff; color: var(--slate-700); display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid rgb(226 232 240 / .9); position: sticky; top: 0; height: 100vh; z-index: 50; }
 .side-top { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem; border-bottom: 1px solid var(--slate-100); }
-.logo { display: inline-flex; align-items: center; gap: .625rem; text-decoration: none; }
-.logo .word { font-size: 1.375rem; font-weight: 800; letter-spacing: -.03em; color: var(--slate-900); line-height: 1.75rem; }
-.logo .word span { color: var(--em-700); }
-.logo .tag { font-size: 9px; font-weight: 800; color: var(--em-800); text-transform: uppercase; letter-spacing: .05em; background: var(--em-50); padding: .125rem .375rem; border-radius: .25rem; border: 1px solid rgb(167 243 208 / .7); }
+.logo { display: inline-flex; align-items: center; text-decoration: none; }
+/* One dimension only, so the browser scales the lockup on its own 2000x569
+   proportions. The three stacked words need width to stay legible, so width is
+   the one that is set. */
+.logo img { width: 10rem; height: auto; max-width: 100%; display: block; }
+.logo .logo-light { display: none; }
+.auth-bar .logo img { width: 12rem; }
+.auth-side .logo .logo-dark { display: none; }
+.auth-side .logo .logo-light { display: block; }
 .side-close { display: none; padding: .375rem; border-radius: var(--r-lg); color: var(--slate-500); background: none; border: 0; cursor: pointer; }
 .side-close:hover { color: var(--slate-800); background: var(--slate-100); }
 .nav { padding: .875rem; overflow-y: auto; flex: 1; display: grid; gap: 1.5rem; align-content: start; }
@@ -459,7 +464,7 @@ dialog .df { padding: 1rem 1.5rem; border-top: 1px solid var(--slate-100); displ
 .auth-side { background: var(--slate-950); color: var(--slate-300); border-radius: 0 var(--r-2xl) var(--r-2xl) 0; padding: 2.5rem; position: relative; overflow: hidden; }
 .auth-side::after { content: ''; position: absolute; right: -6rem; top: -6rem; width: 18rem; height: 18rem; border-radius: 50%; background: radial-gradient(circle, rgb(16 185 129 / .25), transparent 70%); pointer-events: none; }
 .auth-side .tagline { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; }
-.auth-side .logo .word { color: #fff; }
+.auth-side .logo img { width: 12rem; }
 .auth-side .eco { font: 700 .6875rem var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--em-400); border: 1px solid rgb(52 211 153 / .4); border-radius: var(--r-md); padding: .125rem .5rem; }
 .auth-side h2 { color: #fff; font-size: 1.5rem; line-height: 2rem; font-weight: 800; margin-bottom: .5rem; }
 .auth-side > p { color: var(--slate-400); margin-bottom: 1.75rem; }

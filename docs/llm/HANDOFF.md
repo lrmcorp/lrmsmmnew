@@ -411,6 +411,33 @@ Tests that identified a stage by `response_format.json_schema` or read
 thing they were about. They now read the schema and the user text from whichever
 shape the provider uses. Expect more of these whenever a role's provider moves.
 
+## Application branding: 2026-10-30
+
+The interface used a text wordmark built in CSS. It now uses the Liando Reyfort
+Management lockup supplied by the owner, in `public/brand/`:
+
+| File | Size | Use |
+|---|---|---|
+| `lrm-logo.png` | 2000x569 | the lockup, sidebar and sign-in |
+| `lrm-logo-light.png` | 2000x569 | the same artwork in white, for dark panels |
+| `lrm-mark.png` | 419x569 | the monogram alone |
+| `lrm-mark-light.png` | 419x569 | white monogram |
+| `favicon.png` | 512x512 | the monogram centred on white, also the apple-touch-icon |
+
+Each is trimmed from the supplied artwork and kept at its **native** pixel size,
+and the stylesheet sets **width only**, so the browser scales every instance on
+the artwork's own proportions. The square icon pads the monogram rather than
+stretching it. Measured in a real browser: rendered 160x46, ratio 3.5153 against
+the source's 3.5149, a sub-pixel difference.
+
+`theme-color` moves from the old green to `#ffffff`, since the mark is black on
+white. The product name in the title, strings and documentation is unchanged:
+renaming LRMsmm was not asked for and touches far more than branding.
+
+Noted while checking the rendered pages and **not** fixed here, to keep this
+change to branding: the Home page's "Today's schedule" card links out with the
+label `Kalender`, which the English UI gate does not catch.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -491,7 +518,8 @@ Lessons for the next occurrence:
 | #35 (`0c50c16`) | Per-session story content types and the 10,000-character session direction | this page |
 | #36 (`fa10d84`) | Posting times spread automatically to fit the count and the date range | this page |
 | #37 (`3976789`) | Storyteller on claude-sonnet-5-5; presets no longer override a role's provider | this page |
-| #38 | Text-only stages on Gemini Flash and a way back to the recommended team | this page |
+| #38 (`b65982b`) | Text-only stages on Gemini Flash and a way back to the recommended team | this page |
+| #39 | Liando Reyfort Management logo and favicon | this page |
 
 ## Current user-facing behavior
 
