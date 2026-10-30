@@ -26,13 +26,18 @@ export const ROLES = ['concept', 'revision', 'image', 'final', 'storyteller', 'm
 // provider key is missing and the role falls back, it must land on that
 // provider's vision-capable model rather than its lightweight text default.
 const VISION_ROLES = new Set(['visual', 'final']);
+// Where each stage's model is decided. The two stages that look at the uploaded
+// references and at the finished images, and the one that carries a session's
+// whole story arc, keep capable models. The stages that only move text around
+// run on Gemini Flash, which costs a fraction and has a free tier. Image
+// generation has no alternative provider at this quality.
 export const DEFAULT_AGENTS = {
   visual:{provider:'anthropic',model:'claude-opus-5',instructions:'You are the Final Visual Conceptor. Finalize each slide using uploaded references, original logos/products and actual available Instagram feed visuals. Specify composition, colors, typography, lighting and continuity. Never change logo or product details or copy unsupported reference claims.'},
   storyteller:{provider:'anthropic',model:'claude-sonnet-5-5',instructions:'You are a world-class Instagram storyteller. Continue the brand story from its saved foundation, choose real catalog products and evolve episodes without restarting the story.'},
-  manager:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Social Media Manager. Check story continuity, brand consistency, claims, variety, product selection and each episode objective. Correct proposals before production.'},
-  scheduler:{provider:'openai',model:'gpt-4.1-mini',instructions:'You are the Scheduler. Consider Manager findings, choose available times for each episode based on story and content type, and explain the reason. Never claim access to performance data that was not supplied.'},
-  concept: { provider: 'openai', model: 'gpt-4.1-mini', instructions: 'Create clear, account-specific social concepts grounded in the Brand Kit. Never invent facts or product claims.' },
-  revision: { provider: 'anthropic', model: 'claude-sonnet-5-5', instructions: 'Review the concept for clarity, consistency, spelling and claims. Preserve the brief objective and account identity.' },
+  manager:{provider:'gemini',model:'gemini-2.5-flash',instructions:'You are the Social Media Manager. Check story continuity, brand consistency, claims, variety, product selection and each episode objective. Correct proposals before production.'},
+  scheduler:{provider:'gemini',model:'gemini-2.5-flash',instructions:'You are the Scheduler. Consider Manager findings, choose available times for each episode based on story and content type, and explain the reason. Never claim access to performance data that was not supplied.'},
+  concept: { provider: 'gemini', model: 'gemini-2.5-flash', instructions: 'Create clear, account-specific social concepts grounded in the Brand Kit. Never invent facts or product claims.' },
+  revision: { provider: 'gemini', model: 'gemini-2.5-flash', instructions: 'Review the concept for clarity, consistency, spelling and claims. Preserve the brief objective and account identity.' },
   image: { provider: 'openai', model: 'gpt-image-2.5-sunburst', instructions: 'Create high-quality square Instagram feed designs. Keep visual direction consistent across slides and preserve original brand assets.' },
   final: { provider: 'anthropic', model: 'claude-sonnet-5-5', instructions: 'Review actual images, caption alignment, spelling, consistency and claim risks. Provide honest findings for human approval.' },
 };
@@ -76,6 +81,13 @@ function cleanAgents(agents) {
 export function saveSettings(user, body) {
   const agents = cleanAgents(body.agents);
   run('INSERT INTO generator_settings(user_id,agents) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET agents=excluded.agents', user.id, JSON.stringify(agents));
+  return settings(user);
+}
+// Stored settings outrank the defaults, which is right: a deliberate choice is
+// never overridden. The consequence is that an account which saved a team once
+// can never pick up a better default, so there is a way back to them.
+export function resetSettings(user) {
+  run('DELETE FROM generator_settings WHERE user_id=?', user.id);
   return settings(user);
 }
 export function saveKey(user, provider, secret) {

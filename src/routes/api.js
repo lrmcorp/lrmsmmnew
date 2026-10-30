@@ -91,6 +91,7 @@ api.get('/generator/providers/gemini/models',sessionOnly,async(req,res)=>res.jso
 api.post('/generator/quick-idea',sessionOnly,async(req,res)=>{const result=await generator.quickIdea(U(req),req.body||{});audit(req.auth,'generator.quick_idea','generator',null,{account_ids:req.body.account_ids,kind:req.body.kind});res.json(result);});
 api.get('/generator/settings', sessionOnly, (req, res) => res.json(generator.settings(U(req))));
 api.put('/generator/settings', sessionOnly, (req, res) => res.json(generator.saveSettings(U(req), req.body || {})));
+api.delete('/generator/settings', sessionOnly, (req, res) => {const result=generator.resetSettings(U(req));audit(req.auth,'generator.settings.reset','generator_settings',U(req).id);res.json(result);});
 api.put('/generator/keys/:provider', sessionOnly, (req, res) => {
   generator.saveKey(U(req), req.params.provider, req.body?.key);
   audit(req.auth, 'generator.key.save', 'provider', req.params.provider);

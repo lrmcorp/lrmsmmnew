@@ -856,7 +856,18 @@ export async function generatorWorkspace(ctx, workspace) {
     }[n])), () => {
       applyPreset(n);
       d.querySelectorAll('.gf-presets .btn').forEach((el, i) => el.classList.toggle('on', ['Economy', 'Balanced', 'Quality'][i] === n));
-    }, 'btn ' + (n === selectedPreset ? 'on' : '')))), description, table, keys.has('gemini') ? B('Refresh Gemini models', async () => {
+    }, 'btn ' + (n === selectedPreset ? 'on' : '')))), description, table, B('Use recommended team', async () => {
+      if (!await ui.confirmDialog({title: 'Use the recommended agent team?', body: 'Your saved models for every stage are discarded and the recommended team is used instead. Nothing else about your account changes.', confirmText: 'Use recommended'})) return;
+      const next = await api('DELETE', '/v1/generator/settings');
+      config.agents = next.agents;
+      // draft is a const binding in this scope, so replace its contents.
+      Object.assign(draft, structuredClone(next.agents));
+      agents = structuredClone(next.agents);
+      selectedPreset = '';
+      update();
+      draw();
+      toast('Recommended agent team applied.');
+    }, 'btn ghost'), keys.has('gemini') ? B('Refresh Gemini models', async () => {
       const result = await api('GET', '/v1/generator/providers/gemini/models?refresh=true');
       config.providers.gemini = {
         ...config.providers.gemini,
