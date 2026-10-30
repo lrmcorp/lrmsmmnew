@@ -743,6 +743,16 @@ export function sessionState(s) {
  if(runs.some(r=>['running','queued'].includes(r.status)))return 'running';
  return runs.some(r=>r.status==='planned')?'plan':'done';
 }
+// A save that only ever says "something went wrong" turns a one-line server
+// message into a support conversation. Report what the server actually said,
+// and fall back to the status and code when it said nothing useful.
+export function errorReason(e){
+ if(!e)return t('common.error');
+ if(typeof e==='string')return e;
+ if(e.message&&(e.ui||e.code))return e.message;
+ if(e.status)return `HTTP ${e.status}${e.code?' · '+e.code:''}${e.message?' · '+e.message:''}`;
+ return e.message||t('common.error');
+}
 export function autosave(saveFn, {delay=1000,statusEl}={}) {
   let timer=null,pending=false,inFlight=null,error=null;
   function schedule(){pending=true;clearTimeout(timer);if(statusEl)statusEl.textContent=t('autosave.saving');timer=setTimeout(flush,delay);}
@@ -750,7 +760,7 @@ export function autosave(saveFn, {delay=1000,statusEl}={}) {
     clearTimeout(timer);
     if(inFlight){await inFlight;if(pending&&!error)return flush();return;}
     if(!pending)return;
-    inFlight=(async()=>{while(pending){pending=false;try{await saveFn();error=null;if(statusEl)statusEl.textContent=t('autosave.saved',{'HH:MM':fmtTime(new Date())});}catch(e){error=e;pending=true;if(statusEl)statusEl.textContent=t('autosave.failed',{reason:t('common.error')});break;}}})();
+    inFlight=(async()=>{while(pending){pending=false;try{await saveFn();error=null;if(statusEl)statusEl.textContent=t('autosave.saved',{'HH:MM':fmtTime(new Date())});}catch(e){error=e;pending=true;if(statusEl)statusEl.textContent=t('autosave.failed',{reason:errorReason(e)});break;}}})();
     try{await inFlight;}finally{inFlight=null;}
   }
   return {schedule,flush,get error(){return error;},dispose:flush};
