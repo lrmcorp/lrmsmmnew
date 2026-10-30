@@ -191,6 +191,7 @@ preservation is added server-side, so appending them again only pushed a
 full-length brief past the 10,000-character limit. Validation messages for the
 brief, the session direction and `request_id` are now separate, and an oversized
 one states the actual length.
+<<<<<<< HEAD
 
 ## Posting density (2026-10-30)
 
@@ -207,3 +208,5 @@ the posts fit, so times already past and slots held by other drafts are absorbed
 too. A `schedule_capacity` error now means the range cannot hold the count even
 at full density. The workspace imports the same module for its readiness gate,
 so what it allows and what the scheduler produces cannot drift apart.
+=======
+>>>>>>> origin/claude/elegant-edison-a2xv8m
