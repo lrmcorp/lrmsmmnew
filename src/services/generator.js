@@ -465,6 +465,18 @@ export function rotateProductReference({ids,roles},products,index){
  const nextIds=[...kept,product].slice(0,4);
  return {ids:nextIds,roles:Object.fromEntries(nextIds.map(mid=>[mid,mid===product?'product':roles[mid]||'visual']))};
 }
+export const BRIEF_LIMIT=10000;
+// A content's brief is the campaign brief plus this content's own idea. Nothing
+// bounded the sum, so a campaign brief near the limit produced contents over it,
+// and every later edit of those contents was refused. The idea is what makes a
+// content different, so the shared campaign part gives way.
+export function composeContentBrief(campaignBrief,idea){
+ const tail=`\n\n${idea.title}: ${idea.brief}`;
+ const room=BRIEF_LIMIT-tail.length;
+ if(room<=0)return tail.slice(0,BRIEF_LIMIT);
+ const head=String(campaignBrief??'');
+ return (head.length>room?head.slice(0,room-1).trimEnd()+'…':head)+tail;
+}
 // The session choice if one was sent, otherwise the account's Brand Kit
 // default carried in the reference notes, otherwise Indonesian.
 function languageOf(body,notes){
@@ -475,7 +487,7 @@ export async function createPlan(user, body) {
   const recommendation = timingRecommendation(user,body.account_ids);
   if (typeof body.request_id !== 'string' || !body.request_id || body.request_id.length > 100) throw err(400, 'validation_failed', "Invalid request_id.");
   if (typeof body.brief !== 'string' || !body.brief.trim()) throw err(400, 'validation_failed', "A campaign brief is required.");
-  if (body.brief.length > 10000) throw err(400, 'validation_failed', `The campaign brief is ${body.brief.length} characters; the limit is 10,000. Shorten it and try again.`);
+  if (body.brief.length > BRIEF_LIMIT) throw err(400, 'validation_failed', `The campaign brief is ${body.brief.length} characters; the limit is ${BRIEF_LIMIT.toLocaleString('en-US')}. Shorten it and try again.`);
   if (!Number.isInteger(body.slide_count ?? 1) || (body.slide_count ?? 1) < 1 || (body.slide_count ?? 1) > 10) throw err(400, 'validation_failed', "Select 1–10 slides per post.");
   if (new Set(body.account_ids).size !== body.account_ids.length) throw err(400, 'validation_failed', "Destination accounts must be unique.");
   const agents = cleanAgents(body.agents || settings(user).agents);
@@ -515,7 +527,7 @@ export async function createPlan(user, body) {
     const pid = id('plan');
     tx(() => {
       run('INSERT INTO generator_plans(id,user_id,request_id,request_hash,brief,start_date,end_date,content_count,recommendation,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)', pid, user.id, body.request_id, hash, body.brief, body.start_date, body.end_date, body.content_count, JSON.stringify(recommendation), now());
-      ideas.forEach((idea,i) => body.account_ids.forEach((aid,a) => run(`INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,scheduled_at,status,caption,created_at,updated_at,plan_id,title,caption_language) VALUES(?,?,?,?,?,?,?,?,?,'planned','',?,?,?,?,?)`, id('gen'), user.id, `plan-${pid}-${i}-${a}`, hash, `${body.brief}\n\n${idea.title}: ${idea.brief}`, JSON.stringify([{ account_id: aid }]), body.slide_count || 1, JSON.stringify(agents), perAccount.get(aid)[i], now(), now(), pid, idea.title, language)));
+      ideas.forEach((idea,i) => body.account_ids.forEach((aid,a) => run(`INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,scheduled_at,status,caption,created_at,updated_at,plan_id,title,caption_language) VALUES(?,?,?,?,?,?,?,?,?,'planned','',?,?,?,?,?)`, id('gen'), user.id, `plan-${pid}-${i}-${a}`, hash, composeContentBrief(body.brief,idea), JSON.stringify([{ account_id: aid }]), body.slide_count || 1, JSON.stringify(agents), perAccount.get(aid)[i], now(), now(), pid, idea.title, language)));
     });
     run('UPDATE generator_runs SET reference_media_ids=?,reference_notes=?,reference_roles=?,draft_touched_at=? WHERE plan_id=?',JSON.stringify(refs.ids),refs.notes,JSON.stringify(refs.roles),now(),pid);
     // Each content item in the campaign gets the next product in the account's
@@ -566,8 +578,14 @@ export function updateContent(user, rid, body) {
   if (typeof caption !== 'string' || caption.length > 2200) throw err(400,'validation_failed',"Caption must not exceed 2,200 characters.");
   const scheduled = body.scheduled_at ?? r.scheduled_at;
   if (scheduled && (!/(Z|[+-]\d{2}:\d{2})$/.test(scheduled) || !Number.isFinite(Date.parse(scheduled)))) throw err(400,'validation_failed',"Invalid proposed schedule.");
+  // Validate what the request actually changes. Re-checking a stored brief the
+  // caller never sent made a caption edit and a schedule move impossible on any
+  // draft whose brief was already over the limit, which is every content of a
+  // campaign whose own brief was near it.
+  if (body.brief !== undefined && (typeof body.brief !== 'string' || !body.brief.trim())) throw err(400,'validation_failed',"A brief is required.");
+  if (body.brief !== undefined && body.brief.length > BRIEF_LIMIT) throw err(400,'validation_failed',`The brief is ${body.brief.length} characters; the limit is ${BRIEF_LIMIT.toLocaleString('en-US')}. Shorten it and try again.`);
   const brief = body.brief ?? r.brief;
-  if (typeof brief !== 'string' || !brief.trim() || brief.length > 10000) throw err(400,'validation_failed',"Brief is required and must not exceed 10,000 characters.");
+  if (typeof brief !== 'string') throw err(400,'validation_failed',"A brief is required.");
   const mids = body.media_ids ?? parseJSON(r.media_ids,[]);
   if (!Array.isArray(mids) || mids.length > 10 || new Set(mids).size !== mids.length) throw err(400,'validation_failed',"Select up to 10 unique media items.");
   for (const mid of mids) {

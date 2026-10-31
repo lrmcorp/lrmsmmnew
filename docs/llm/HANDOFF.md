@@ -524,6 +524,38 @@ Checked while there and **not** a bug: `fmtSlot` renders WIB correctly. A time
 three hours in the past showed as 21:17 against `Intl` in `Asia/Jakarta` giving
 21:17 for the same instant.
 
+## Why every edit on that campaign failed: 2026-10-31
+
+`Brief is required and must not exceed 10,000 characters.` on a schedule move,
+and the same on a caption edit the day before. One cause.
+
+`createPlan` stores each content's brief as the campaign brief plus that
+content's own idea:
+
+```js
+`${body.brief}\n\n${idea.title}: ${idea.brief}`
+```
+
+Nothing bounded the sum. The reported session's own direction was at the field's
+maximum (its counter read `10,000 / 10.000`), so every one of its thirty
+contents was stored over the limit. Creation never checks the composed value, so
+the campaign was created happily and only later edits failed.
+
+`updateContent` then re-validated the **stored** brief on every PATCH, even when
+the caller sent none. A caption edit sends `content` alone, a schedule move
+sends `scheduled_at` alone, and both were refused by a rule about a field
+neither of them touched.
+
+Both halves fixed. `composeContentBrief` caps the stored brief at `BRIEF_LIMIT`,
+eliding the shared campaign part because the content's own idea is what makes it
+different. `updateContent` validates only what the request actually changes, so
+drafts stored before this fix become editable again with no migration, and an
+over-long brief the caller does send is still refused, now naming its length.
+
+This is what the diagnostics in #41 were for: the previous report said only
+"Something went wrong", and the message that replaced it pointed straight at the
+cause.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -608,7 +640,8 @@ Lessons for the next occurrence:
 | #39 (`49f75ed`) | Liando Reyfort Management logo and favicon | this page |
 | #40 (`e7e8f82`) | Captions written as short paragraphs, and an editor with room for them | this page |
 | #41 (`824afad`) | Save failures report their reason; Approve no longer aborts silently | this page |
-| #42 | Blocking posts are named; a campaign moves as one from its first post | this page |
+| #42 (`278f2a6`) | Blocking posts are named; a campaign moves as one from its first post | this page |
+| #43 | Composed content briefs stay within the limit; edits validate only what they change | this page |
 
 ## Current user-facing behavior
 
