@@ -378,3 +378,7 @@
 .df-session-selectall input{width:16px;height:16px;margin:0}
 .df-session-bulk{position:sticky;top:0;z-index:4;background:var(--c-bg,#fff)}
 @media (max-width:767px){.df-session-select input{width:22px;height:22px}}
+/* The drafts that blocked an approval, named so they can be opened directly. */
+.df-missing-schedule{margin:8px 0;padding-left:18px;display:grid;gap:4px}
+.df-missing-schedule li{font-size:12px}
+.df-missing-schedule .ui-text-button{text-align:left}

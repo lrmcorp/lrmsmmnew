@@ -493,6 +493,37 @@ so the client's `mids.join(...)` comparison is sound. `audit()` swallows its own
 errors and cannot fail a request. The next report will carry the server's actual
 message; do not guess before then.
 
+## Naming the posts that block an approval, and moving a campaign as one: 2026-10-31
+
+Approving a 30-draft campaign reported `4 posts do not have a future schedule.
+Edit their schedules first.` and stopped there. Counting them is no help across
+thirty drafts: the notice now lists each blocking post by its time and title,
+each one opening that draft on a click, with `Select only these N` to narrow the
+selection and `Move them to the future` to fix them in place. Eight are listed
+and the rest counted.
+
+`reschedule` asked for a number of days. That made the user do the arithmetic
+and could not express "start on Monday at nine". It now asks for the new time of
+the **first** selected post, prefilled with its current slot, and every other
+selected post moves by that same delta, keeping its spacing. A new first time in
+the past is refused with the reason, since those posts still could not be
+approved.
+
+`inputDialog` gained an optional `type`, defaulting to `text`, so the schedule
+is picked rather than typed.
+
+**Verified in a real browser** against a seeded campaign of eight drafts, three
+of them in the past, because this logic lives inside the workspace closure and
+the browser suite is coupled to its own fixtures (see RUNBOOK). The notice named
+the three; `Move them to the future` with 5 Nov 09:00 produced 09:00, 10:00 and
+11:00, their one-hour spacing intact, leaving the other five alone; selecting
+all and moving the earliest from 4 Nov 00:16 to 10 Nov 07:30 moved all eight by
+that same delta. No console errors.
+
+Checked while there and **not** a bug: `fmtSlot` renders WIB correctly. A time
+three hours in the past showed as 21:17 against `Intl` in `Asia/Jakarta` giving
+21:17 for the same instant.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -576,7 +607,8 @@ Lessons for the next occurrence:
 | #38 (`b65982b`) | Text-only stages on Gemini Flash and a way back to the recommended team | this page |
 | #39 (`49f75ed`) | Liando Reyfort Management logo and favicon | this page |
 | #40 (`e7e8f82`) | Captions written as short paragraphs, and an editor with room for them | this page |
-| #41 | Save failures report their reason; Approve no longer aborts silently | this page |
+| #41 (`824afad`) | Save failures report their reason; Approve no longer aborts silently | this page |
+| #42 | Blocking posts are named; a campaign moves as one from its first post | this page |
 
 ## Current user-facing behavior
 
