@@ -451,6 +451,36 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.ok(systems.some(x=>x.includes('including its blank lines between paragraphs')),'the visual stage is told to carry it unchanged');
       assert.ok(systems.some(x=>x.includes('not one block of prose')),'the final reviewer checks it');
     });
+    await t.test('a long campaign brief does not make its contents uneditable', async () => {
+      const {composeContentBrief,BRIEF_LIMIT}=gen;
+      // The reported failure: a campaign brief at the field's own maximum, plus
+      // each content's idea, stored a brief over the limit. Every later caption
+      // edit and schedule move on those contents was then refused.
+      const full='x'.repeat(BRIEF_LIMIT);
+      const composed=composeContentBrief(full,{title:'Konten 3',brief:'A specific angle'});
+      assert.ok(composed.length<=BRIEF_LIMIT,'the stored brief fits the limit it will later be checked against');
+      assert.match(composed,/Konten 3: A specific angle$/,"the content's own idea is what survives");
+      assert.match(composed,/…/,'the shared campaign part is elided, not silently cut mid-word');
+      assert.equal(composeContentBrief('Short brief',{title:'T',brief:'B'}),'Short brief\n\nT: B','a normal brief is untouched');
+      const d=new Date(Date.now()+15*864e5+7*3600000).toISOString().slice(0,10);
+      const plan=await gen.createPlan(user,{request_id:'long-brief-'+Date.now(),account_ids:['ig-generator'],brief:full,content_count:2,slide_count:1,start_date:d,end_date:d,times:['07:10','11:10'],manual:true});
+      const rows=all("SELECT id,brief FROM generator_runs WHERE plan_id=? ORDER BY created_at,id",plan.id);
+      for(const r of rows)assert.ok(r.brief.length<=BRIEF_LIMIT,'every content of the campaign is within the limit');
+      // The whole point: these are editable afterwards.
+      run("UPDATE generator_runs SET status='review' WHERE plan_id=?",plan.id);
+      const saved=gen.updateContent(user,rows[0].id,{content:'An edited caption'});
+      assert.equal(saved.caption,'An edited caption');
+      const moved=gen.updateContent(user,rows[0].id,{scheduled_at:new Date(Date.now()+20*864e5).toISOString()});
+      assert.ok(moved.scheduled_at,'and the schedule moves');
+      // A draft stored before this fix is rescued without a migration.
+      run('UPDATE generator_runs SET brief=? WHERE id=?','y'.repeat(BRIEF_LIMIT+500),rows[1].id);
+      const rescued=gen.updateContent(user,rows[1].id,{content:'Edited despite an over-long stored brief'});
+      assert.equal(rescued.caption,'Edited despite an over-long stored brief');
+      // A brief the caller actually sends is still checked, and says the length.
+      assert.throws(()=>gen.updateContent(user,rows[1].id,{brief:'z'.repeat(BRIEF_LIMIT+1)}),/10001 characters; the limit is 10,000/);
+      assert.throws(()=>gen.updateContent(user,rows[1].id,{brief:'   '}),/A brief is required/);
+      run("UPDATE generator_runs SET status='cancelled' WHERE plan_id=?",plan.id);
+    });
     await t.test('a campaign is not twelve product photographs', async () => {
       const d=new Date(Date.now()+9*864e5+7*3600000).toISOString().slice(0,10);
       const plan=await gen.createPlan(user,{request_id:'format-mix',brief:'Twelve posts, one brand',account_ids:['ig-generator'],content_count:12,slide_count:1,start_date:d,end_date:d,times:['06:05','07:05','08:05','09:05','10:05','11:05','13:05','14:05','15:05','16:05','17:05','18:05'],manual:true});
