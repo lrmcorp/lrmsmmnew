@@ -86,7 +86,9 @@ export function createUI({
     suggestions = [],
     hint = '',
     confirmLabel = t('common.save'),
-    multiline = true
+    multiline = true,
+    // A schedule is picked, not typed. Everything else keeps the text default.
+    type = 'text'
   }) {
     return new Promise(resolve => {
       let result = null;
@@ -94,6 +96,7 @@ export function createUI({
         input = h(multiline ? 'textarea' : 'input', {
           'aria-label': label,
           placeholder,
+          ...(multiline ? {} : { type }),
           value: multiline ? null : value
         }, multiline ? value : null),
         dialog = modal(title, h('div', {}, h('label', {

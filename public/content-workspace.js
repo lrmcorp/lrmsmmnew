@@ -106,7 +106,32 @@ export function contentWorkspace({h,api,ui,state,icon,modal,toast,go,loadAccount
   function conceptBody(r,edited){if(edited)return {concept:edited};try{const saved=JSON.parse(localStorage.getItem('lrm.concept.'+state.user.id+'.'+r.id)||'null');if(saved?.updated_at===r.updated_at)return {concept:saved.plan};}catch{}return {}; }
   async function approveConcepts(items,edited){for(const saver of drawerSaves){await saver.flush();if(saver.error)return;}items=items.map(r=>s.runs.find(x=>x.id===r.id)||r);items=items.filter(r=>r.status==='concept_review');if(!items.length)return;if(!await cost(`Approve ${items.length} concepts & create images?`,items,'image'))return;return execute(items,r=>api('POST',`/v1/generator/runs/${r.id}/approve-concept`,{confirm_cost:true,...conceptBody(r, edited&&items.length===1?edited:null)}),'Approving concepts');}
   async function remove(items){items=items.filter(deletable);if(!items.length)return;if(!await ui.confirmDialog({title:`Delete ${items.length} draft?`,body:'Drafts and media no longer in use will be deleted. Approved posts will not be deleted.',tone:'danger',details:items.slice(0,6).map(r=>['Draft',r.title||'Untitled']),confirmLabel:'Delete drafts'}))return;await api('POST','/v1/generator/drafts/delete',{ids:items.map(r=>r.id)});chosen.clear();await refresh();}
-  async function reschedule(items){items=items.filter(editable);if(!items.length)return;const shift=await ui.inputDialog({title:'Shift schedule',label:'Number of days (for example, 1 or -1)',multiline:false,value:'1',confirmLabel:'Shift schedule'});if(shift===null)return;const n=Number(shift);if(!Number.isInteger(n)||Math.abs(n)>365)throw new Error('Enter a whole number of days, up to 365.');await execute(items,r=>{if(!r.scheduled_at)throw new Error('Choose a schedule in the editor first.');return api('PATCH',`/v1/generator/runs/${r.id}`,{scheduled_at:new Date(Date.parse(r.scheduled_at)+n*864e5).toISOString()});},'Shifting schedule');}
+  // A campaign is a sequence, so its schedule moves as one. Asking for a number
+  // of days made the user work out the arithmetic themselves and could not
+  // express "start on Monday at nine". Give the first post its new time and
+  // every other selected post moves by that same amount, spacing intact.
+  async function reschedule(items){
+    items=items.filter(editable);if(!items.length)return;
+    const dated=items.filter(r=>r.scheduled_at);
+    if(!dated.length)throw new Error('Choose a schedule in the editor first.');
+    const first=dated.reduce((a,b)=>Date.parse(a.scheduled_at)<=Date.parse(b.scheduled_at)?a:b);
+    const answer=await ui.inputDialog({
+      title:'Move the schedule',
+      label:`New time for the first selected post, now ${fmtSlot(first.scheduled_at)} WIB`,
+      type:'datetime-local',multiline:false,value:local(first.scheduled_at),
+      hint:dated.length>1?`The other ${dated.length-1} selected posts move by the same amount and keep their spacing.`:'',
+      confirmLabel:'Move schedule'});
+    if(answer===null)return;
+    const target=iso(answer);
+    if(!target||!Number.isFinite(Date.parse(target)))throw new Error('Choose a date and time.');
+    if(Date.parse(target)<=Date.now()+60000)throw new Error('Choose a time at least a minute from now, otherwise the posts still cannot be approved.');
+    const delta=Date.parse(target)-Date.parse(first.scheduled_at);
+    if(!delta)return;
+    await execute(items,r=>{
+      if(!r.scheduled_at)throw new Error('Choose a schedule in the editor first.');
+      return api('PATCH',`/v1/generator/runs/${r.id}`,{scheduled_at:new Date(Date.parse(r.scheduled_at)+delta).toISOString()});
+    },'Moving schedule');
+  }
   async function retry(items){items=items.filter(r=>r.status==='failed');if(!items.length||!await cost(`Retry ${items.length} posts?`,items,'retry'))return;await execute(items,r=>api('POST',`/v1/generator/runs/${r.id}/retry`),'Retrying');}
 
 async function revise(items,direction='') {items=items.filter(r=>['review','concept_review','failed','planned'].includes(r.status));if(!items.length)return;for(const saver of drawerSaves){await saver.flush();if(saver.error)return;}const instruction=direction||await ui.inputDialog({title:`Revise ${items.length} posts with AI`,label:'Revision direction',hint:'Revision creates a new concept using your personal API key. Images and publishing still require approval.',confirmLabel:'Review cost'});if(!instruction?.trim()||!await cost('Create revised concepts?',items))return;return execute(items,r=>api('POST',`/v1/generator/runs/${r.id}/revise`,{request_id:crypto.randomUUID(),brief:(r.brief+'\nRevisi: '+instruction).slice(0,10000),confirm_cost:true}),'Revising');}
@@ -123,7 +148,20 @@ async function approve(items) {
     }
   }
   items=items.map(r=>s.runs.find(x=>x.id===r.id)||r).filter(r=>r.status==='review');if(!items.length)return;
-  const missing=items.filter(r=>!r.scheduled_at||Date.parse(r.scheduled_at)<Date.now()+60000);if(missing.length){replace(notice,h('div',{class:'rd-callout warn'},`${missing.length} posts do not have a future schedule. Edit their schedules first.`));return;}
+  const missing=items.filter(r=>!r.scheduled_at||Date.parse(r.scheduled_at)<Date.now()+60000);
+  if(missing.length){
+    // Counting them was no help when the list runs to thirty drafts: name them,
+    // open them on a click, and offer to narrow the selection to exactly these.
+    const shown=missing.slice(0,8);
+    replace(notice,h('div',{class:'rd-callout warn',role:'alert'},
+      h('p',{},`${missing.length} of the selected posts are not scheduled in the future, so nothing was approved:`),
+      h('ul',{class:'df-missing-schedule'},shown.map(r=>h('li',{},B(`${r.scheduled_at?fmtSlot(r.scheduled_at)+' WIB':'No schedule'} · ${r.title||'Untitled'}`,()=>{pick(r);openEditor(r);},'ui-text-button')))),
+      missing.length>shown.length?h('p',{class:'small muted'},`and ${missing.length-shown.length} more`):null,
+      h('div',{class:'row'},
+        B(`Select only these ${missing.length}`,()=>{chosen.clear();for(const r of missing)chosen.add(r.id);draw();},'btn sm'),
+        B('Move them to the future',()=>reschedule(missing),'btn sm primary'))));
+    return;
+  }
   const from=new Date(Math.min(...items.map(r=>Date.parse(r.scheduled_at)))-60000).toISOString(),to=new Date(Math.max(...items.map(r=>Date.parse(r.scheduled_at)))+60000).toISOString(),response=await api('GET',`/v1/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),posts=response.data||response.posts||[],clashes=items.filter((r,i)=>posts.some(p=>Math.abs(Date.parse(p.scheduled_at)-Date.parse(r.scheduled_at))<60000&&p.targets?.some(t=>r.targets.some(x=>x.account_id===t.account_id)))||items.slice(0,i).some(p=>Math.abs(Date.parse(p.scheduled_at)-Date.parse(r.scheduled_at))<60000&&p.targets.some(t=>r.targets.some(x=>x.account_id===t.account_id))));
   if(clashes.length){if(await ui.confirmDialog({title:`${clashes.length} schedule conflicts`,body:'The same account has content scheduled in the same minute. Shift this selection by 15 minutes, then check and approve again.',confirmLabel:'Shift 15 minutes'}))return execute(clashes,r=>api('PATCH',`/v1/generator/runs/${r.id}`,{scheduled_at:new Date(Date.parse(r.scheduled_at)+900000).toISOString()}),'Shifting schedule');return;}
   const rows=state.accounts.flatMap(account=>{const own=items.filter(r=>r.targets.some(t=>t.account_id===account.id)).sort((a,b)=>String(a.scheduled_at).localeCompare(String(b.scheduled_at)));return own.length?[[account,own]]:[];});
