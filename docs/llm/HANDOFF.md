@@ -556,6 +556,39 @@ This is what the diagnostics in #41 were for: the previous report said only
 "Something went wrong", and the message that replaced it pointed straight at the
 cause.
 
+## The phone navigation drawer could never open: 2026-11-01
+
+Tapping the menu button on a phone dimmed and blurred the page but showed no
+menu. The scrim was appearing and the panel was not.
+
+`index.html` carries a `<style id="critical-ui">` block for first paint, and it
+contains `@media(max-width:760px){ ... .side{display:none} ... }`. That block
+sits at line 15, **after** the `<link>` to `app.css` at line 11. Equal
+specificity, later in document order, so it beat `app.css`'s `.side{display:flex}`
+permanently rather than only until the stylesheets arrived. `.side` is the
+drawer itself, so below 760px no amount of `.side-open` could reveal it:
+`app.css` sets `transform: none` when open, and a transformed `display:none`
+element is still nothing.
+
+Measured in a real browser at 390px: before, `display:none` with a zero-size
+box while `body.side-open` and the scrim were both present; after,
+`display:flex` at 260x844 and x=0, above the scrim.
+
+The fix is the smallest one that keeps the block's purpose: the critical rule
+becomes `body:not(.side-open) .side{display:none}`, so first paint still hides
+the sidebar on a phone and the open state falls through to `app.css`. Moving
+the whole block above the stylesheet links is the more principled fix and was
+deliberately not done: every other rule in it currently overrides the sheets,
+and changing that wholesale is a far wider blast radius than this bug warrants.
+
+`test/redesign-browser.cjs` now asserts, at 375px, that the drawer is hidden,
+that opening it gives a panel over 200px wide fully slid in with
+`display:flex`, and that closing hides it again. **Verified that it fails
+without the fix**: reverting the rule alone produces `the phone navigation
+drawer is visible when opened`. The assertions deliberately perform no
+navigation, because two extra route changes were enough to trip the
+application's own rate limiter and break a later assertion in that suite.
+
 ## Retried drafts reuse their completed stages
 
 `processRun` skips any stage whose status is already `done`
@@ -641,7 +674,8 @@ Lessons for the next occurrence:
 | #40 (`e7e8f82`) | Captions written as short paragraphs, and an editor with room for them | this page |
 | #41 (`824afad`) | Save failures report their reason; Approve no longer aborts silently | this page |
 | #42 (`278f2a6`) | Blocking posts are named; a campaign moves as one from its first post | this page |
-| #43 | Composed content briefs stay within the limit; edits validate only what they change | this page |
+| #43 (`25f08ed`) | Composed content briefs stay within the limit; edits validate only what they change | this page |
+| #44 | The phone navigation drawer can open below 760px | this page |
 
 ## Current user-facing behavior
 
