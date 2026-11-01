@@ -4,7 +4,7 @@ Copy the block below and add your concrete task:
 
 > You are continuing LRMsmm in repository lrmcorp/lrmsmmnew.
 >
-> Read AGENTS.md and docs/llm/README.md, then HANDOFF.md and PRODUCT_RULES.md.
+> Read AGENTS.md and docs/llm/README.md, then HANDOFF.md and RULES.md.
 > Read ARCHITECTURE.md and the API/runbook/mockup sections relevant to my task.
 >
 > Inspect the actual checkout, branch, git status and current code. Do not assume

@@ -6,8 +6,11 @@
   the page being edited. Preserve useful functions when matching a screenshot.
 - English is the current UI default; WIB is the visible scheduling zone.
   Internal timestamps are ISO UTC. Do not use the browser's local zone accidentally.
-- UI icons are SVG. Caption language defaults to Indonesian, can be chosen per
-  account/session, and may include emoji. Content is not interface copy.
+- UI icons are SVG. Caption language is resolved **once per run** by
+  `output-language.js` — the session choice, else the account's Brand Kit
+  default, else Indonesian — and that answer outranks every other language
+  statement in the prompt, including the language the brief is written in.
+  Captions may include emoji. Content is not interface copy.
 - Lists use Company → Accounts → Filters → View with remembered/shareable scope.
   Account selection is a compact row of avatar + `@handle` chips.
 - Show loading, empty, error, partial-success and success states. Missing data is
@@ -33,6 +36,36 @@
   Do not introduce a recurring checkbox that the user previously asked to remove.
 - Preserve idempotency on request retries and final approval, including old story
   request hashes across migrations and retries after memory-session deletion.
+
+## Generated content
+
+These came from reviewing real output. Each one failed first as a prompt that
+contradicted itself, so each is now stated where it is acted on, and enforced in
+code where a model cannot be trusted to comply.
+
+- **One language per run**, stated last and as outranking. Competing language
+  sentences are stripped out of the notes that get embedded rather than left to
+  compete.
+- **The brand name is never drawn as lettering.** The server composites the one
+  official mark, so anything drawn is a duplicate. The account's own words are
+  named in the prompt, and `stripBrandFromQuotes` removes them from the quoted
+  on-image text before the image request, because quoted text is rendered
+  verbatim and that rule would otherwise win. Lettering genuinely printed on the
+  product or its packaging in the scene stays allowed.
+- **No two contents of a campaign share a framing.** `shotTypeFor` assigns one
+  of six compositional archetypes by position; one of the six carries no product
+  at all, and for those runs the product references are removed before the
+  concept stage reads them.
+- **Products rotate across a campaign** from the account's own catalogue, in
+  Brand Kit order so a retry lands on the same product.
+- **The composited logo is a signature, not a banner**: 13% of the width by 4.5%
+  of the height for a corner, on the artwork's own 6% margin, seated in the
+  emptiest measured area. `hero-center` is the one deliberate exception.
+- **Captions are short paragraphs**, not one block of prose: a hook that
+  survives the "more" fold, blank lines between paragraphs, hashtags on their
+  own final line. Every stage that writes *or carries* a caption is told this,
+  because one that gains paragraphs at one stage and loses them at the next is
+  no better.
 
 ## Brand and image generation
 
@@ -60,6 +93,16 @@
 
 ## Story and scheduling
 
+- **The count and the date range are the user's decision; the posting times give
+  way.** `fillPostingTimes` keeps every time the user chose and fills the widest
+  gaps between them, inside 06:00-21:00 WIB and at least thirty minutes apart.
+  A capacity error means the range genuinely cannot hold the count, not that the
+  user should add times.
+- Moving the first post of a selection moves the rest by the same delta, spacing
+  intact.
+- A session is only offered the content types it can produce: `carousel` needs
+  two or more slides, `reel` needs a video in the account's catalogue. Asking
+  for this in words failed; the JSON schema now excludes what cannot be made.
 - Named memory sessions are selected explicitly for continuity. New sessions start
   at episode 1; continuing a session uses only its own Bible/memory/retained history.
 - Global episode storage uniqueness is separate from displayed session numbering.
@@ -74,10 +117,25 @@
 - Published items retain real Instagram permalinks when returned by Meta. Never
   construct an unverified publication link from a container ID or calendar status.
 
+## Validation and error reporting
+
+- **Validate what a request changes, not what it merely carries.** Re-checking a
+  stored field a caller never sent made caption edits and schedule moves
+  impossible on every content of one campaign. A composed value that will later
+  be validated must be capped where it is composed.
+- **One fault, one message.** A message covering two unrelated causes sends
+  diagnosis the wrong way; an over-long value states its actual length.
+- **Never swallow the server's reason.** Autosave and bulk actions report what
+  the server said. An action that aborts must say why rather than appearing to
+  do nothing.
+
 ## AI integrations
 
 - Generator uses each user's encrypted OpenAI/Anthropic/Gemini API credentials.
   Consumer ChatGPT/Claude/Gemini subscriptions do not provide these API credits.
+  Anthropic explicitly prohibits third-party use of Claude subscription OAuth
+  outside its own apps, and OpenAI's Sign in with ChatGPT plan usage needs
+  approval this workspace does not hold. Do not build around either.
 - LRMsmm also serves OAuth for external MCP clients. That OAuth authorizes access
   to LRMsmm, not login to OpenAI or automatic access to ChatGPT Projects.
 - External images require downloadable HTTPS/base64 or a manual upload. `sandbox:`

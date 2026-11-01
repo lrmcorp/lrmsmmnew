@@ -4,8 +4,9 @@
 
 1. [LLM documentation index](docs/llm/README.md)
 2. [Handoff and last verified state](docs/llm/HANDOFF.md)
-3. [Product invariants](docs/llm/PRODUCT_RULES.md)
-4. [Architecture](docs/llm/ARCHITECTURE.md), then the relevant workflow/runbook.
+3. [Product requirements](docs/llm/PRD.md)
+4. [Product invariants](docs/llm/RULES.md)
+5. [Architecture](docs/llm/ARCHITECTURE.md), then the relevant workflow/runbook.
 
 These documents describe the checked-in implementation, not proof that a remote
 server is currently healthy. Verify current Git state, runtime and user intent.

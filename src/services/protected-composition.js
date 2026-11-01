@@ -30,7 +30,7 @@ export const isHex=value=>typeof value==='string'&&/^#[0-9a-fA-F]{6}$/.test(valu
 // The mark's own shape, edges and proportions are never touched: only the alpha
 // is scaled, and a tint replaces colour while the original alpha decides every
 // pixel's coverage. Authorised by the account owner on 2026-10-28; see
-// PRODUCT_RULES.md.
+// RULES.md.
 async function treatCutout(buffer,{tint='',opacity=1}={}){
  if(!isHex(tint)&&opacity>=1)return buffer;
  const {data,info}=await sharp(buffer).ensureAlpha().raw().toBuffer({resolveWithObject:true});

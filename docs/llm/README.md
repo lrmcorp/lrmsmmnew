@@ -2,15 +2,16 @@
 
 This is the coding-agent handoff for **lrmcorp/lrmsmmnew**, serving
 `https://lrmsosmed.playgo.id`. Last substantive implementation documented:
-**2026-10-28, PR #21**. Documentation language is English for agent readability;
+**2026-11-01, PR #45**. Documentation language is English for agent readability;
 product UI defaults to English.
 
 ## Read in this order
 
 | Document | Purpose |
 |---|---|
-| [HANDOFF.md](HANDOFF.md) | Release state, completed work, limitations and restart checklist |
-| [PRODUCT_RULES.md](PRODUCT_RULES.md) | User requirements and invariants that must survive changes |
+| [HANDOFF.md](HANDOFF.md) | Current state first: deployed commit, what is unproven, what waits on the owner, then incident history |
+| [PRD.md](PRD.md) | What the product is for, who uses it, what counts as working and what is out of scope |
+| [RULES.md](RULES.md) | Invariants that must survive changes |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Entry points, modules, data ownership and execution flows |
 | [API_WORKFLOWS.md](API_WORKFLOWS.md) | Important endpoint families and approval boundaries |
 | [RUNBOOK.md](RUNBOOK.md) | Isolated development/tests, deployment and troubleshooting |
