@@ -89,7 +89,7 @@ claimed as verification of visual fidelity.
 
 The composited logo read as a sticker: full opacity, original colours, always in
 the top band. On the account owner's instruction the no-recolour rule in
-`PRODUCT_RULES.md` and `ASSET_PRESERVATION` was amended, and the Final Visual
+`RULES.md` and `ASSET_PRESERVATION` was amended, and the Final Visual
 Conceptor now chooses a treatment per slide alongside the placement.
 
 - `logo_placement` gained the three lower slots, so the mark can take whatever
