@@ -48,6 +48,30 @@ export function accountBrandWorkspace(ctx,content){
    const name=h('input',{value:asset.name,maxlength:200,required:true,'aria-label':'Asset label'}),description=h('textarea',{rows:3,maxlength:2000,'aria-label':'Description'},asset.description||''),collection=h('input',{value:asset.collection||'',maxlength:120,'aria-label':'Collection'}),tagInput=h('input',{value:(asset.tags||[]).join(', '),'aria-label':'Tags, separated by commas'}),presentation=h('select',{'aria-label':'Product presentation'},[['mockup','In-scene AI mockup'],['exact','Exact product cutout']].map(([value,label])=>h('option',{value,selected:(asset.presentation||'mockup')===value},label))),saved=h('p',{class:'ab-muted',role:'status'},'Saved'),saving=autosave(async()=>{if(!name.value.trim())throw new Error('A product name / label is required.');p=await api('PATCH',endpoint+'/assets/'+asset.id,{presentation:presentation.value,category:asset.category,name:name.value,description:description.value,collection:collection.value,tags:tagInput.value.split(',').map(x=>x.trim()).filter(Boolean)});state.brandProfiles[aid]=p;drawAssets();drawMeter();},{statusEl:saved});savers.add(saving);for(const input of [name,description,collection,tagInput,presentation])input.oninput=saving.schedule;
    const d=modal('Edit '+(asset.category==='product'?'products':'assets'),h('div',{class:'ab-asset-edit'},asset.media?.type==='video'?h('video',{src:asset.media.url,controls:true}):h('img',{src:asset.media?.prepared?.url||asset.media?.url,alt:asset.name,style:'object-fit:contain;background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 0 / 16px 16px'}),h('div',{},field('Name / label',name),field('Description',description),asset.category==='product'?field('Product presentation',presentation):null,asset.media?.prepared?h('p',{class:'small muted'},asset.media.prepared.message):null,asset.media?.url?h('a',{href:asset.media.url,target:'_blank',rel:'noopener'},'View unchanged original'):null,field('Collection',collection),field('Tag',tagInput),saved,B('Try saving again',()=>saving.flush(),'ui-text-button'))),[B('Delete asset',async()=>{if(!await ui.confirmDialog({title:'Delete '+name.value+'?',tone:'danger',body:'The asset will no longer be available for new sessions. Media used by posts or drafts will be retained.',confirmLabel:'Delete asset'}))return;await saving.flush();if(saving.error)return;p=await api('DELETE',endpoint+'/assets/'+asset.id);state.brandProfiles[aid]=p;savers.delete(saving);saving.dispose();d.close();drawAssets();drawMeter();},'btn danger'),B('Done',()=>d.close())]);d.classList.add('ab-wide-dialog');guardClose(d,async()=>{await saving.flush();if(saving.error)throw saving.error;savers.delete(saving);saving.dispose();});
   }
+  // Deleting an asset meant opening it one at a time, and only the first three
+  // were reachable without this list, so a catalogue of fifty was effectively
+  // undeletable. The list now selects and deletes several at once; tapping a
+  // product still opens its editor exactly as before.
+  function openAllAssets(label,rows){
+   const picked=new Set(),count=h('span',{class:'ab-muted'},''),list=h('div',{class:'ab-all-assets'});
+   const del=B('Delete selected',async()=>{
+    const ids=[...picked];if(!ids.length)return;
+    if(!await ui.confirmDialog({title:'Delete '+ids.length+' '+(ids.length===1?'item':'items')+'?',tone:'danger',body:'They will no longer be available for new sessions. Media already used by posts or drafts is retained.',confirmLabel:'Delete '+ids.length}))return;
+    del.disabled=true;let failed=0;
+    for(const id of ids){
+     try{p=await api('DELETE',endpoint+'/assets/'+id);state.brandProfiles[aid]=p;}
+     catch(e){failed++;toast(errMsg(e),true);}
+    }
+    d.close();drawAssets();drawMeter();
+    if(!failed)toast(ids.length+' deleted.');
+   },'btn danger');
+   function refresh(){count.textContent=picked.size?picked.size+' selected':'';del.disabled=!picked.size;}
+   replace(list,...rows.map(x=>h('div',{class:'ab-all-asset'},
+    h('label',{class:'ab-all-pick'},h('input',{type:'checkbox','aria-label':'Select '+x.name,onchange:e=>{e.target.checked?picked.add(x.id):picked.delete(x.id);refresh();}})),
+    B(h('div',{},x.media?.type==='video'?h('video',{src:x.media.url,preload:'metadata'}):h('img',{src:x.media?.url,alt:''}),x.name),()=>{d.close();editAsset(x);},'ab-thumb'))));
+   const d=modal(label,h('div',{},h('p',{class:'small muted'},'Tap one to edit it, or tick several and delete them.'),count,list),[del,B('Done',()=>d.close())]);
+   refresh();
+  }
   function upload(category){const picker=h('input',{type:'file',multiple:true,accept:category==='video'?'video/mp4,video/quicktime':'image/jpeg,image/png'});picker.onchange=()=>{if(picker.files.length)productUpload([...picker.files],category);};picker.click();}
   function productUpload(files,category){
    const remaining=250-p.assets.length;if(files.length>remaining){toast('Remaining: '+remaining+' asset slots remaining. Select fewer files.',true);return;}
@@ -76,10 +100,7 @@ export function accountBrandWorkspace(ctx,content){
    const columns=types.map(([id,label])=>{
     const rows=p.assets.filter(x=>x.category===id);
     const thumbs=rows.slice(0,3).map(x=>B(x.media?.type==='video'?h('video',{src:x.media.url,preload:'metadata'}):h('img',{src:x.media?.prepared?.url||x.media?.url,alt:x.name,style:'object-fit:contain'}),()=>editAsset(x),'ab-thumb',{'aria-label':'Edit '+x.name,title:x.name}));
-    if(rows.length>3)thumbs.push(B('+'+(rows.length-3),()=>{
-     const all=rows.map(x=>B(h('div',{},x.media?.type==='video'?h('video',{src:x.media.url,preload:'metadata'}):h('img',{src:x.media?.url,alt:''}),x.name),()=>{d.close();editAsset(x);},'ab-thumb'));
-     const d=modal(label,h('div',{class:'ab-all-assets'},all));
-    },'ui-chip'));
+    if(rows.length>3)thumbs.push(B('+'+(rows.length-3),()=>openAllAssets(label,rows),'ui-chip'));
     return h('section',{id:'ab-'+id,class:'ab-asset-column','data-complete':String(rows.length>0)},h('h3',{},label+' · '+rows.length,rows.length?icon('check'):id!=='video'?icon('warn'):null),h('div',{class:'ab-thumbnails'},thumbs),rows.length?h('p',{class:'ab-muted ab-labels'},'Labels: '+rows.slice(0,3).map(x=>x.name).join(', ')):null,B('+ '+(id==='product'?'Add products':id==='video'?'Video':'Add'),()=>upload(id),'ab-add '+(!rows.length&&id==='product'?'warn':'')),id==='video'?h('p',{class:'ab-muted'},'Optional. Agents do not create videos.'):null);
    });
    replace(assetArea,h('div',{class:'ab-card-head'},h('h2',{},'Brand assets'),h('span',{class:'ab-muted'},p.assets.length+' / 250 assets')),h('div',{class:'ab-asset-columns'},columns));
