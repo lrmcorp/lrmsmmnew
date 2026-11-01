@@ -675,7 +675,8 @@ Lessons for the next occurrence:
 | #41 (`824afad`) | Save failures report their reason; Approve no longer aborts silently | this page |
 | #42 (`278f2a6`) | Blocking posts are named; a campaign moves as one from its first post | this page |
 | #43 (`25f08ed`) | Composed content briefs stay within the limit; edits validate only what they change | this page |
-| #44 | The phone navigation drawer can open below 760px | this page |
+| #44 (`bccfcba`) | The phone navigation drawer can open below 760px | this page |
+| #45 | Brand Kit assets can be selected and deleted in bulk | `BRAND_CUTOUTS_AND_MOCKUPS.md` |
 
 ## Current user-facing behavior
 

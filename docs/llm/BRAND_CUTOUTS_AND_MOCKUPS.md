@@ -166,3 +166,18 @@ would discard the gradient. See the tint caveat above.
 The prompt budget absorbed these: a deliberately maximal case measures about
 29,600 of 32,000. `clipMiddle` keeps both ends of the reference direction, because
 the user's own notes sit at its tail and a head-only clip discarded them.
+
+## Deleting assets (2026-11-01)
+
+Deletion existed only inside an asset's own editor, one at a time, and only the
+first three thumbnails of a category were clickable without opening the "+N"
+list. A catalogue of fifty products was therefore effectively undeletable.
+
+That list now carries a checkbox per item, a running count and a
+`Delete selected` action, confirmed with the number of items, deleting through
+the existing per-asset endpoint one call at a time. A failure reports its own
+reason and the rest continue.
+
+Nothing else changed: tapping an item still opens its editor, and that editor
+still has its single `Delete asset`. Media already used by posts or drafts is
+retained by the server exactly as before.
