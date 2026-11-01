@@ -16,10 +16,11 @@ handoff is for.
 - Repository **lrmcorp/lrmsmmnew**, serving `https://lrmsosmed.playgo.id`.
   `lrmsocmedauto` is retired; do not deploy its Temporal/Postgres/Redis
   architecture or copy its environment.
-- **Last verified deployed commit: `76c40dc`**, PR
-  [#45](https://github.com/lrmcorp/lrmsmmnew/pull/45), deployment run
-  [41274990361](https://github.com/lrmcorp/lrmsmmnew/actions/runs/41274990361),
-  receiver and public health check both passing.
+- **Last verified deployed commit: `474ef50`**, PR
+  [#46](https://github.com/lrmcorp/lrmsmmnew/pull/46), deployment run
+  [41328955252](https://github.com/lrmcorp/lrmsmmnew/actions/runs/41328955252),
+  receiver and public health check both passing. The last release that changed
+  application behaviour is `76c40dc` (PR #45); #46 is documentation only.
 - Last verified checks: the English/SVG gates, **40 application e2e**, **92
   production-mode backend checks**, 6 deployment tests and the real-browser
   redesign workflow.
@@ -99,6 +100,7 @@ anything else; the summary line alone is useless for diagnosis.
 | #43 (`25f08ed`) | Composed content briefs stay within the limit; edits validate only what they change | this page |
 | #44 (`bccfcba`) | The phone navigation drawer can open below 760px | this page |
 | #45 (`76c40dc`) | Brand Kit assets can be selected and deleted in bulk | `BRAND_CUTOUTS_AND_MOCKUPS.md` |
+| #46 (`474ef50`) | PRD added; handoff, architecture and rules restructured | this page |
 
 ## Current user-facing behavior
 
