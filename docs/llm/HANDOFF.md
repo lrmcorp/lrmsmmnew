@@ -53,8 +53,8 @@ Carried across several sessions and still unconfirmed:
 `npm test` has reported 39/40 twice — 2026-10-27 and 2026-11-01 — and the
 failing check has never been identified either time, because the summary line
 was captured without the `✗ name` that `test/e2e.js` prints to stderr just
-above it. It passed 26 consecutive runs after the second occurrence. It is real
-and roughly one in thirty, most likely publish-retry timing.
+above it. It passed all 28 runs attempted immediately after the second
+occurrence, so it is real but rare, most likely publish-retry timing.
 
 **If you see it, capture the name.** `npm test 2>&1 | grep -A2 '✗'` before
 anything else; the summary line alone is useless for diagnosis.
