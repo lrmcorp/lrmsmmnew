@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {autosave,errorReason,groupSessions,sessionState,fmtTime} from '../public/ui.js';
+import {autosave,errorReason,safeNextPath,groupSessions,sessionState,fmtTime} from '../public/ui.js';
 
 test('session fallback groups account-specific caption directives while explicit batches remain separate',()=>{
  const plans=[{id:'a',brief:'Brand launch\nWrite captions and on-image text in Indonesian.',start_date:'2026-11-01',end_date:'2026-11-07',content_count:2,created_at:'2026-10-21T00:00:00Z'},{id:'b',brief:'Brand launch\nWrite captions and on-image text in English.',start_date:'2026-11-01',end_date:'2026-11-07',content_count:3,created_at:'2026-10-21T00:00:01Z'}];
@@ -10,6 +10,20 @@ test('session fallback groups account-specific caption directives while explicit
  assert.equal(sessionState({runs:[{status:'cancelled'}]}),'done');assert.equal(sessionState({runs:[]}), 'expired');
 });
 
+test('the post-login redirect cannot be sent to another origin',async()=>{
+ const o='https://lrmsosmed.playgo.id';
+ // A string prefix test let this through: the URL parser treats a backslash
+ // after the leading slash as a second slash, so the guard saw a path and the
+ // browser saw an authority. Proven against a real browser before this fix.
+ assert.equal(safeNextPath('/\\evil.example/steal',o),null,'a backslash cannot smuggle in an authority');
+ assert.equal(safeNextPath('/\\\\evil.example',o),null);
+ assert.equal(safeNextPath('//evil.example',o),null,'the original protocol-relative case stays blocked');
+ assert.equal(safeNextPath('https://evil.example/x',o),null,'and an absolute URL');
+ assert.equal(safeNextPath('javascript:alert(1)',o),null,'and a script scheme');
+ assert.equal(safeNextPath('/generator/drafts?id=7#slide',o),'/generator/drafts?id=7#slide','an ordinary in-app path still works, query and fragment intact');
+ assert.equal(safeNextPath('/',o),'/');
+ for(const bad of ['',null,undefined,42,{}])assert.equal(safeNextPath(bad,o),null,'nothing but a usable string is accepted');
+});
 test('a failed save reports what the server actually said',async()=>{
  // "Something went wrong" turned a one-line server message into a support
  // conversation three times in one week.

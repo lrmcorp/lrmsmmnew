@@ -650,6 +650,23 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.equal(s.agents.storyteller.model,'claude-sonnet-5-5');
       assert.equal(s.agents.visual.model,'claude-opus-5','the visual conceptor keeps the model chosen for it');
     });
+    await t.test('a team member cannot delete or edit another member\'s library media', async () => {
+      const {saveBuffer}=await import('../src/services/media.js');
+      const asset=await saveBuffer(user.id,image,{inLibrary:true});
+      const raw=(method,id,cred,body)=>realFetch(`${base}/v1/media/${id}`,{method,headers:{Cookie:cred,'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+      // Reading the shared library stays open to the whole team.
+      assert.equal((await raw('GET',asset.id,otherCookie)).status,200,'the library is readable by other members by design');
+      // Writing is not. Before this guard, the ownership test was skipped for
+      // in_library rows, so any writer could unlink another member's file from
+      // disk, across companies, and could flip it out of the library to have
+      // the collector delete it later.
+      assert.equal((await raw('DELETE',asset.id,otherCookie)).status,403,'another member cannot delete it');
+      assert.equal((await raw('PATCH',asset.id,otherCookie,{alt_text:'written by someone else'})).status,403,'nor edit it');
+      assert.equal((await raw('PATCH',asset.id,otherCookie,{in_library:false})).status,403,'nor evict it from the library');
+      assert.ok(one('SELECT 1 FROM media WHERE id=?',asset.id),'the row survived');
+      assert.equal((await raw('PATCH',asset.id,cookie,{alt_text:'written by the uploader'})).status,200,'the uploader still edits their own');
+      assert.equal((await raw('DELETE',asset.id,cookie)).status,204,'and still deletes it');
+    });
     await t.test('a retired image model never reaches the provider, from settings, a save or an older draft', async () => {
       const {PROVIDERS,currentModel}=await import('../src/llm/providers.js');
       assert.equal(PROVIDERS.openai.imageModel,'gpt-image-2.5-sunburst');

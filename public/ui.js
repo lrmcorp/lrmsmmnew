@@ -749,6 +749,18 @@ export function sessionState(s) {
 // A save that only ever says "something went wrong" turns a one-line server
 // message into a support conversation. Report what the server actually said,
 // and fall back to the status and code when it said nothing useful.
+// A post-login redirect target is attacker-supplied. A string prefix test is
+// not enough: the URL parser treats a backslash after the leading slash as a
+// second slash, so "/\\evil.example/steal" passes startsWith('/') and
+// !startsWith('//') and still resolves to another origin. Parse it instead and
+// keep only the path of a same-origin result.
+export function safeNextPath(next,origin){
+ if(typeof next!=='string'||!next)return null;
+ let target;
+ try{target=new URL(next,origin);}catch{return null;}
+ if(target.origin!==origin)return null;
+ return target.pathname+target.search+target.hash;
+}
 export function errorReason(e){
  if(!e)return t('common.error');
  if(typeof e==='string')return e;
