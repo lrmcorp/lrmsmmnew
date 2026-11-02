@@ -3,7 +3,7 @@ import { workspacePages } from './workspace-pages.js';
 import { contentWorkspace } from './content-workspace.js';
 import { generatorWorkspace } from './generator-workspace.js';
 import { t } from './strings.en.js';
-import { createUI, fmtDay, fmtSlot, fmtRange, fmtNumber, sessionTitle, groupSessions, readSessionGroups, sessionState } from './ui.js';
+import { createUI, fmtDay, fmtSlot, fmtRange, fmtNumber, safeNextPath, sessionTitle, groupSessions, readSessionGroups, sessionState } from './ui.js';
 // LRMsmm dashboard — vanilla JS SPA (no build step). UI mengikuti hrd.playgo.id.
 import { storyWorkspace } from './story-workspace.js';
 import { generatorStudio } from './generator-studio.js';
@@ -843,7 +843,8 @@ function authPage(mode) {
         const response = await api('POST', setup ? '/auth/register' : '/auth/login', Object.fromEntries(new FormData(form)));
         state.user = response.user;
         document.getElementById('toast').replaceChildren();
-        if (next && next.startsWith('/') && !next.startsWith('//')) location.href = next;else go('/');
+        const target = safeNextPath(next, location.origin);
+        if (target) location.href = target;else go('/');
       } catch (e) {
         error.hidden = false;
         error.textContent = e.code === 'invalid_credentials' || e.code === 'unauthenticated' ? t('login.error.generic') : errMsg(e);
