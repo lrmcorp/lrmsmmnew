@@ -44,9 +44,16 @@ api.use(authenticate, (req, res, next) => {
 const sessionOnly = (req, _res, next) => (req.auth.via === 'session' ? next() : next(err(403, 'forbidden', "This endpoint is only available from the dashboard.")));
 const W = requireWrite;
 const U = (req) => req.auth.user;
-const privateMedia = (req) => {
+// Reading the team library is deliberately open to every member. Changing or
+// deleting an item is not, and used to be: the ownership test was skipped
+// entirely for in_library rows, so any writer could unlink another member's
+// file from disk, across companies, and could also flip it out of the library
+// to have the collector delete it later.
+const privateMedia = (req, { mutating = false } = {}) => {
   const record = media.getMedia(req.params.id);
-  if (!record.in_library && record.user_id !== U(req).id) throw err(404, 'not_found', "Private media not found.");
+  const mine = record.user_id === U(req).id;
+  if (!record.in_library && !mine) throw err(404, 'not_found', "Private media not found.");
+  if (mutating && !mine && U(req).role !== 'owner') throw err(403, 'forbidden', "Only the member who uploaded this file, or an Owner, can change or delete it.");
   return record;
 };
 api.use((req, _res, next) => {
@@ -272,11 +279,11 @@ api.post('/media/:id/complete', W, ownUpload, async (req, res) => res.json(await
 api.get('/media', (req, res) => res.json(media.listMedia(req.query)));
 api.get('/media/:id', (req, res) => res.json(media.publicMedia(privateMedia(req))));
 api.patch('/media/:id', W, (req, res) => {
-  privateMedia(req);
+  privateMedia(req, { mutating: true });
   if (req.body?.in_library != null) run('UPDATE media SET in_library=? WHERE id=?', req.body.in_library ? 1 : 0, req.params.id);
   res.json(req.body?.alt_text !== undefined ? media.setAlt(req.params.id, req.body.alt_text) : media.publicMedia(media.getMedia(req.params.id)));
 });
-api.delete('/media/:id', W, (req, res) => { privateMedia(req); media.deleteMedia(req.params.id); audit(req.auth, 'media.delete', 'media', req.params.id); res.status(204).end(); });
+api.delete('/media/:id', W, (req, res) => { privateMedia(req, { mutating: true }); media.deleteMedia(req.params.id); audit(req.auth, 'media.delete', 'media', req.params.id); res.status(204).end(); });
 
 // ---- comments ----
 api.get('/comments', (req, res) => res.json(eng.listComments({ ...req.query, reply_status: req.query.reply_status ?? 'unreplied', include_own: req.query.include_own === 'true' }, U(req))));
