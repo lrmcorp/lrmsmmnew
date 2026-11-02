@@ -7,7 +7,8 @@
     "start": "node --no-warnings src/server.js",
     "dev": "META_MOCK=1 node --no-warnings --watch src/server.js",
     "test": "node --no-warnings test/e2e.js",
-    "create-admin": "node --no-warnings scripts/create-user.js"
+    "create-admin": "node --no-warnings scripts/create-user.js",
+    "test:e2e": "e2e run"
   },
   "license": "UNLICENSED",
   "dependencies": {
@@ -22,5 +23,9 @@
   "engines": {
     "node": ">=22.5"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "e2e": "^0.22.0",
+    "@e2e-dev/web": "^0.15.4"
+  }
 }

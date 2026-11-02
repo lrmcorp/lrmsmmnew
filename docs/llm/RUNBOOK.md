@@ -150,3 +150,34 @@ Verify the served module/behavior too when reviewing a frontend change.
 8. For storage, private PNGs must be collected with derivatives. Brand assets/active
    drafts are pinned. Global Docker cleanup or live database reset is not a substitute
    for investigating usage.
+
+## Agentic e2e (`npm run test:e2e`)
+
+Scaffolded 2026-11-02 by `npx e2e init` at the owner's request, with
+`--gateway none`: deterministic tests only, no LLM call and therefore no AI
+cost. Files: `e2e.config.ts`, `tests/example.e2e.ts`, and the agent skill at
+`.agents/skills/e2e/`. `.e2e/` output is gitignored.
+
+**It is not a CI gate, and cannot be one yet.** Two blockers, both environmental
+rather than anything wrong with the setup:
+
+1. `e2e` requires Node `^22.22.3 || >=24.8.0`. `deploy.yml` pins `node-version:
+   22`, which resolves to a generic 22 line, and this development container runs
+   22.22.0. Raising the workflow to `24` is what unblocks it; the production
+   image is unaffected because the Dockerfile installs with `npm ci --omit=dev`.
+2. The runner downloads `chrome-headless-shell` from `cdn.playwright.dev`, which
+   this container's proxy blocks. A machine with that host allowed runs
+   `npx @e2e-dev/web install chromium` once.
+
+**Verified working anyway**, so the scaffold is known good rather than assumed:
+the example test was run against the real application on `127.0.0.1:4330`,
+attaching over CDP to the Chromium already at `/opt/pw-browsers/chromium`, and
+passed in 966ms. That attachment was a temporary config for the check and is
+deliberately **not** committed — it would encode this container's limitation
+into the repository.
+
+`npm ci` was checked separately on Node 22 with the new lockfile: the engine
+mismatch is a warning, not a failure, so the existing pipeline is unaffected.
+
+Note the two directories: the project's own suites live in `test/`, and this
+tool's default discovery path is `tests/`. They are different things.
