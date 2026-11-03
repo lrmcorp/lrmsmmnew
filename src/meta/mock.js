@@ -8,6 +8,16 @@ import { config } from '../config.js';
 const rid = () => String(BigInt('0x' + crypto.randomBytes(7).toString('hex')));
 const state = { containers: new Map(), media: new Map(), comments: new Map(), transientSeen: new Set(), convs: new Map(), seeded: new Set() };
 
+// A Graph `paging.next` is an absolute URL, so the client follows it as given.
+const pageUrl = (plat, req, path, params) =>
+  `${config.publicUrl}/__mock/${plat}/graph/${req.params.v}${path}?` +
+  new URLSearchParams({ ...params, access_token: String(req.query.access_token || '') }).toString();
+const mockMessage = (conv, m) => ({
+  id: m.id, created_time: m.at, message: m.text,
+  from: m.dir === 'in' ? { id: conv.peer.id, username: conv.peer.username } : { id: conv.ownerId, username: conv.owner },
+  to: { data: [m.dir === 'in' ? { id: conv.ownerId } : { id: conv.peer.id }] },
+});
+
 function metaError(res, code, message, sub) {
   res.status(400).json({ error: { message, type: 'OAuthException', code, error_subcode: sub, fbtrace_id: 'mock' } });
 }
@@ -151,14 +161,30 @@ export function mockRouter() {
         mk('rina.ardhani', [['in', 'Kak, kelas Sabtu pagi masih ada slot?', 12]]);
         mk('bayu_w', [['in', 'Harga paket 10x berapa ya?', 40], ['out', 'Halo Kak! Paket 10x Rp1.500.000 ya 🙏', 35]]);
       };
+      // Pages like Graph does: honour `limit`, and hand back a `next` cursor
+      // while more remain, so the client's paging is exercised rather than
+      // assumed.
       r.get(`${base}/:uid/conversations`, (req, res) => {
         const u = auth(req, res); if (!u) return;
         ensureSeed(u, req.params.uid);
-        const data = [...state.convs.entries()].filter(([, c]) => c.owner === u).map(([cid, c]) => ({
+        const rows = [...state.convs.entries()].filter(([, c]) => c.owner === u).map(([cid, c]) => ({
           id: cid, updated_time: c.messages.at(-1)?.at,
           participants: { data: [{ id: req.params.uid, username: u }, { id: c.peer.id, username: c.peer.username }] },
         }));
-        res.json({ data });
+        const limit = Math.max(1, Number(req.query.limit) || 25), from = Number(req.query.after) || 0;
+        const data = rows.slice(from, from + limit);
+        const more = from + limit < rows.length;
+        res.json({ data, ...(more ? { paging: { cursors: { after: String(from + limit) }, next: pageUrl(plat, req, `/${req.params.uid}/conversations`, { platform: 'instagram', fields: 'id,updated_time,participants', limit, after: from + limit }) } } : {}) });
+      });
+      // Where a nested messages cursor points.
+      r.get(`${base}/:id/messages`, (req, res) => {
+        const conv = state.convs.get(req.params.id);
+        if (!conv) return res.status(404).json({ error: { message: 'Unknown conversation', code: 100 } });
+        const rows = [...conv.messages].reverse();
+        const limit = Math.max(1, Number(req.query.limit) || 25), from = Number(req.query.after) || 0;
+        const page = rows.slice(from, from + limit);
+        const more = from + limit < rows.length;
+        res.json({ data: page.map((m) => mockMessage(conv, m)), ...(more ? { paging: { cursors: { after: String(from + limit) }, next: pageUrl(plat, req, `/${req.params.id}/messages`, { limit, after: from + limit }) } } : {}) });
       });
       r.post(`${base}/:uid/messages`, (req, res) => {
         const u = auth(req, res); if (!u) return;
@@ -207,11 +233,15 @@ export function mockRouter() {
     r.get(`${base}/:id`, (req, res) => {
       const conv = state.convs.get(req.params.id);
       if (conv) {
-        return res.json({ id: req.params.id, messages: { data: [...conv.messages].reverse().map((m) => ({
-          id: m.id, created_time: m.at, message: m.text,
-          from: m.dir === 'in' ? { id: conv.peer.id, username: conv.peer.username } : { id: conv.ownerId, username: conv.owner },
-          to: { data: [m.dir === 'in' ? { id: conv.ownerId } : { id: conv.peer.id }] },
-        })) } });
+        const rows = [...conv.messages].reverse();
+        const asked = /messages\.limit\((\d+)\)/.exec(String(req.query.fields || ''));
+        const limit = Math.max(1, Number(asked?.[1]) || 25);
+        const page = rows.slice(0, limit);
+        const more = limit < rows.length;
+        return res.json({ id: req.params.id, messages: {
+          data: page.map((m) => mockMessage(conv, m)),
+          ...(more ? { paging: { cursors: { after: String(limit) }, next: pageUrl(plat, req, `/${req.params.id}/messages`, { limit, after: limit }) } } : {}),
+        } });
       }
       const c = state.containers.get(req.params.id);
       if (c) {

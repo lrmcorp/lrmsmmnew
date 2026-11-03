@@ -609,7 +609,11 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.match(outputLanguageClause(''),/Bahasa Indonesia/,'an empty language still names one');
     });
     await t.test('a plan records the language its session chose', async () => {
-      const body={account_ids:['ig-generator'],brief:'Campaign brief written in Indonesian',content_count:1,slide_count:1,start_date:'2026-11-02',end_date:'2026-11-02',times:['09:00'],manual:true,reference_notes:'Caption language: id'};
+      // A fixed calendar date made this test pass until that date went by and
+      // then fail on scheduling capacity, so the day is relative like every
+      // other date in this file. The offset is one no neighbouring test uses.
+      const d=new Date(Date.now()+17*864e5+7*3600000).toISOString().slice(0,10);
+      const body={account_ids:['ig-generator'],brief:'Campaign brief written in Indonesian',content_count:1,slide_count:1,start_date:d,end_date:d,times:['09:00'],manual:true,reference_notes:'Caption language: id'};
       const created=await http('POST','/plans',{...body,request_id:'lang-'+Date.now(),caption_language:'en'});
       assert.equal(created.status,201,JSON.stringify(created.json));
       const runs=all('SELECT caption_language FROM generator_runs WHERE plan_id=?',created.json.id);

@@ -52,6 +52,14 @@ export const config = {
     version: env.THREADS_API_VERSION || 'v1.0',
     scopes: ['threads_basic', 'threads_content_publish', 'threads_read_replies', 'threads_manage_replies', 'threads_manage_insights'],
   },
+  // How deep a one-off DM history pass walks. Instagram caps each page itself,
+  // so depth comes from pages, not from a larger limit.
+  dmBackfill: {
+    conversationLimit: Number(env.DM_CONVERSATION_LIMIT || 50),
+    conversationPages: Number(env.DM_CONVERSATION_PAGES || 4),
+    messageLimit: Number(env.DM_MESSAGE_LIMIT || 50),
+    messagePages: Number(env.DM_MESSAGE_PAGES || 4),
+  },
   smtp: env.SMTP_URL || null,
   webhookVerifyToken: env.WEBHOOK_VERIFY_TOKEN || 'lrmsmm-verify',
   unrepliedAlertSeconds: Number(env.UNREPLIED_ALERT_SECONDS || 300),

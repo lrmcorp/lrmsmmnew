@@ -314,7 +314,9 @@ api.post('/conversations/:id/messages', W, async (req, res) => {
 });
 api.patch('/conversations/:id', W, (req, res) => res.json(msgs.setConversationStatus(U(req), req.params.id, req.body?.status)));
 api.post('/messages/sync', W, async (req, res) => {
-  res.json(await msgs.syncUserMessages(U(req), req.body?.account_id));
+  // history:true walks older pages again, for an inbox that was connected
+  // before the backfill existed or was deepened afterwards.
+  res.json(await msgs.syncUserMessages(U(req), req.body?.account_id, { deep: req.body?.history === true }));
 });
 api.get('/messages/sync-status', (req, res) => res.json({ data: msgs.messageSyncStatus(U(req)) }));
 api.get('/messages/unreplied', (req, res) => res.json(msgs.unrepliedSummary(U(req), req.query.older_than ? Number(req.query.older_than) : undefined)));

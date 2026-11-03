@@ -151,22 +151,54 @@ export async function recentMedia(igUserId, token, limit = 15) {
 }
 
 // ---------------- Direct messages (instagram_business_manage_messages) ----------------
-export async function listConversations(igUserId, token, limit = 25) {
-  const r = await gget(G(`/${igUserId}/conversations`), { platform: 'instagram', fields: 'id,updated_time,participants', limit, access_token: token });
-  if (!Array.isArray(r.data)) throw new PlatformError('invalid_response', "Instagram did not return a valid conversation list.");
-  return r.data.map((c) => ({
-    id: c.id, updated_time: c.updated_time,
-    participants: (c.participants?.data || []).map((p) => ({ id: String(p.id), username: p.username, name: p.name })),
-  }));
+// Graph returns one page and a cursor, so asking for a bigger `limit` does not
+// reach further back: Meta caps it silently. Depth comes from following
+// `paging.next`, which is what listComments above already does. Pages are
+// bounded so a sync cannot walk an inbox forever.
+async function pagedData(firstUrl, firstParams, maxPages, invalid) {
+  const out = [];
+  let url = firstUrl, params = firstParams;
+  for (let page = 0; page < Math.max(1, maxPages) && url; page++) {
+    const r = await gget(url, params);
+    if (!Array.isArray(r.data)) throw new PlatformError('invalid_response', invalid);
+    out.push(...r.data);
+    url = r.paging?.next || null; params = undefined;
+  }
+  return out;
 }
 
-export async function conversationMessages(conversationId, token, limit = 25) {
-  const r = await gget(G(`/${conversationId}`), { fields: `messages.limit(${limit}){id,created_time,from,to,message,attachments}`, access_token: token });
+const conversationOf = (c) => ({
+  id: c.id, updated_time: c.updated_time,
+  participants: (c.participants?.data || []).map((p) => ({ id: String(p.id), username: p.username, name: p.name })),
+});
+
+export async function listConversations(igUserId, token, { limit = 25, maxPages = 1 } = {}) {
+  const rows = await pagedData(
+    G(`/${igUserId}/conversations`),
+    { platform: 'instagram', fields: 'id,updated_time,participants', limit, access_token: token },
+    maxPages, "Instagram did not return a valid conversation list.");
+  return rows.map(conversationOf);
+}
+
+const messageOf = (m) => ({
+  id: m.id, created_time: m.created_time, from_id: String(m.from?.id || ''), from_username: m.from?.username,
+  text: m.message || '', attachments: m.attachments?.data?.map((a) => ({ type: a.mime_type || a.type || 'file', url: a.image_data?.url || a.video_data?.url || a.file_url || null })) || [],
+});
+
+export async function conversationMessages(conversationId, token, { limit = 25, maxPages = 1 } = {}) {
+  const fields = 'id,created_time,from,to,message,attachments';
+  const r = await gget(G(`/${conversationId}`), { fields: `messages.limit(${limit}){${fields}}`, access_token: token });
   if (!Array.isArray(r.messages?.data)) throw new PlatformError('invalid_response', "Instagram did not return a valid message list.");
-  return r.messages.data.map((m) => ({
-    id: m.id, created_time: m.created_time, from_id: String(m.from?.id || ''), from_username: m.from?.username,
-    text: m.message || '', attachments: m.attachments?.data?.map((a) => ({ type: a.mime_type || a.type || 'file', url: a.image_data?.url || a.video_data?.url || a.file_url || null })) || [],
-  }));
+  const out = r.messages.data.map(messageOf);
+  // The nested field's own cursor points at the conversation's messages edge.
+  let url = r.messages.paging?.next || null;
+  for (let page = 1; page < Math.max(1, maxPages) && url; page++) {
+    const next = await gget(url);
+    if (!Array.isArray(next.data)) throw new PlatformError('invalid_response', "Instagram did not return a valid message list.");
+    out.push(...next.data.map(messageOf));
+    url = next.paging?.next || null;
+  }
+  return out;
 }
 
 export async function sendMessage(igUserId, recipientId, text, token) {
