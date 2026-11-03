@@ -66,6 +66,16 @@ function syncErrorMessage(code) {
   return "Instagram could not synchronize DMs. Check messaging permissions and the account connection, then try again.";
 }
 
+// An empty list is not an error, so Meta returns one in cases that look like
+// success. The costly one to diagnose is an app still in Development mode: the
+// Graph call succeeds and returns no conversations at all, rather than refusing,
+// because only people holding a role on the app are visible. That was named last
+// here and cost three rounds of diagnosis on a live account, so it is named
+// first now.
+function emptyAdvice(found, stored) {
+  return `Meta returned ${found} conversations; ${stored} messages saved. This is a successful call that returned nothing, not a refusal. If Instagram has recent DMs, the usual cause is the Meta app still being in Development mode, where only people with a role on the app are returned: complete App Review and switch the app to Live. Otherwise check Connected tools > Allow access to messages for this account. Note that Meta never returns Requests-folder conversations inactive for more than 30 days.`;
+}
+
 export function messageSyncStatus(user) {
   const [where, params] = scopeSql(user, 'id');
   return all(`SELECT id, username, status FROM accounts WHERE platform='instagram' AND status!='disconnected' AND ${where}`, ...params).map(a => ({
@@ -104,7 +114,7 @@ export async function syncAccountMessages(acc, { onlyConversationIds, throwOnErr
     kvSet(`messages-sync:${acc.id}`, JSON.stringify({
       status: empty ? 'empty' : 'ok', last_attempt: attempted, last_success: now(), new_messages: n, history_pass: firstPass,
       conversations_found: convs.length, messages_fetched: fetched, messages_stored: stored,
-      ...(empty ? { message: `Meta returned ${convs.length} conversations; ${stored} messages saved. If Instagram has DMs, check Connected tools > Allow access to messages and app permissions, then try receiving a new message.` } : {}),
+      ...(empty ? { message: emptyAdvice(convs.length, stored) } : {}),
     }));
   } catch (e) {
     if (e.code === 'account_expired') markExpired(acc.id, syncErrorMessage('account_expired'));

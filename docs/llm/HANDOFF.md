@@ -229,6 +229,46 @@ Newest first. Each entry records what was reported, what actually caused it and
 what was decided, because several of these were misdiagnosed the first time and
 the reasoning is the part worth keeping.
 
+### An empty DM inbox was diagnosed as a permission failure three times: 2026-11-03
+
+After the paging release the inbox was still empty on two live accounts, and
+the sync panel reported, for both: `Meta returned 0 conversations; 0 messages
+saved`.
+
+This was called an ungranted `instagram_business_manage_messages` three times
+before the panel was actually read, and that was wrong. A missing permission
+makes Graph return error code 10, which this codebase maps to
+`permission_missing` and prints as "DM permission has not been granted". What
+the panel showed was a **successful** call returning an empty list, which is a
+different fault entirely. The endpoint
+(`graph.instagram.com/v{ver}/{ig-user-id}/conversations?platform=instagram`) and
+the token were both confirmed good by that 200.
+
+The cause, confirmed with the owner: the **Meta app is still in Development
+mode**. In Development mode the Graph API returns data only for people holding a
+role on the app, and omits everyone else silently rather than refusing. Recent
+DMs existed on both accounts, so Meta's "Requests folder inactive over 30 days
+are never returned" rule was not the explanation either.
+
+What was decided:
+
+- No code fix reaches this. App Review must pass and the app must be switched to
+  Live. The owner's earlier **Insufficient Developer Role** message is the same
+  blocker seen from the other side.
+- The empty-state advice now names Development mode **first**, because it
+  previously listed only Connected tools and app permissions, and that omission
+  is what cost three rounds of misdiagnosis on a live account.
+- To verify the pipeline before App Review completes, add an Instagram account
+  as a **tester** on the Meta app and DM from it: Development mode does return
+  conversations involving role holders. That is also the only way to prove the
+  paging walker against real Instagram rather than a stubbed `fetch`.
+
+**Lesson for the next agent.** Read the sync panel before naming a cause. The
+status codes this service already distinguishes (`permission_missing`,
+`account_expired`, `rate_limited`, `invalid_response`, and a successful-but-empty
+result) each mean something different, and guessing between them wastes the
+owner's time on a live system.
+
 ### DM synchronization only ever saw the newest page: 2026-11-03
 
 Reported as "DMs cannot be synchronized, not even the earlier ones". The inbox
