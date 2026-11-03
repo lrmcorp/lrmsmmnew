@@ -69,6 +69,7 @@ functions and `public/story-workspace.js` remain for historical/other call paths
 | `src/llm/providers.js` | OpenAI, Anthropic and Gemini adapters, model/schema/image request handling |
 | `src/services/media.js` | Uploads, JPEG derivatives, retained private PNGs, ownership, use checks and GC |
 | `src/services/posts.js`, `src/worker.js`, `src/meta/` | Publishing, polling, retries, synchronization and Meta adapters |
+| `src/services/messages.js` | DM synchronization: a shallow pass for the periodic tick, a cursor-walking history pass once per account and on request |
 | `src/services/dashboard.js` | Home summary and durable Owner reconnect requests |
 | `src/services/calendar-workspace.js` | Move/retarget conflict checks and private duplication |
 | `src/services/audit-workspace.js` | Scoped audit data and export support |

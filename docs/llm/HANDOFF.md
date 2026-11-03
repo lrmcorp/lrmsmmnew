@@ -48,6 +48,7 @@ Carried across several sessions and still unconfirmed:
 | Manisky Brand Kit caption language set to English | The Generator's selector defaults to "From Brand Kit", so the session choice must otherwise be made every time |
 | Upload the purple gradient logo to Manisky's Brand Kit | The server composites whatever the Brand Kit holds, which is still a flat black script |
 | Confirm the mobile drawer, the 30-draft schedule move and the desktop logo | All deployed, none confirmed by the owner |
+| Resolve the Meta **Insufficient Developer Role** / App Review state | Until Meta grants `instagram_business_manage_messages`, DM synchronization returns nothing however deep it pages; the history pass cannot create access that the token does not carry |
 
 ### Known flake
 
@@ -228,6 +229,42 @@ Lessons for the next occurrence:
 Newest first. Each entry records what was reported, what actually caused it and
 what was decided, because several of these were misdiagnosed the first time and
 the reasoning is the part worth keeping.
+
+### DM synchronization only ever saw the newest page: 2026-11-03
+
+Reported as "DMs cannot be synchronized, not even the earlier ones". The inbox
+was asking Instagram for one page of 25 conversations and one page of 25
+messages each, and nothing ever asked for the page after that, so no amount of
+re-synchronizing could reach a message older than the newest 25 in a thread.
+Raising the limit was not the fix: Graph API caps the page size, and depth comes
+from following `paging.next`.
+
+What was decided:
+
+- `src/meta/instagram.js` gained a shared `pagedData` walker, copied in shape
+  from `listComments`, which already paged. `listConversations` and
+  `conversationMessages` now take `{ limit, maxPages }` instead of a bare
+  number. `conversationMessages` starts from the nested `messages.limit(N)`
+  field and then follows that field's own cursor onto the `/messages` edge.
+- The two-minute tick stays **shallow**, one page, because it only has to
+  notice what is new and a deep walk every two minutes would spend the
+  account's rate limit for nothing. A **deep** pass runs once per account
+  automatically, recorded under `messages-backfill:<account>`, and again
+  whenever asked. Page counts and sizes are configurable via `DM_*` env vars.
+- The deep pass also skips the "conversation unchanged since last sync" shortcut
+  that the shallow pass relies on, since the entire point is to reach messages
+  older than the newest one already stored.
+- `POST /v1/messages/sync` takes `history: true`, and the inbox has a second
+  button, **Load earlier messages**, because an endpoint no interface reaches is
+  not a feature the owner has.
+
+**What this does not prove.** The walker is verified against a stubbed `fetch`
+serving three pages, and the test was confirmed to fail without the paging
+change. Nothing here was run against real Instagram: while Meta reports
+**Insufficient Developer Role** and `instagram_business_manage_messages` is
+ungranted, a deep pass returns exactly what a shallow one did, which is nothing.
+Connecting the account in the product does not change that; the permission is
+the blocker, not the depth.
 
 ### The phone navigation drawer could never open: 2026-11-01
 

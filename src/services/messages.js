@@ -8,6 +8,16 @@ import { config } from '../config.js';
 
 export const MESSAGING_PLATFORMS = ['instagram'];
 const WINDOW_MS = 24 * 3600_000;
+// The two-minute tick stays shallow: it only has to notice what is new, and a
+// deep walk every two minutes would burn the account's rate limit for nothing.
+// History is fetched once per account by a backfill, and again only on request.
+const SHALLOW = { conversations: { limit: 25, maxPages: 1 }, messages: { limit: 25, maxPages: 1 } };
+const DEEP = {
+  conversations: { limit: Number(config.dmBackfill?.conversationLimit || 50), maxPages: Number(config.dmBackfill?.conversationPages || 4) },
+  messages: { limit: Number(config.dmBackfill?.messageLimit || 50), maxPages: Number(config.dmBackfill?.messagePages || 4) },
+};
+const backfillKey = (accountId) => `messages-backfill:${accountId}`;
+export const backfilled = (accountId) => !!kvGet(backfillKey(accountId));
 
 function upsertConversation(acc, c) {
   const peer = c.participants.find((p) => p.id !== acc.platform_user_id && p.username?.toLowerCase() !== acc.username?.toLowerCase()) || c.participants[0] || {};
@@ -65,28 +75,34 @@ export function messageSyncStatus(user) {
   }));
 }
 
-export async function syncAccountMessages(acc, { onlyConversationIds, throwOnError = false } = {}) {
+export async function syncAccountMessages(acc, { onlyConversationIds, throwOnError = false, deep = false } = {}) {
   if (!MESSAGING_PLATFORMS.includes(acc.platform) || acc.status !== 'active') return 0;
   const ig = clients.instagram;
+  // An account that has never been walked gets its history once, automatically.
+  const firstPass = deep || !backfilled(acc.id);
+  const depth = firstPass ? DEEP : SHALLOW;
   let n = 0;
   let fetched = 0;
   const previous = parseJSON(kvGet(`messages-sync:${acc.id}`), {});
   const attempted = now();
   try {
     const token = tokenOf(acc);
-    const convs = await ig.listConversations(acc.platform_user_id, token, 25);
+    const convs = await ig.listConversations(acc.platform_user_id, token, depth.conversations);
     for (const c of convs) {
       if (onlyConversationIds && !onlyConversationIds.includes(c.id)) continue;
       const row = upsertConversation(acc, c);
-      if (!row._new && row.last_message_at && c.updated_time && new Date(c.updated_time) <= new Date(row.last_message_at)) continue;
-      const messages = await ig.conversationMessages(c.id, token, 25);
+      // On a history pass every conversation is walked: the whole point is to
+      // reach messages older than the newest one already stored.
+      if (!firstPass && !row._new && row.last_message_at && c.updated_time && new Date(c.updated_time) <= new Date(row.last_message_at)) continue;
+      const messages = await ig.conversationMessages(c.id, token, depth.messages);
       fetched += messages.length;
       n += storeMessages(acc, row, messages);
     }
+    if (firstPass) kvSet(backfillKey(acc.id), JSON.stringify({ at: now(), conversations: convs.length, messages_fetched: fetched }));
     const stored = one('SELECT COUNT(*) n FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.account_id=?', acc.id).n;
     const empty = !convs.length || (!fetched && !stored);
     kvSet(`messages-sync:${acc.id}`, JSON.stringify({
-      status: empty ? 'empty' : 'ok', last_attempt: attempted, last_success: now(), new_messages: n,
+      status: empty ? 'empty' : 'ok', last_attempt: attempted, last_success: now(), new_messages: n, history_pass: firstPass,
       conversations_found: convs.length, messages_fetched: fetched, messages_stored: stored,
       ...(empty ? { message: `Meta returned ${convs.length} conversations; ${stored} messages saved. If Instagram has DMs, check Connected tools > Allow access to messages and app permissions, then try receiving a new message.` } : {}),
     }));
@@ -102,7 +118,7 @@ export async function syncAccountMessages(acc, { onlyConversationIds, throwOnErr
   return n;
 }
 
-export async function syncUserMessages(user, accountId) {
+export async function syncUserMessages(user, accountId, { deep = false } = {}) {
   if (accountId !== undefined && (typeof accountId !== 'string' || !accountId.trim())) throw err(400, 'validation_failed', "account_id must be an Instagram account ID.");
   if (accountId) assertAccount(user, accountId);
   const [where, params] = scopeSql(user, 'id');
@@ -114,7 +130,7 @@ export async function syncUserMessages(user, accountId) {
       errors.push({ account_id: account.id, username: account.username, code: 'account_expired', message: syncErrorMessage('account_expired') });
       continue;
     }
-    try { n += await syncAccountMessages(account, { throwOnError: true }); synced++; }
+    try { n += await syncAccountMessages(account, { throwOnError: true, deep }); synced++; }
     catch (error) {
       n += error.details?.new_messages || 0;
       errors.push({ account_id: account.id, username: account.username, code: error.code, message: error.message });

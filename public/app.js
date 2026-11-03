@@ -4180,6 +4180,32 @@ async function pageMessages(convId) {
     stopLive();
     clearInterval(windowTimer);
   };
+  // Shared by Refresh and Load earlier messages: the only difference is whether
+  // the server follows Meta's paging cursors past the first page.
+  const runSync = async (button, history) => {
+    const label = button.textContent;
+    button.disabled = true;
+    if (history) button.textContent = t("msg.history.busy");
+    try {
+      const body = acc ? { account_id: acc } : {};
+      if (history) body.history = true;
+      const r = await api('POST', '/v1/messages/sync', body);
+      const empty = r.accounts?.filter(a => a.status === 'empty').length || 0;
+      const message = r.errors?.length ? t("ui.copy.0328", { "0": r.errors.length })
+        : empty ? t("ui.copy.0329", { "0": empty })
+        : history ? (r.new_messages ? t("msg.history.done", { "0": r.new_messages }) : t("msg.history.none"))
+        : r.new_messages ? t("ui.copy.0330", { "0": r.new_messages })
+        : t("ui.copy.0331");
+      toast(message, !!r.errors?.length);
+      await Promise.all([drawList(), drawThread(), drawSyncStatus()]);
+      live.refresh();
+    } catch (error) {
+      toast(errMsg(error), true);
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
+    }
+  };
   const rendered = shell('/messages', h('div', {}, pagehead(t("msg.title"), t("ui.copy.0326"), h('div', {
     class: 'seg'
   }, [['needs_reply', t("ui.copy.0309")], ['all', t("draft.tab.all")], ['done', t("draft.state.done")]].map(([v, l]) => h('button', {
@@ -4189,30 +4215,15 @@ async function pageMessages(convId) {
     })}`)
   }, l))), h('button', {
     class: 'btn',
-    onclick: async e => {
-      const button = e.currentTarget;
-      button.disabled = true;
-      try {
-        const r = await api('POST', '/v1/messages/sync', acc ? {
-          account_id: acc
-        } : {});
-        const empty = r.accounts?.filter(a => a.status === 'empty').length || 0;
-        toast(r.errors?.length ? t("ui.copy.0328", {
-          "0": r.errors.length
-        }) : empty ? t("ui.copy.0329", {
-          "0": empty
-        }) : r.new_messages ? t("ui.copy.0330", {
-          "0": r.new_messages
-        }) : t("ui.copy.0331"), !!r.errors?.length);
-        await Promise.all([drawList(), drawThread(), drawSyncStatus()]);
-        live.refresh();
-      } catch (error) {
-        toast(errMsg(error), true);
-      } finally {
-        button.disabled = false;
-      }
-    }
-  }, t("ui.copy.0311"))), syncPanel, wrap, h('p', {
+    onclick: e => runSync(e.currentTarget, false)
+  }, t("ui.copy.0311")), h('button', {
+    class: 'btn',
+    // The ordinary refresh asks Meta for the newest page only. Reaching further
+    // back means walking Meta's cursors, which costs several requests per
+    // account, so it stays a deliberate action rather than something every
+    // refresh pays for.
+    onclick: e => runSync(e.currentTarget, true)
+  }, t("msg.history"))), syncPanel, wrap, h('p', {
     class: 'faint small',
     style: {
       marginTop: '10px'
