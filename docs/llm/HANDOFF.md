@@ -16,12 +16,11 @@ handoff is for.
 - Repository **lrmcorp/lrmsmmnew**, serving `https://lrmsosmed.playgo.id`.
   `lrmsocmedauto` is retired; do not deploy its Temporal/Postgres/Redis
   architecture or copy its environment.
-- **Last verified deployed commit: `474ef50`**, PR
-  [#46](https://github.com/lrmcorp/lrmsmmnew/pull/46), deployment run
-  [41328955252](https://github.com/lrmcorp/lrmsmmnew/actions/runs/41328955252),
-  receiver and public health check both passing. The last release that changed
-  application behaviour is `76c40dc` (PR #45); #46 is documentation only.
-- Last verified checks: the English/SVG gates, **40 application e2e**, **92
+- **Last verified deployed commit: `a38a3a6`**, PR
+  [#50](https://github.com/lrmcorp/lrmsmmnew/pull/50), deployment run
+  [41666690032](https://github.com/lrmcorp/lrmsmmnew/actions/runs/41666690032),
+  receiver and public health check both passing.
+- Last verified checks: the English/SVG gates, **40 application e2e**, **95
   production-mode backend checks**, 6 deployment tests and the real-browser
   redesign workflow.
 - **Verify this rather than trusting it.** This line was once thirteen commits
