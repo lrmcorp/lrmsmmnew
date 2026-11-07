@@ -107,6 +107,32 @@ await step('upload JPEG (raw body) and PNG (converted to JPEG)', async () => {
   const pub = await fetch(r.json.url); assert.equal(pub.status, 200); assert.equal(pub.headers.get('content-type'), 'image/jpeg');
 });
 
+await step('reject a decompression bomb: tiny file, enormous pixel count', async () => {
+  // The 8 MB byte cap does not bound pixels. A ~50 KB PNG can carry 49 million
+  // of them, and decoding that on the shared event loop costs hundreds of MB of
+  // RSS. Every other untrusted-pixel entry point already capped this; ingest
+  // did not, so a single upload could exhaust the process for all tenants.
+  const zlib = await import('node:zlib');
+  const W = 7000, H = 7000; // 49e6 px, above the 40e6 ceiling, below sharp's own default
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(body) >>> 0);
+    return Buffer.concat([len, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr[8] = 8; ihdr[9] = 0;
+  const raw = Buffer.alloc((W + 1) * H); // all-zero rows: filter 0 + zero pixels
+  const bomb = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0)),
+  ]);
+  assert.ok(bomb.length < 1024 * 1024, `bomb is small (${bomb.length} bytes) yet carries ${W * H} pixels`);
+  const r = await http('POST', '/v1/media/upload', { auth: writeKey, body: bomb, raw: true, headers: { 'content-type': 'image/png' } });
+  assert.equal(r.status, 400, 'the upload is refused rather than decoded');
+  assert.equal(r.json.error.code, 'image_too_large');
+});
+
 await step('reject bad media: text file and bad aspect ratio', async () => {
   const r = await http('POST', '/v1/media/upload', { auth: writeKey, body: Buffer.from('hello world, not an image'), raw: true });
   assert.equal(r.json.error.code, 'media_invalid_format');
@@ -380,6 +406,29 @@ await step('OAuth 2.1 + PKCE + DCR flow (as Claude connector)', async () => {
   const reuse = await fetch(`${B}/oauth/token`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: oauthRefresh }) });
   assert.equal(reuse.status, 400, 'refresh tokens rotate');
   oauthReadAccess = (await oauthFlow('read')).access_token;
+});
+
+await step('an OAuth token may not reach admin reads or destructive routes over REST', async () => {
+  // The MCP server gives an OAuth principal exactly submit_post_draft,
+  // send_message and reply_to_comment. REST honours the same token, so it must
+  // not grant more. It used to: the gate denylisted /posts and nothing else, so
+  // a connected AI app could disconnect an account and read the whole audit log.
+  const oauth = (path, method = 'GET', body) => http(method, path, { auth: oauthAccess, body });
+
+  const audit = await oauth('/v1/admin/audit?limit=1');
+  assert.equal(audit.status, 403, 'the cross-member audit log is not an AI surface');
+  assert.equal((await oauth('/v1/admin/overview')).status, 403);
+  assert.equal((await oauth('/v1/api-keys')).status, 403, 'nor is the API key list');
+
+  const acc = (await oauth('/v1/accounts')).json.data[0];
+  assert.ok(acc, 'an account exists to attempt the destructive call against');
+  const del = await oauth(`/v1/accounts/${acc.id}`, 'DELETE');
+  assert.equal(del.status, 403, 'disconnecting an account is not an AI surface');
+  assert.equal((await oauth(`/v1/accounts/${acc.id}`)).status, 200, 'and the account survives');
+
+  // The three capabilities the design does grant stay reachable.
+  const draft = await oauth('/v1/agent/drafts', 'POST', {});
+  assert.notEqual(draft.status, 403, 'draft submission stays open to an AI app');
 });
 
 await step('MCP 401 advertises resource metadata', async () => {

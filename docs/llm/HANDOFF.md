@@ -230,6 +230,70 @@ Newest first. Each entry records what was reported, what actually caused it and
 what was decided, because several of these were misdiagnosed the first time and
 the reasoning is the part worth keeping.
 
+### Security audit with Cloudflare's methodology: 2026-11-07
+
+Ran `cloudflare/security-audit-skill` (vendored at `.agents/skills/security-audit/`)
+across the whole codebase: seven parallel hunters over access control, injection
+and SSRF, cryptography and secrets, the AI/LLM and MCP surface, business logic,
+client-side and availability, and obvious exposures with supply chain.
+
+Every claim below was re-verified against the source before it was acted on, and
+two agent claims did not survive that check:
+
+- One hunter reported that MCP and REST were consistent for OAuth principals. It
+  had compared only the `/posts` family; nineteen other mutating routes were
+  reachable. The claim was wrong and the finding was real.
+- A different hunter proposed `sessionOnly` on the destructive routes. That would
+  also have blocked **API keys**, which are the owner's own credential and a
+  documented automation path, so it would have shipped a functional regression.
+  The boundary that was actually crossed is OAuth, and the gate now names it.
+
+**Fixed in this pass** (each with a regression test confirmed to fail without the
+fix):
+
+| Finding | Severity | Fix |
+|---|---|---|
+| OAuth REST surface far exceeded the MCP OAuth tool set: `DELETE /accounts/:id`, `/admin/*` reads, media and comment routes all reachable by any client that completed the open consent flow | high | `src/routes/api.js`: the `/posts` denylist became a fail-closed allowlist, so a route added later is closed to OAuth by default |
+| Decompression bomb at ingest: a 260 KB PNG carrying 268 M pixels decoded on the shared event loop | high | `src/services/media.js`: ingest now passes the 40 MP ceiling every other untrusted-pixel entry point already used |
+| SSRF in `fromUrl`: `redirect:'follow'` never re-checked a hop, and the `dns.lookup` result was discarded because `fetch` re-resolves | high | folded onto the pinned-DNS, per-hop-revalidating pattern `ai-images.js` already implemented, and onto its stronger `publicAddress` list |
+| Meta app secrets fell back to constants committed in this repository; the deploy scripts write them empty, and empty is falsy | high | `src/config.js` keeps the mock values only under `META_MOCK`; the webhook and account-deletion callbacks now return 503 rather than verify against an empty key |
+| `completeUpload` deleted the media row on failure but left the file; no collector iterates anything but rows, so the bytes were unreachable forever | high | the catch now clears the file, as `saveBuffer` already did |
+
+**Reported and NOT fixed** — these need either a decision or a change too large to
+make safely in an audit pass. They are real; none is a style point:
+
+- `purgePublishedMedia` is quadratic and runs on every 15 s worker tick: measured
+  5.5 s of blocking at 8 000 media rows, which one member can create. Needs a
+  reference table or a bounded candidate set, i.e. a schema change.
+- `purgePublishedMedia` also ignores library membership and uploader: publishing
+  one post can delete another member's team-library original.
+- Rate limiting keys on the credential, and a user may mint 25 API keys, so one
+  principal has 26x the intended budget.
+- No aggregate storage quota anywhere; `usage()` is computed and only reported.
+- No rate limit or lockout on `/auth/login`, `/auth/register`, `/auth/password`,
+  and `verifyPassword` is a synchronous ~42 ms scrypt on the request thread.
+- No idempotency bound to the actual publish call: a transient error after Meta
+  commits can republish. MCP `create_post` dedupe is also defeated whenever
+  `media_urls` is used, because the hash includes server-minted media ids.
+- `ALLOW_INITIAL_SETUP` fails **open** (`!== '0'`) while `ALLOW_SIGNUP` fails
+  closed. The live deployment is past setup so its window is shut, but the
+  `install.sh` and root-compose paths would hand Owner to an anonymous visitor.
+- Approval is not bound to the content that publishes: an approved scheduled post
+  stays fully mutable.
+- A partially-published post cannot be cancelled, so the human stop control is
+  lost while a pending target is still queued.
+- No CSP or `frame-ancestors`.
+- `VPS_SSH_KEY` is a repository secret, which bypasses the `environment:
+  production` gate the deploy workflow declares.
+
+**Confirmed sound**, so the next agent need not re-derive it: no DOM XSS (the
+`html:` sink in `h()` has zero call sites, verified independently twice), no SQL
+injection, no command execution, no path traversal, no committed credentials in
+the tree or in history, AES-256-GCM with per-operation random IVs and no
+plaintext fallback, correct PKCE and refresh rotation, HMAC verification done on
+the raw body with `timingSafeEqual`, and paid generation reachable only with a
+session and the caller's own provider key.
+
 ### An empty DM inbox was diagnosed as a permission failure three times: 2026-11-03
 
 After the paging release the inbox was still empty on two live accounts, and

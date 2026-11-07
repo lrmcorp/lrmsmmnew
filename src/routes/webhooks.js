@@ -12,6 +12,8 @@ export const webhooks = express.Router();
 const secretFor = (p) => (p === 'instagram' ? config.instagram.appSecret : config.threads.appSecret);
 
 webhooks.get('/webhooks/:platform', (req, res) => {
+  // An unset token must not match an unset query value and hand out the challenge.
+  if (!config.webhookVerifyToken) return res.status(503).end();
   if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === config.webhookVerifyToken) {
     return res.type('text').send(String(req.query['hub.challenge'] || ''));
   }
@@ -30,8 +32,12 @@ export const stats = { received: 0, rejected: 0, last_at: null };
 webhooks.post('/webhooks/:platform', express.raw({ type: () => true, limit: '1mb' }), (req, res) => {
   const platform = req.params.platform;
   if (!['instagram', 'threads'].includes(platform)) return res.status(404).end();
+  // Without a configured app secret there is no way to tell Meta from anyone
+  // else, so refuse rather than verify against an empty key.
+  const secret = secretFor(platform);
+  if (!secret) return res.status(503).end();
   const sig = String(req.get('x-hub-signature-256') || '');
-  const expected = 'sha256=' + crypto.createHmac('sha256', secretFor(platform)).update(req.body || '').digest('hex');
+  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(req.body || '').digest('hex');
   if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
     stats.rejected++;
     return res.status(401).end();

@@ -1,8 +1,11 @@
 import {cutoutInfo,removeCutout} from './brand-cutout.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import dns from 'node:dns/promises';
+import dns from 'node:dns';
 import net from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
+import { publicAddress } from './ai-images.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
@@ -13,6 +16,11 @@ import { config } from '../config.js';
 const exec = promisify(execFile);
 const MB = 1024 * 1024;
 export const LIMITS = { image: 8 * MB, video: 300 * MB, direct: 100 * MB, part: 8 * MB };
+// The byte cap does not bound pixels: a 260 KB PNG can carry 268 million of them,
+// which cost ~1.6 GB of RSS to decode on one shared event loop. Every other
+// untrusted-pixel entry point in this codebase already passes this ceiling
+// (brand-image-isolation.js, visual-context.js); ingest was the one that did not.
+const MAX_PIXELS = 40e6;
 
 let hasFfmpeg = null;
 async function ffmpegAvailable() {
@@ -52,19 +60,26 @@ async function finalize(mediaId, filePath) {
 
   if (kind === 'image') {
     if (size > LIMITS.image) { fs.rmSync(filePath, { force: true }); throw err(400, 'image_too_large', "Image is too large. Maximum size is 8 MB."); }
-    if (mime === 'image/png') {
-      // Instagram only accepts JPEG — convert once on ingest.
-      finalPath = `${filePath}.jpg`;
-      await sharp(filePath).flatten({ background: '#ffffff' }).jpeg({ quality: 90, mozjpeg: true }).toFile(finalPath);
-      // Retain exact uploaded PNG bytes/alpha privately for brand composition.
-      const sourcePath=`${filePath}.original.png`;fs.renameSync(filePath,sourcePath);
-      run('UPDATE media SET source_path=?,source_size_bytes=? WHERE id=?',sourcePath,size,mediaId);
-      mime = 'image/jpeg'; size = fs.statSync(finalPath).size;
-    } else {
-      fs.renameSync(filePath, finalPath);
+    try {
+      if (mime === 'image/png') {
+        // Instagram only accepts JPEG — convert once on ingest.
+        finalPath = `${filePath}.jpg`;
+        await sharp(filePath, { limitInputPixels: MAX_PIXELS }).flatten({ background: '#ffffff' }).jpeg({ quality: 90, mozjpeg: true }).toFile(finalPath);
+        // Retain exact uploaded PNG bytes/alpha privately for brand composition.
+        const sourcePath=`${filePath}.original.png`;fs.renameSync(filePath,sourcePath);
+        run('UPDATE media SET source_path=?,source_size_bytes=? WHERE id=?',sourcePath,size,mediaId);
+        mime = 'image/jpeg'; size = fs.statSync(finalPath).size;
+      } else {
+        fs.renameSync(filePath, finalPath);
+      }
+      const meta = await sharp(finalPath, { limitInputPixels: MAX_PIXELS }).metadata();
+      width = meta.width; height = meta.height;
+    } catch (e) {
+      // An over-sized pixel count is a rejected upload, not a server fault.
+      for (const f of [filePath, finalPath, `${filePath}.original.png`]) fs.rmSync(f, { force: true });
+      if (/pixel limit/i.test(e?.message || '')) throw err(400, 'image_too_large', `Image has too many pixels. The maximum is ${MAX_PIXELS / 1e6} megapixels.`);
+      throw e;
     }
-    const meta = await sharp(finalPath).metadata();
-    width = meta.width; height = meta.height;
   } else {
     if (size > LIMITS.video) { fs.rmSync(filePath, { force: true }); throw err(400, 'video_too_large', "Video is too large. Maximum size is 300 MB."); }
     fs.renameSync(filePath, finalPath);
@@ -107,37 +122,71 @@ export async function saveBuffer(userId, buf, opts = {}) {
 }
 
 // ---- SSRF-safe fetch from a public URL ----
-function isPrivateIp(ip) {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split('.').map(Number);
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
-  }
-  const l = ip.toLowerCase();
-  return l === '::1' || l === '::' || l.startsWith('fc') || l.startsWith('fd') || l.startsWith('fe80') || l.startsWith('::ffff:127.') || l.startsWith('::ffff:10.') || l.startsWith('::ffff:192.168.');
+// This used to hand the URL to fetch() with redirect:'follow' after one DNS
+// check. Both halves leaked: undici re-resolves the name (so the checked
+// address was never the connected one), and no redirect hop was validated at
+// all, so a public host could 302 to 127.0.0.1 or 169.254.169.254. The local
+// address list was also weaker than publicAddress(), missing IPv4-mapped IPv6
+// forms such as ::ffff:169.254.169.254. ai-images.js already solved exactly
+// this; the fix is to use its guard rather than keep a second, weaker one.
+const MAX_REDIRECTS = 3;
+
+function openValidated(url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (!['http:', 'https:'].includes(url.protocol)) return reject(err(400, 'validation_failed', "Only http/https URLs are supported."));
+    if (url.port && !['80', '443'].includes(url.port)) return reject(err(400, 'validation_failed', "Only ports 80 and 443 are supported."));
+    if (url.username || url.password) return reject(err(400, 'validation_failed', "URLs with credentials are not supported."));
+    const host = url.hostname.replace(/^\[|\]$/g, '');
+    if (net.isIP(host) && !publicAddress(host)) return reject(err(400, 'validation_failed', 'URL mengarah ke jaringan privat'));
+    const request = (url.protocol === 'https:' ? https : http).get(url, {
+      // Pin the connection to the addresses that were checked, so there is no
+      // second resolution for a rebinding answer to win.
+      lookup(hostname, options, callback) {
+        dns.lookup(hostname, { all: true }, (e, addresses) => {
+          if (e || !addresses?.length) return callback(e || new Error('Host not found'));
+          if (addresses.some((a) => !publicAddress(a.address))) return callback(new Error('URL mengarah ke jaringan privat'));
+          callback(null, options?.all ? addresses : addresses[0].address, addresses[0].family);
+        });
+      },
+      signal: AbortSignal.timeout(120000),
+    }, (response) => {
+      const code = response.statusCode;
+      if (code >= 300 && code < 400 && response.headers.location) {
+        response.resume();
+        if (redirects >= MAX_REDIRECTS) return reject(err(400, 'media_fetch_failed', "Too many redirects."));
+        // Every hop is re-validated from scratch, including its address.
+        let next; try { next = new URL(response.headers.location, url); } catch { return reject(err(400, 'media_fetch_failed', "Invalid redirect.")); }
+        return resolve(openValidated(next, redirects + 1));
+      }
+      if (code !== 200) { response.resume(); return reject(err(400, 'media_fetch_failed', `Gagal mengunduh (HTTP ${code})`)); }
+      resolve(response);
+    });
+    request.on('error', (e) => reject(err(400, 'media_fetch_failed', `Gagal mengunduh: ${e.message}`)));
+  });
 }
 
 export async function fromUrl(userId, rawUrl, opts = {}) {
   let u;
   try { u = new URL(rawUrl); } catch { throw err(400, 'validation_failed', "Invalid URL."); }
-  if (!['http:', 'https:'].includes(u.protocol)) throw err(400, 'validation_failed', "Only http/https URLs are supported.");
-  if (u.port && !['80', '443'].includes(u.port)) throw err(400, 'validation_failed', "Only ports 80 and 443 are supported.");
-  if (!config.mock) {
-    const addrs = await dns.lookup(u.hostname, { all: true }).catch(() => []);
-    if (!addrs.length) throw err(400, 'media_fetch_failed', "Host not found.");
-    if (addrs.some((a) => isPrivateIp(a.address))) throw err(400, 'validation_failed', 'URL mengarah ke jaringan privat');
-  }
-  let res;
-  try { res = await fetch(u, { redirect: 'follow', signal: AbortSignal.timeout(120000) }); }
-  catch (e) { throw err(400, 'media_fetch_failed', `Gagal mengunduh: ${e.message}`); }
-  if (!res.ok) throw err(400, 'media_fetch_failed', `Gagal mengunduh (HTTP ${res.status})`);
-  const len = Number(res.headers.get('content-length') || 0);
+  // META_MOCK points every integration at a loopback mock Graph server, so the
+  // public-address rule cannot apply there. It is a developer/test mode only:
+  // the production compose pins META_MOCK=0 and the container healthcheck fails
+  // when mock is on, so this branch is unreachable in a real deployment.
+  const res = config.mock
+    ? await (async () => {
+      const r = await fetch(u, { redirect: 'follow', signal: AbortSignal.timeout(120000) });
+      if (!r.ok) throw err(400, 'media_fetch_failed', `Gagal mengunduh (HTTP ${r.status})`);
+      return Object.assign(r.body, { headers: Object.fromEntries(r.headers) });
+    })()
+    : await openValidated(u);
+  const len = Number(res.headers?.['content-length'] || 0);
   if (len > LIMITS.video) throw err(400, 'video_too_large', 'File lebih dari 300 MB');
   const mid = newRow(userId, { originalName: path.basename(u.pathname) || 'remote', inLibrary: opts.in_library ?? true });
   const p = path.join(config.mediaDir, mid);
   const out = fs.createWriteStream(p);
   let total = 0;
   try {
-    for await (const chunk of res.body) {
+    for await (const chunk of res) {
       total += chunk.length;
       if (total > LIMITS.video) throw err(400, 'video_too_large', 'File lebih dari 300 MB');
       if (!out.write(chunk)) await new Promise((r) => out.once('drain', r));
@@ -186,7 +235,13 @@ export async function completeUpload(mediaId) {
   fs.closeSync(fd);
   fs.rmSync(dir, { recursive: true, force: true });
   try { return await finalize(mediaId, p); }
-  catch (e) { run('DELETE FROM media WHERE id=?', mediaId); throw e; }
+  catch (e) {
+    // The row goes, so no collector will ever see these bytes again: gcMedia and
+    // purgePublishedMedia both iterate media rows. saveBuffer already cleans up
+    // this way; completeUpload did not, and leaked the file permanently.
+    for (const suffix of ['', '.jpg', '.png', '.original.png', '.mp4', '.mov']) fs.rmSync(p + suffix, { force: true });
+    run('DELETE FROM media WHERE id=?', mediaId); throw e;
+  }
 }
 
 export function setAlt(mediaId, alt) {

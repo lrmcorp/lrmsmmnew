@@ -56,9 +56,35 @@ const privateMedia = (req, { mutating = false } = {}) => {
   if (mutating && !mine && U(req).role !== 'owner') throw err(403, 'forbidden', "Only the member who uploaded this file, or an Owner, can change or delete it.");
   return record;
 };
+// What an OAuth principal (a third-party AI connector such as the Claude or
+// ChatGPT app) may do is stated authoritatively in mcp.js: for via==='oauth' it
+// registers exactly submit_post_draft, send_message and reply_to_comment, then
+// returns. REST honours the same token, so it must not grant more.
+//
+// This used to be a denylist of /posts alone, which was fail-open: every other
+// mutating route, DELETE /accounts/:id and the /admin/* reads included, was
+// reachable by any client that completed the consent screen — and client
+// registration is open. It is now an allowlist, so a route added later is
+// closed to OAuth by default rather than exposed by default.
+//
+// API keys are deliberately NOT restricted here: they are the owner's own
+// credential and Owner API-key automation is a documented capability.
+const OAUTH_WRITE = [
+  /^\/agent\/drafts$/,                        // submit_post_draft
+  /^\/comments\/[^/]+\/reply$/,                // reply_to_comment
+  /^\/conversations\/[^/]+\/messages$/,        // send_message
+  /^\/media\/(from-url|upload|uploads)$/,      // images attached to a draft
+  /^\/media\/[^/]+\/(parts\/\d+|complete)$/,    // resumable upload of the same
+];
+// Reads an OAuth client has no business making, regardless of method.
+const OAUTH_DENY_READ = [/^\/admin(?:\/|$)/, /^\/api-keys(?:\/|$)/];
 api.use((req, _res, next) => {
-  if (req.auth.via === 'oauth' && req.method !== 'GET' && /^\/posts(?:\/|$)/.test(req.path)) return next(err(403, 'dashboard_approval_required', "AI only submits drafts. Approve and publish using New Post in the dashboard."));
-  next();
+  if (req.auth.via !== 'oauth') return next();
+  if (OAUTH_DENY_READ.some((re) => re.test(req.path))) return next(err(403, 'forbidden', "This endpoint is only available from the dashboard."));
+  if (req.method === 'GET') return next();
+  if (/^\/posts(?:\/|$)/.test(req.path)) return next(err(403, 'dashboard_approval_required', "AI only submits drafts. Approve and publish using New Post in the dashboard."));
+  if (OAUTH_WRITE.some((re) => re.test(req.path))) return next();
+  return next(err(403, 'forbidden', "A connected AI app may only submit drafts and reply to comments and messages. Use the dashboard for this action."));
 });
 api.get('/ai/connection', sessionOnly, (req, res) => {
   const apps = all(`SELECT t.id,t.scope,t.last_used_at,c.name FROM oauth_tokens t JOIN oauth_clients c ON c.client_id=t.client_id
