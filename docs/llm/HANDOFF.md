@@ -16,15 +16,25 @@ handoff is for.
 - Repository **lrmcorp/lrmsmmnew**, serving `https://lrmsosmed.playgo.id`.
   `lrmsocmedauto` is retired; do not deploy its Temporal/Postgres/Redis
   architecture or copy its environment.
-- **Last verified deployed commit: `6025bf8`**, PR
-  [#53](https://github.com/lrmcorp/lrmsmmnew/pull/53), deployment run
-  [45140078232](https://github.com/lrmcorp/lrmsmmnew/actions/runs/45140078232),
+- **Last verified deployed commit: `04ba158`**, PR
+  [#55](https://github.com/lrmcorp/lrmsmmnew/pull/55), deployment run
+  [45145923577](https://github.com/lrmcorp/lrmsmmnew/actions/runs/45145923577),
   receiver and public health check both passing. The release that changed
   application behaviour is `e54d94c` (PR #52: the security fixes and "Your
-  plans"); #53 only fixed the test that blocked its deploy.
-- **The plans bridge is not running.** It is behind the `plans` compose profile
-  and needs `PLANS_BRIDGE_TOKEN`, so the panel reports "not configured" until
-  the owner enables it on the VPS.
+  plans"); #53, #54 and #55 fixed what stopped it reaching a server.
+- **The plans bridge image is published** at
+  `ghcr.io/lrmcorp/lrmsmmnew-teammates`, both `:latest` and the commit tag,
+  confirmed against the registry rather than inferred from the workflow step.
+  It is **not running**: the `plans` compose profile has to be started on the
+  server, and the panel says so until it is.
+- **`/opt/lrmsmmnew/compose.yml` is not refreshed by a deploy.** It is written
+  once by `bootstrap.py:90`; `receiver.py:56` only reads it. A service added to
+  `deploy/compose.production.yml` therefore never reaches an existing server,
+  and the operator has to update that file by hand. This cost the owner two
+  failed attempts and deserves a real mechanism.
+- **Compose cannot be run by hand without `APP_IMAGE`.** The receiver injects
+  it, a manual command must pass it:
+  `APP_IMAGE=$(cat current-image) docker compose --profile plans up -d`.
 - Last verified checks: the English/SVG gates, **42 application e2e**, **113
   production-mode backend checks**, **36 plans-bridge checks**, 9 deployment
   tests and the real-browser redesign workflow.

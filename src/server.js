@@ -15,6 +15,7 @@ import { oauth } from './routes/oauth.js';
 import { metaCb } from './routes/metaCallbacks.js';
 import { webhooks } from './routes/webhooks.js';
 import { mcpHandler } from './mcp.js';
+import { plansAssets, attachPlansUpgrade } from './routes/plans-proxy.js';
 import { beginConnect, finishConnect } from './services/accounts.js';
 import { startWorker } from './worker.js';
 import { mockRouter } from './meta/mock.js';
@@ -49,6 +50,9 @@ app.use(metaCb);
 app.all('/mcp', express.json({ limit: '30mb' }), mcpHandler);
 
 // ---- public media (Meta fetches these URLs when publishing) ----
+// The terminal widget comes from the plans bridge, which publishes no port.
+app.use(plansAssets);
+
 app.get('/m/:file', async (req, res) => {
   if(req.params.file.endsWith('.cutout.png')){const token=req.params.file.slice(0,-11),m=one("SELECT * FROM media WHERE public_token=? AND status='ready' AND kind='image'",token);if(!m||!m.path||!fs.existsSync(m.path))return res.status(404).end();await prepareBrandImage(m);res.set('Cache-Control','public, max-age=86400');return res.type('image/png').sendFile(cutoutFiles(m).image);}
   const token = req.params.file.replace(/\.[a-z0-9]+$/i, '');
@@ -124,7 +128,7 @@ app.use((e, req, res, _next) => {
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, () => {
     console.log(`LRMsmm running on ${config.publicUrl} (port ${config.port})`);
     console.log(`  MCP endpoint: ${config.publicUrl}/mcp`);
     if (!config.mock) {
@@ -134,4 +138,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     startWorker();
   });
+  // The login terminal's WebSocket is forwarded to the bridge over the docker
+  // network, so the shared reverse proxy needs no rule for it.
+  attachPlansUpgrade(server);
 }
