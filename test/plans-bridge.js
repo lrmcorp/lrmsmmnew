@@ -1,0 +1,136 @@
+// The application half of the plans bridge: who may spend the owner's ChatGPT
+// subscription, how a request is shaped, and that the terminal ticket this app
+// mints is the one the bridge verifies.
+//
+// No ChatGPT account, no Codex CLI and no network: the bridge is stubbed.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+
+process.env.PLANS_BRIDGE_URL = 'http://teammates.test/teammates/v1';
+process.env.PLANS_BRIDGE_TOKEN = 'shared-internal-token-0123456789';
+process.env.ENCRYPTION_KEY ||= crypto.randomBytes(32).toString('hex');
+
+const plans = await import('../src/llm/plans.js');
+const { withPlanContext } = await import('../src/llm/plan-context.js');
+
+const owner = { id: 'u-owner', role: 'owner' };
+const rep = { id: 'u-rep', role: 'rep' };
+
+const stubFetch = (handler) => {
+  const real = globalThis.fetch;
+  globalThis.fetch = handler;
+  return () => { globalThis.fetch = real; };
+};
+const ok = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+
+test('only the Owner may spend the plan', async (t) => {
+  await t.test('an Owner passes', () => assert.doesNotThrow(() => plans.assertOwnerMayUsePlans(owner)));
+  await t.test('a representative is refused', () => {
+    assert.throws(() => plans.assertOwnerMayUsePlans(rep), (e) => e.code === 'plans_owner_only' && e.status === 403);
+  });
+  await t.test('an absent user is refused', () => {
+    assert.throws(() => plans.assertOwnerMayUsePlans(null), (e) => e.code === 'plans_owner_only');
+  });
+  await t.test('a completion for a representative never reaches the bridge', async () => {
+    let called = false;
+    const restore = stubFetch(async () => { called = true; return ok({}); });
+    try {
+      await assert.rejects(
+        withPlanContext({ user: rep, sessionId: 'run:1' }, () => plans.planCompletion({ model: 'codex', prompt: 'x' })),
+        (e) => e.code === 'plans_owner_only');
+      assert.equal(called, false, 'the ownership check runs before any request');
+    } finally { restore(); }
+  });
+});
+
+test('a completion carries the conversation id and the schema', async () => {
+  let seen = null;
+  const restore = stubFetch(async (url, init) => {
+    seen = { url: String(url), headers: init.headers, body: JSON.parse(init.body) };
+    return ok({ choices: [{ message: { role: 'assistant', content: 'a caption' } }] });
+  });
+  try {
+    const schema = { type: 'object', properties: { caption: { type: 'string' } } };
+    const text = await withPlanContext({ user: owner, sessionId: 'run:abc' }, () =>
+      plans.planCompletion({ model: 'codex', system: 'be terse', prompt: 'write one', jsonSchema: schema }));
+    assert.equal(text, 'a caption');
+    assert.match(seen.url, /\/chat\/completions$/);
+    assert.equal(seen.headers['x-lrm-session'], 'run:abc', 'one working directory per conversation');
+    assert.equal(seen.headers.authorization, 'Bearer shared-internal-token-0123456789');
+    assert.equal(seen.body.messages[0].role, 'system');
+    assert.deepEqual(seen.body.response_format.json_schema.schema, schema, 'structured output is preserved');
+  } finally { restore(); }
+});
+
+test('a request without a conversation in scope is refused', async () => {
+  const restore = stubFetch(async () => ok({}));
+  try {
+    await assert.rejects(
+      withPlanContext({ user: owner }, () => plans.planCompletion({ model: 'codex', prompt: 'x' })),
+      (e) => e.code === 'plans_session_missing');
+  } finally { restore(); }
+});
+
+test('a signed-out plan surfaces the actionable message', async () => {
+  const restore = stubFetch(async () => new Response(
+    JSON.stringify({ error: { code: 'plan_signed_out', message: 'Codex is not signed in yet. Sign in on Config → AI plans.' } }),
+    { status: 409, headers: { 'content-type': 'application/json' } }));
+  try {
+    await assert.rejects(
+      withPlanContext({ user: owner, sessionId: 'run:1' }, () => plans.planCompletion({ model: 'codex', prompt: 'x' })),
+      (e) => e.status === 409 && e.code === 'plan_signed_out' && /Config → AI plans/.test(e.message));
+  } finally { restore(); }
+});
+
+test('the provider is offered only while a plan is signed in', async (t) => {
+  await t.test('an empty catalogue means no plans', async () => {
+    const restore = stubFetch(async () => ok({ object: 'list', data: [] }));
+    try { plans._resetModelCache(); assert.equal(await plans.plansAvailable(), false); } finally { restore(); }
+  });
+  await t.test('a listed model means the provider may appear', async () => {
+    const restore = stubFetch(async () => ok({ object: 'list', data: [{ id: 'codex' }] }));
+    try { plans._resetModelCache(); assert.equal(await plans.plansAvailable(), true); } finally { restore(); }
+  });
+  await t.test('an unreachable bridge reads as no plans, not as an error', async () => {
+    const restore = stubFetch(async () => { throw new Error('ECONNREFUSED'); });
+    try { plans._resetModelCache(); assert.equal(await plans.plansAvailable(), false); } finally { restore(); }
+  });
+  await t.test('the catalogue is cached rather than spawning a process per render', async () => {
+    let calls = 0;
+    const restore = stubFetch(async () => { calls++; return ok({ object: 'list', data: [{ id: 'codex' }] }); });
+    try {
+      plans._resetModelCache();
+      await plans.listModels(); await plans.listModels(); await plans.listModels();
+      assert.equal(calls, 1, 'one request serves the 60-second window');
+    } finally { restore(); }
+  });
+});
+
+test('the terminal ticket this app mints is the one the bridge accepts', async (t) => {
+  // Reimplements the bridge's verifier rather than importing it: the two
+  // services ship separately, and this is the contract between them.
+  const verifyLikeBridge = (ticket, token) => {
+    const [body, mac] = String(ticket).split('.');
+    if (!body || !mac) return null;
+    const expected = crypto.createHmac('sha256', token).update(body).digest('base64url');
+    if (mac.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    return payload.exp > Date.now() ? payload : null;
+  };
+
+  await t.test('a fresh ticket verifies against the shared token', () => {
+    const payload = verifyLikeBridge(plans.mintTerminalTicket(owner), process.env.PLANS_BRIDGE_TOKEN);
+    assert.equal(payload?.userId, 'u-owner');
+  });
+  await t.test('it expires', () => {
+    const ticket = plans.mintTerminalTicket(owner, { ttlMs: -1 });
+    assert.equal(verifyLikeBridge(ticket, process.env.PLANS_BRIDGE_TOKEN), null);
+  });
+  await t.test('a different token does not verify it', () => {
+    assert.equal(verifyLikeBridge(plans.mintTerminalTicket(owner), 'some-other-token'), null);
+  });
+  await t.test('a representative cannot mint one', () => {
+    assert.throws(() => plans.mintTerminalTicket(rep), (e) => e.code === 'plans_owner_only');
+  });
+});

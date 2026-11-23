@@ -1,5 +1,6 @@
 import {storySessionPage} from './story-session-page.js';
 import { workspacePages } from './workspace-pages.js';
+import { aiPlansPanel } from './ai-plans.js';
 import { contentWorkspace } from './content-workspace.js';
 import { generatorWorkspace } from './generator-workspace.js';
 import { t } from './strings.en.js';
@@ -2649,17 +2650,20 @@ async function pageSettings() {
     class: 'btn primary',
     type: 'submit'
   }, 'Change password'));
-  return shell('/settings', h('div', {
+  // The plans panel holds a live WebSocket, so the page's own cleanup must
+  // close it; cleanupFor is how this app disposes a view on navigation.
+  const plansTab = currentTab === 'plans' && isOwner() ? aiPlansPanel({ h, api, toast, errMsg }) : null;
+  const settingsView = shell('/settings', h('div', {
     class: 'personal-settings rd-page'
   }, pagehead('Personal settings', 'Profile, security and personal AI connections.'), h('div', {
     class: 'rd-tabs',
     style: {
       marginBottom: '20px'
     }
-  }, [['profile', 'Profile'], ['security', 'Security'], ['ai', 'AI connections']].map(([id, label]) => h('a', {
+  }, [['profile', 'Profile'], ['security', 'Security'], ['ai', 'AI connections'], ...(isOwner() ? [['plans', 'AI plans']] : [])].map(([id, label]) => h('a', {
     class: 'btn ' + (currentTab === id ? 'on' : ''),
     href: '#/settings?tab=' + id
-  }, label))), currentTab === 'security' ? h('section', {
+  }, label))), plansTab ? plansTab.panel : currentTab === 'security' ? h('section', {
     class: 'panel',
     style: {
       maxWidth: '500px'
@@ -2671,6 +2675,8 @@ async function pageSettings() {
   }, h('h2', {}, 'Personal AI connections', keySummary), h('p', {
     class: 'muted small'
   }, 'Add or replace your OpenAI, Claude or Gemini key here. New requests use the latest saved key. OpenAI keys also support available Codex models. Claude can plan and review text; images require OpenAI or Gemini. Keys are encrypted and never displayed again. Provider rates apply. Configure each agent’s model in Content Generator.'), keys)));
+  if (plansTab) cleanupFor.set(settingsView, plansTab.dispose);
+  return settingsView;
 }
 
 // ---------------- Sosmed Generator ----------------
@@ -4860,7 +4866,11 @@ async function pageDeveloper() {
   }, t("ui.extra.55")), h('option', {
     value: 'write'
   }, t("ui.copy.0381")));
-  return shell('/developer', h('div', {}, pagehead(t("api.title"), t("ui.copy.0382")), h('div', {
+  // API & AI is where an Owner manages every machine credential, so the ChatGPT
+  // plan belongs here too. Same component as Personal settings, so the two can
+  // never drift; only one route is mounted at a time.
+  const plansPanel = aiPlansPanel({ h, api, toast, errMsg, title: 'Your ChatGPT plan' });
+  const developerView = shell('/developer', h('div', {}, pagehead(t("api.title"), t("ui.copy.0382")), plansPanel.panel, h('div', {
     class: 'panel'
   }, h('h2', {}, t("ui.copy.0383")), h('p', {
     class: 'muted'
@@ -4979,6 +4989,8 @@ async function pageDeveloper() {
   }, t("api.revoke"))))) : h('p', {
     class: 'faint'
   }, t("ui.copy.0396")))));
+  cleanupFor.set(developerView, plansPanel.dispose);
+  return developerView;
 }
 
 // ---------------- team & user management ----------------

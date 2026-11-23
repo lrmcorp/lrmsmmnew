@@ -21,6 +21,9 @@ function parseSignedRequest(sr, secret) {
 function handle(platform, kind) {
   const secret = platform === 'instagram' ? config.instagram.appSecret : config.threads.appSecret;
   return (req, res) => {
+    // The signed_request HMAC is the only proof this came from Meta; an unset
+    // app secret would make that proof forgeable by anyone with the repository.
+    if (!secret) return res.status(503).json({ error: 'not_configured' });
     const data = parseSignedRequest(req.body?.signed_request, secret);
     if (!data?.user_id) return res.status(400).json({ error: 'invalid signed_request' });
     const acc = one("SELECT id FROM accounts WHERE platform=? AND platform_user_id=? AND status != 'disconnected'", platform, String(data.user_id));

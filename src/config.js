@@ -36,8 +36,12 @@ export const config = {
   disableWorker: env.DISABLE_WORKER === '1',
 
   instagram: {
-    appId: env.IG_APP_ID || 'mock-ig-app',
-    appSecret: env.IG_APP_SECRET || 'mock-ig-secret',
+    appId: env.IG_APP_ID || (MOCK ? 'mock-ig-app' : ''),
+    // No repo constant outside mock: this value is the only authenticator for the
+    // unauthenticated webhook and account-deletion callbacks, and the deploy
+    // scripts write it empty for the operator to fill in later. An empty string
+    // is falsy, so the old fallback made a published constant the live HMAC key.
+    appSecret: env.IG_APP_SECRET || (MOCK ? 'mock-ig-secret' : ''),
     authorizeUrl: MOCK ? `${PUBLIC_URL}/__mock/ig/oauth/authorize` : 'https://www.instagram.com/oauth/authorize',
     tokenUrl: MOCK ? `${PUBLIC_URL}/__mock/ig/oauth/access_token` : 'https://api.instagram.com/oauth/access_token',
     graph: MOCK ? `${PUBLIC_URL}/__mock/ig/graph` : 'https://graph.instagram.com',
@@ -45,8 +49,8 @@ export const config = {
     scopes: ['instagram_business_basic', 'instagram_business_content_publish', 'instagram_business_manage_comments', 'instagram_business_manage_insights', 'instagram_business_manage_messages'],
   },
   threads: {
-    appId: env.THREADS_APP_ID || 'mock-th-app',
-    appSecret: env.THREADS_APP_SECRET || 'mock-th-secret',
+    appId: env.THREADS_APP_ID || (MOCK ? 'mock-th-app' : ''),
+    appSecret: env.THREADS_APP_SECRET || (MOCK ? 'mock-th-secret' : ''),
     authorizeUrl: MOCK ? `${PUBLIC_URL}/__mock/th/oauth/authorize` : 'https://threads.net/oauth/authorize',
     graph: MOCK ? `${PUBLIC_URL}/__mock/th/graph` : 'https://graph.threads.net',
     version: env.THREADS_API_VERSION || 'v1.0',
@@ -61,7 +65,17 @@ export const config = {
     messagePages: Number(env.DM_MESSAGE_PAGES || 4),
   },
   smtp: env.SMTP_URL || null,
-  webhookVerifyToken: env.WEBHOOK_VERIFY_TOKEN || 'lrmsmm-verify',
+  webhookVerifyToken: env.WEBHOOK_VERIFY_TOKEN || (MOCK ? 'lrmsmm-verify' : ''),
+  // The plans bridge: the owner's own ChatGPT subscription, reached through the
+  // official Codex CLI in the teammates container. The token is shared with that
+  // container only; no ChatGPT credential ever reaches this process.
+  plans: {
+    baseUrl: env.PLANS_BRIDGE_URL || 'http://teammates:8090/teammates/v1',
+    token: env.PLANS_BRIDGE_TOKEN || '',
+    // Longer than an ordinary request: a Codex turn is an agent, not a single
+    // completion, and the bridge's own per-request timeout is the real bound.
+    timeoutMs: Number(env.PLANS_TIMEOUT_MS || 330000),
+  },
   unrepliedAlertSeconds: Number(env.UNREPLIED_ALERT_SECONDS || 300),
 };
 

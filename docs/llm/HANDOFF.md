@@ -16,10 +16,11 @@ handoff is for.
 - Repository **lrmcorp/lrmsmmnew**, serving `https://lrmsosmed.playgo.id`.
   `lrmsocmedauto` is retired; do not deploy its Temporal/Postgres/Redis
   architecture or copy its environment.
-- **Last verified deployed commit: `a38a3a6`**, PR
-  [#50](https://github.com/lrmcorp/lrmsmmnew/pull/50), deployment run
-  [41666690032](https://github.com/lrmcorp/lrmsmmnew/actions/runs/41666690032),
-  receiver and public health check both passing.
+- **Last verified deployed commit: `197c00d`**, PR
+  [#51](https://github.com/lrmcorp/lrmsmmnew/pull/51), deployment run
+  [41672272309](https://github.com/lrmcorp/lrmsmmnew/actions/runs/41672272309),
+  receiver and public health check both passing. The last release that changed
+  application behaviour is `a38a3a6` (PR #50, DM paging); #51 is diagnostic text.
 - Last verified checks: the English/SVG gates, **40 application e2e**, **95
   production-mode backend checks**, 6 deployment tests and the real-browser
   redesign workflow.
@@ -228,6 +229,149 @@ Lessons for the next occurrence:
 Newest first. Each entry records what was reported, what actually caused it and
 what was decided, because several of these were misdiagnosed the first time and
 the reasoning is the part worth keeping.
+
+### Plans bridge: bugs found by reviewing and running it: 2026-11-23
+
+A self-review of the plans bridge, plus running it rather than reading it, found
+five real defects. Four were mine from the same day.
+
+- **A compose change that would have broken the next deploy.** `INTERNAL_TOKEN:
+  ${PLANS_BRIDGE_TOKEN:?...}` was written on the assumption that an inactive
+  profile is not interpolated. It is: compose interpolates the whole file before
+  applying profiles, so without that variable in `.env` *every* `docker compose`
+  command failed, application included. Confirmed with `docker compose config`
+  and fixed to `:-`, with the requirement enforced at the bridge's startup
+  instead. The previous commit's claim that the deployment was untouched was
+  wrong.
+- **The terminal's WebSocket leaked on navigation.** The panel listened for an
+  `lrm:dispose` event that nothing in this app dispatches. This app disposes a
+  view through the `cleanupFor` WeakMap; the panel is registered there now.
+- **Client disconnects did not stop a turn.** The route passed `req.signal`,
+  which Express 5 does not provide, so the whole thing was a no-op and a caller
+  that gave up left Codex running for the full timeout. An AbortController tied
+  to the response close replaces it.
+- **A failed first turn made the next one resume a thread that never existed.**
+  Resume state was recorded when a conversation was first seen rather than when
+  a turn completed. It is now only the on-disk marker, which also removes an
+  unbounded in-memory set.
+- The deploy pipeline carried no second image at all; it does now, behind
+  `ENABLE_PLANS_BRIDGE`, with the receiver validating the bridge digest against
+  its own repository.
+
+Each fix has a test that was confirmed to fail without it: the abort and timeout
+tests kill a hanging fixture and leave no orphaned process, the resume test fails
+against the old `sessions.js`, and the browser check of Settings → AI plans was
+verified by breaking the panel and watching the suite go red.
+
+Still unverified, unchanged: no image build (no Docker daemon), no real sign-in,
+no real model answer, and image generation on a plan remains untested.
+
+### "Your plans": the owner's ChatGPT subscription as a provider: 2026-11-23
+
+Built the plans bridge the owner asked for: a separate `teammates/` container
+running the **official** OpenAI Codex CLI, signed in to their own ChatGPT plan,
+behind an OpenAI-shaped API the application calls like any other provider. Full
+design in [PLANS_BRIDGE.md](PLANS_BRIDGE.md).
+
+The brief was written for the owner's other system, which is Python and has
+WhatsApp. This is Node and has neither, so point 5 was ported to
+`src/llm/providers.js` rather than copied, and "owner's own console or WhatsApp"
+became the workspace Owner check.
+
+**The flags were verified against the real CLI, not from documentation**, because
+`developers.openai.com` does not resolve from this container. `@openai/codex@0.171.0`
+was installed and inspected: `--device-auth` exists but is hidden from
+`codex login --help`, and `exec` carries `--output-schema`, which the generator's
+structured stages need and the brief did not mention.
+
+Two findings came out of running the real binary rather than the fixture:
+
+- A fresh `codex-home` volume has no `CODEX_HOME`, and the CLI then refuses every
+  call with *"that path does not exist"*. The bridge creates it at startup; without
+  that, the first deploy would have looked like a broken login.
+- `codex exec` can block for the whole request timeout when it cannot reach
+  OpenAI. It does not affect the signed-out path, because a turn checks
+  `codex login status` first (local, instant) and returns 409 before reaching
+  `exec`.
+
+**Unresolved, and deliberately not claimed either way: image generation.** The
+owner asked for images on their plan. The CLI binary contains `imagegen`,
+`image_gen.generation`, an `imagegen_premium` feature flag and `gpt-image-1/1.5/2`
+ids, so the machinery exists; whether it is reachable from `codex exec`, on a
+given plan, and can write a file the bridge could return, needs a signed-in
+account to test. The provider is registered `image: false` and image stages stay
+on an API-key provider until someone tests it. Do not flip that flag on the
+strength of the strings alone.
+
+**Not verified:** the image has never been built (no Docker daemon here), there
+has been no real sign-in and no real model answer, and whether Codex satisfies
+each stage's JSON schema in practice is unknown. Building and promoting the
+second image is also not wired into `deploy.yml`, which handles one image; the
+service is behind a compose profile so the current deployment is untouched.
+
+### Security audit with Cloudflare's methodology: 2026-11-07
+
+Ran `cloudflare/security-audit-skill` (vendored at `.agents/skills/security-audit/`)
+across the whole codebase: seven parallel hunters over access control, injection
+and SSRF, cryptography and secrets, the AI/LLM and MCP surface, business logic,
+client-side and availability, and obvious exposures with supply chain.
+
+Every claim below was re-verified against the source before it was acted on, and
+two agent claims did not survive that check:
+
+- One hunter reported that MCP and REST were consistent for OAuth principals. It
+  had compared only the `/posts` family; nineteen other mutating routes were
+  reachable. The claim was wrong and the finding was real.
+- A different hunter proposed `sessionOnly` on the destructive routes. That would
+  also have blocked **API keys**, which are the owner's own credential and a
+  documented automation path, so it would have shipped a functional regression.
+  The boundary that was actually crossed is OAuth, and the gate now names it.
+
+**Fixed in this pass** (each with a regression test confirmed to fail without the
+fix):
+
+| Finding | Severity | Fix |
+|---|---|---|
+| OAuth REST surface far exceeded the MCP OAuth tool set: `DELETE /accounts/:id`, `/admin/*` reads, media and comment routes all reachable by any client that completed the open consent flow | high | `src/routes/api.js`: the `/posts` denylist became a fail-closed allowlist, so a route added later is closed to OAuth by default |
+| Decompression bomb at ingest: a 260 KB PNG carrying 268 M pixels decoded on the shared event loop | high | `src/services/media.js`: ingest now passes the 40 MP ceiling every other untrusted-pixel entry point already used |
+| SSRF in `fromUrl`: `redirect:'follow'` never re-checked a hop, and the `dns.lookup` result was discarded because `fetch` re-resolves | high | folded onto the pinned-DNS, per-hop-revalidating pattern `ai-images.js` already implemented, and onto its stronger `publicAddress` list |
+| Meta app secrets fell back to constants committed in this repository; the deploy scripts write them empty, and empty is falsy | high | `src/config.js` keeps the mock values only under `META_MOCK`; the webhook and account-deletion callbacks now return 503 rather than verify against an empty key |
+| `completeUpload` deleted the media row on failure but left the file; no collector iterates anything but rows, so the bytes were unreachable forever | high | the catch now clears the file, as `saveBuffer` already did |
+
+**Reported and NOT fixed** — these need either a decision or a change too large to
+make safely in an audit pass. They are real; none is a style point:
+
+- `purgePublishedMedia` is quadratic and runs on every 15 s worker tick: measured
+  5.5 s of blocking at 8 000 media rows, which one member can create. Needs a
+  reference table or a bounded candidate set, i.e. a schema change.
+- `purgePublishedMedia` also ignores library membership and uploader: publishing
+  one post can delete another member's team-library original.
+- Rate limiting keys on the credential, and a user may mint 25 API keys, so one
+  principal has 26x the intended budget.
+- No aggregate storage quota anywhere; `usage()` is computed and only reported.
+- No rate limit or lockout on `/auth/login`, `/auth/register`, `/auth/password`,
+  and `verifyPassword` is a synchronous ~42 ms scrypt on the request thread.
+- No idempotency bound to the actual publish call: a transient error after Meta
+  commits can republish. MCP `create_post` dedupe is also defeated whenever
+  `media_urls` is used, because the hash includes server-minted media ids.
+- `ALLOW_INITIAL_SETUP` fails **open** (`!== '0'`) while `ALLOW_SIGNUP` fails
+  closed. The live deployment is past setup so its window is shut, but the
+  `install.sh` and root-compose paths would hand Owner to an anonymous visitor.
+- Approval is not bound to the content that publishes: an approved scheduled post
+  stays fully mutable.
+- A partially-published post cannot be cancelled, so the human stop control is
+  lost while a pending target is still queued.
+- No CSP or `frame-ancestors`.
+- `VPS_SSH_KEY` is a repository secret, which bypasses the `environment:
+  production` gate the deploy workflow declares.
+
+**Confirmed sound**, so the next agent need not re-derive it: no DOM XSS (the
+`html:` sink in `h()` has zero call sites, verified independently twice), no SQL
+injection, no command execution, no path traversal, no committed credentials in
+the tree or in history, AES-256-GCM with per-operation random IVs and no
+plaintext fallback, correct PKCE and refresh rotation, HMAC verification done on
+the raw body with `timingSafeEqual`, and paid generation reachable only with a
+session and the caller's own provider key.
 
 ### An empty DM inbox was diagnosed as a permission failure three times: 2026-11-03
 

@@ -21,6 +21,8 @@ import { createPost, publicPost, getPost } from './posts.js';
 import { receiveDraft } from './ai-drafts.js';
 import * as storytelling from './storytelling.js';
 import { PROVIDERS, generateText, generateImage, geminiModels, currentModel } from '../llm/providers.js';
+import { PLANS_PROVIDER, plansAvailable, assertOwnerMayUsePlans } from '../llm/plans.js';
+import { withPlanContext } from '../llm/plan-context.js';
 
 export const ROLES = ['concept', 'revision', 'image', 'final', 'storyteller', 'manager', 'scheduler', 'visual'];
 // These stages read the uploaded references and the finished slides. When a
@@ -44,6 +46,9 @@ export const DEFAULT_AGENTS = {
 };
 const active = new Map();
 const keyOf = (userId, provider) => {
+  // "Your plans" has no API key: the subscription is held by the Codex CLI in
+  // the bridge container, and authorisation is the Owner check in plans.js.
+  if (provider === PLANS_PROVIDER) return '';
   const row = one('SELECT secret_enc FROM generator_keys WHERE user_id=? AND provider=?', userId, provider);
   if (!row) throw err(400, 'provider_key_missing', `Add your personal API key for ${PROVIDERS[provider]?.name || provider}.`);
   return decrypt(row.secret_enc);
@@ -69,18 +74,33 @@ export function settings(user) {
   }));
   return {providers:PROVIDERS,agents,keys};
 }
-function cleanAgents(agents) {
+
+/**
+ * The picker's provider list. "Your plans" is withheld unless a plan is signed
+ * in on the bridge AND this user is the Owner whose subscription it spends, so
+ * a representative never sees a provider they would be refused at run time.
+ */
+export async function availableProviders(user) {
+  const offered = { ...PROVIDERS };
+  const mayUse = user?.role === 'owner' && await plansAvailable();
+  if (!mayUse) delete offered[PLANS_PROVIDER];
+  return offered;
+}
+function cleanAgents(agents, user = null) {
   if (!agents || typeof agents !== 'object') throw err(400, 'validation_failed', "Agent configuration is required.");
   return Object.fromEntries(ROLES.map(role => {
     const a = agents[role];
     if (!a || !PROVIDERS[a.provider] || (role === 'image' && !PROVIDERS[a.provider].image)) throw err(400, 'validation_failed', "Agent provider does not support this stage.");
+    // Saving a configuration is also a grant of someone's subscription, so the
+    // Owner check happens here and not only when the stage finally runs.
+    if (a.provider === PLANS_PROVIDER && user) assertOwnerMayUsePlans(user);
     if (typeof a.model !== 'string' || !/^[A-Za-z0-9._-]{1,100}$/.test(a.model)) throw err(400, 'validation_failed', "Invalid model name.");
     if (typeof a.instructions !== 'string' || a.instructions.length > 4000) throw err(400, 'validation_failed', "Agent instructions must not exceed 4,000 characters.");
     return [role, { provider: a.provider, model: currentModel(a.model), instructions: a.instructions }];
   }));
 }
 export function saveSettings(user, body) {
-  const agents = cleanAgents(body.agents);
+  const agents = cleanAgents(body.agents, user);
   run('INSERT INTO generator_settings(user_id,agents) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET agents=excluded.agents', user.id, JSON.stringify(agents));
   return settings(user);
 }
@@ -97,6 +117,11 @@ export function saveKey(user, provider, secret) {
 }
 export function deleteKey(user, provider) { run('DELETE FROM generator_keys WHERE user_id=? AND provider=?', user.id, provider); }
 export async function testKey(user, provider, model) {
+  // A probe is its own conversation: it must not resume, or pollute, a run.
+  if (provider === PLANS_PROVIDER) return withPlanContext({ user, sessionId: `probe:${user.id}:${Date.now()}` }, () => testKeyInner(user, provider, model));
+  return testKeyInner(user, provider, model);
+}
+async function testKeyInner(user, provider, model) {
   if (!PROVIDERS[provider] || typeof model !== 'string' || !/^[A-Za-z0-9._-]{1,100}$/.test(model)) throw err(400, 'validation_failed', "Invalid provider or model.");
   await generateText({ provider, model, key: keyOf(user.id, provider), system: 'You are testing a connection.', prompt: 'Reply only OK.' });
   return { ok: true, note: 'Model teks dapat diakses. Akses model gambar bisa berbeda.' };
@@ -198,6 +223,12 @@ function planOf(text, count,{visual=false}={}) {
   return { title: String(result.title || '').slice(0, 300), caption: result.caption, ...(visual?{art_direction:artDirection}:{}), slides: result.slides.map(s => visual?{prompt:s.prompt,logo_placement:s.logo_placement,logo_tint:s.logo_tint,logo_soft:s.logo_soft,design_reason:s.design_reason.trim()}:{prompt:s.prompt}) };
 }
 async function processRun(user, rid) {
+  // The conversation id is the run id: one Codex thread per generated content,
+  // so a retry continues its own thread and two runs never cross.
+  return withPlanContext({ user, sessionId: `run:${rid}` }, () => processRunInner(user, rid));
+}
+
+async function processRunInner(user, rid) {
   let failureStage='preparation',failureAgent=null;
   try {
     let row = checkpoint(user, rid);
@@ -331,7 +362,7 @@ export function runGeneratorTick() {
     if([...active.values()].some(x=>x.userId===row.user_id||x.accountId===row.account_id))continue;
     const user=one('SELECT * FROM users WHERE id=?',row.user_id);if(!user)continue;
     if(!run("UPDATE story_jobs SET status='running',updated_at=? WHERE id=? AND status='queued'",now(),row.id).changes)continue;
-    const promise=storytelling.processJob(user,row.id,{generateText,keyOf,createPlan,slotsFor,normalizeAgents:agents=>cleanAgents({...settings(user).agents,...agents})}).finally(()=>active.delete(row.id));
+    const promise=withPlanContext({user,sessionId:`story:${row.id}`},()=>storytelling.processJob(user,row.id,{generateText,keyOf,createPlan,slotsFor,normalizeAgents:agents=>cleanAgents({...settings(user).agents,...agents},user)})).finally(()=>active.delete(row.id));
     active.set(row.id,{promise,userId:user.id,accountId:row.account_id});
   }
   // A crashed API call has an uncertain billing outcome. Require explicit retry.
@@ -484,6 +515,9 @@ function languageOf(body,notes){
   return resolveOutputLanguage({requested:body.caption_language,notes});
 }
 export async function createPlan(user, body) {
+  return withPlanContext({ user, sessionId: `plan:${user.id}:${Date.now()}` }, () => createPlanInner(user, body));
+}
+async function createPlanInner(user, body) {
   const recommendation = timingRecommendation(user,body.account_ids);
   if (typeof body.request_id !== 'string' || !body.request_id || body.request_id.length > 100) throw err(400, 'validation_failed', "Invalid request_id.");
   if (typeof body.brief !== 'string' || !body.brief.trim()) throw err(400, 'validation_failed', "A campaign brief is required.");
@@ -716,6 +750,9 @@ export function retryStory(user,jid,body={}) {
 export async function availableGeminiModels(user,refresh=false){return geminiModels(keyOf(user.id,'gemini'),{refresh});}
 
 export async function quickIdea(user,body){
+  return withPlanContext({ user, sessionId: `idea:${user.id}:${Date.now()}` }, () => quickIdeaInner(user, body));
+}
+async function quickIdeaInner(user,body){
  if(body.confirm_cost!==true)throw err(400,'cost_confirmation_required',"Confirm the Conceptor cost before creating a prompt.");
  if(!['Promo','Edukasi produk','Testimoni','Di balik layar'].includes(body.kind)||!Array.isArray(body.account_ids)||!body.account_ids.length||body.account_ids.length>20||new Set(body.account_ids).size!==body.account_ids.length||typeof(body.direction??'')!=='string'||(body.direction||'').length>10000)throw err(400,'validation_failed',"Select valid accounts and an idea type.");
  const accounts=[];

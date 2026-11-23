@@ -107,16 +107,23 @@ suggestions state that they are heuristic, not measured from analytics.
 
 ## Explicitly out of scope
 
-- **Using consumer AI subscriptions.** Generation runs on each user's own API
-  keys. Anthropic prohibits third-party use of Claude subscription
-  authentication; OpenAI's plan-usage route requires approval the workspace does
-  not have. The product does not work around either.
+- **Reimplementing a subscription login.** Generation runs on each user's own
+  API keys, with one exception the owner asked for: **"Your plans"**, which
+  reaches the owner's ChatGPT subscription through the *official* OpenAI Codex
+  CLI. The product does not build its own OAuth for it, does not read or copy a
+  ChatGPT token, and does not call ChatGPT endpoints directly; the CLI owns the
+  login and the model call. Anthropic prohibits third-party use of Claude
+  subscription authentication, so there is no Claude equivalent and none is
+  planned.
 - **Automatic publishing without approval.** No setting removes the human.
 - **Measured visual-similarity scores.** The product does not claim a percentage
   match to a reference.
 - **Analytics-derived optimal posting times.** Suggestions are heuristic and say
   so.
 - Video generation. Agents do not create video; uploaded video can be scheduled.
+- **Images on a ChatGPT plan.** "Your plans" answers text stages only. The Codex
+  CLI exposes no verified image-generation output, so image stages stay on an
+  API-key provider.
 
 ## What "working" means
 
