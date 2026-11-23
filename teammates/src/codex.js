@@ -57,9 +57,9 @@ export function childEnv() {
 }
 
 /** Run one `codex` invocation to completion, bounded in time. */
-export function runCodex(args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal } = {}) {
+export function runCodex(args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, bin = CODEX_BIN } = {}) {
   return new Promise((resolve) => {
-    const child = spawn(CODEX_BIN, args, {
+    const child = spawn(bin, args, {
       cwd, env: childEnv(), stdio: ['ignore', 'pipe', 'pipe'],
       // Its own process group, so a timeout can take down the whole tree. Codex
       // spawns helpers; killing only the parent would leave them holding the CPU.

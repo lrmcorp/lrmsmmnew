@@ -4866,7 +4866,11 @@ async function pageDeveloper() {
   }, t("ui.extra.55")), h('option', {
     value: 'write'
   }, t("ui.copy.0381")));
-  return shell('/developer', h('div', {}, pagehead(t("api.title"), t("ui.copy.0382")), h('div', {
+  // API & AI is where an Owner manages every machine credential, so the ChatGPT
+  // plan belongs here too. Same component as Personal settings, so the two can
+  // never drift; only one route is mounted at a time.
+  const plansPanel = aiPlansPanel({ h, api, toast, errMsg, title: 'Your ChatGPT plan' });
+  const developerView = shell('/developer', h('div', {}, pagehead(t("api.title"), t("ui.copy.0382")), plansPanel.panel, h('div', {
     class: 'panel'
   }, h('h2', {}, t("ui.copy.0383")), h('p', {
     class: 'muted'
@@ -4985,6 +4989,8 @@ async function pageDeveloper() {
   }, t("api.revoke"))))) : h('p', {
     class: 'faint'
   }, t("ui.copy.0396")))));
+  cleanupFor.set(developerView, plansPanel.dispose);
+  return developerView;
 }
 
 // ---------------- team & user management ----------------

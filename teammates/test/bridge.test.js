@@ -59,36 +59,30 @@ test('the child environment carries no secrets', () => {
   delete process.env.SHOULD_NOT_LEAK;
 });
 
-const control = path.join(here, 'fake-control.env');
-const setFixture = (settings = {}) => {
-  const base = { SIGNED_IN: 1, REPLY_TEXT: 'Hello from the plan.', FAIL: 0, FAIL_MSG: 'boom', RESUME_FAILS: 0, HANG: 0 };
-  fs.writeFileSync(control, Object.entries({ ...base, ...settings }).map(([k, v]) => `${k}=${JSON.stringify(String(v))}`).join('\n') + '\n');
-};
+// These two need a program that hangs, not the shared Codex fixture. Writing to
+// that fixture from here raced e2e.test.js, which node runs in parallel and
+// which owns it: one intermittent failure in a combined run was exactly that.
+// A private script keeps the shared fixture single-owner.
+const hangScript = path.join(work, 'hang.sh');
+fs.writeFileSync(hangScript, '#!/usr/bin/env bash\nsleep 120\n');
+fs.chmodSync(hangScript, 0o755);
 
 test('a turn that overruns its timeout is killed, not left running', async () => {
-  setFixture({ HANG: 1 });
-  try {
-    const started = Date.now();
-    const r = await runCodex(['exec', '-o', path.join(work, 'never.txt')], { cwd: work, timeoutMs: 600 });
-    const elapsed = Date.now() - started;
-    assert.equal(r.timedOut, 'timeout', 'the overrun is reported as a timeout');
-    assert.ok(elapsed < 5000, `returned in ${elapsed}ms rather than waiting out the 120s sleep`);
-  } finally { setFixture(); }
+  const started = Date.now();
+  const r = await runCodex([], { cwd: work, timeoutMs: 600, bin: hangScript });
+  const elapsed = Date.now() - started;
+  assert.equal(r.timedOut, 'timeout', 'the overrun is reported as a timeout');
+  assert.ok(elapsed < 5000, `returned in ${elapsed}ms rather than waiting out the 120s sleep`);
 });
 
 test('a caller that gives up aborts the turn', async () => {
-  setFixture({ HANG: 1 });
-  try {
-    const abort = new AbortController();
-    const started = Date.now();
-    setTimeout(() => abort.abort(), 300);
-    const r = await runCodex(['exec', '-o', path.join(work, 'never2.txt')], {
-      cwd: work, timeoutMs: 60_000, signal: abort.signal,
-    });
-    const elapsed = Date.now() - started;
-    assert.equal(r.timedOut, 'aborted', 'the turn ends because the caller left');
-    assert.ok(elapsed < 5000, `returned in ${elapsed}ms rather than holding the 60s timeout`);
-  } finally { setFixture(); }
+  const abort = new AbortController();
+  const started = Date.now();
+  setTimeout(() => abort.abort(), 300);
+  const r = await runCodex([], { cwd: work, timeoutMs: 60_000, signal: abort.signal, bin: hangScript });
+  const elapsed = Date.now() - started;
+  assert.equal(r.timedOut, 'aborted', 'the turn ends because the caller left');
+  assert.ok(elapsed < 5000, `returned in ${elapsed}ms rather than holding the 60s timeout`);
 });
 
 test('signed-out detection', () => {

@@ -24,7 +24,7 @@ function loadXterm() {
   return xtermReady;
 }
 
-export function aiPlansPanel({ h, api, toast, errMsg }) {
+export function aiPlansPanel({ h, api, toast, errMsg, title = 'AI plans' }) {
   const statusLine = h('p', { class: 'muted small', role: 'status' }, 'Checking…');
   const screen = h('div', { class: 'plans-terminal', style: { height: '380px', background: '#0b0b0d', borderRadius: '10px', padding: '8px', display: 'none' } });
   let socket = null, term = null;
@@ -83,7 +83,7 @@ export function aiPlansPanel({ h, api, toast, errMsg }) {
   }
 
   const panel = h('section', { class: 'panel' },
-    h('h2', {}, 'AI plans'),
+    h('h2', {}, title),
     h('p', { class: 'muted small' },
       'Sign the official OpenAI Codex CLI into your own ChatGPT plan. The sign-in runs inside the plans service; this console never receives or stores a ChatGPT credential, and the session survives a redeploy.'),
     statusLine,
@@ -96,7 +96,10 @@ export function aiPlansPanel({ h, api, toast, errMsg }) {
       h('li', {}, 'Select Sign in. The terminal prints a link and a one-time code.'),
       h('li', {}, 'Open the link in your browser and sign in with your ChatGPT account.'),
       h('li', {}, 'Enter the code there. It expires after 15 minutes.'),
-      h('li', {}, 'If the terminal reports that device codes are off, enable "device code authorization for Codex" in ChatGPT → Settings → Security, then try again.')),
+      h('li', {}, 'If the terminal reports that device codes are off, enable "device code authorization for Codex" in ',
+        // The one step that happens outside this app, so it is a real link.
+        h('a', { href: 'https://chatgpt.com/#settings/Security', target: '_blank', rel: 'noopener noreferrer' }, 'ChatGPT → Settings → Security'),
+        ', then try again.')),
     h('p', { class: 'muted small', style: { marginTop: '10px' } },
       'Only you, as the workspace Owner, can use this plan: it spends your personal subscription. Representatives keep using their own API keys. Image generation still runs on an API-key provider.'),
     screen);
