@@ -29,6 +29,12 @@ run affected tests and satisfy required workflow gates.
     python3 -m unittest discover -s deploy/tests -v
     NODE_ENV=production node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js test/account-specialist-session.js
     git diff --check
+    cd teammates && npm install && npm test   # plans bridge, fake codex binary
+
+The plans bridge (`teammates/`) is its own npm package with its own suite; it
+runs against a fake `codex` binary and never signs in, calls OpenAI or spends.
+Its image is opt-in (`docker compose --profile plans up -d`) and is not built by
+the deploy workflow yet. See [PLANS_BRIDGE.md](PLANS_BRIDGE.md).
 
 Use .github/workflows/deploy.yml as the current executable list. The backend list
 above now matches it, including `test/account-specialist-session.js` and

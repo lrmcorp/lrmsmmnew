@@ -1,10 +1,17 @@
 // Fixed official API origins. API keys never leave the corresponding provider.
 import { createHash } from 'node:crypto';
 import { err } from '../util.js';
+import { PLANS_PROVIDER, planCompletion } from './plans.js';
 
 export const PROVIDERS = {
   openai: { name: 'OpenAI (ChatGPT & Codex)', textModel: 'gpt-4.1-mini', visionModel: 'gpt-4.1', imageModel: 'gpt-image-2.5-sunburst', image: true, textModels: [{id:'gpt-4.1-mini',name:'GPT-4.1 mini · Lightweight'}, {id:'gpt-4.1',name:'GPT-4.1 · Detailed'}, {id:'gpt-4o',name:'GPT-4o · Multimodal'}, {id:'gpt-5.1-codex-mini',name:'GPT-5.1 Codex mini · Responses API'}], imageModels: [{id:'gpt-image-2.5-sunburst',name:'GPT Image 2.5 Sunburst · Detailed'}, {id:'gpt-image-2.5-flare',name:'GPT Image 2.5 Flare · Faster'}] },
   anthropic: { name: 'Anthropic (Claude)', textModel: 'claude-sonnet-5-5', visionModel: 'claude-opus-5-5', image: false, textModels: [{id:'claude-sonnet-5-5',name:'Claude Sonnet 5.5'}, {id:'claude-haiku-5-5',name:'Claude Haiku 5.5 · Lightweight'}, {id:'claude-opus-5-5',name:'Claude Opus 5.5 · Detailed'}, {id:'claude-opus-5',name:'Claude Opus 5 · Detailed'}], imageModels: [] },
+  // A virtual provider: no API key of its own, no endpoint of its own. It is
+  // offered only while a plan is signed in on the bridge, and only to the Owner,
+  // whose subscription it spends. Image stages are deliberately absent — the
+  // Codex CLI exposes no image-generation output, so claiming image:true here
+  // would put a stage in the picker that cannot run.
+  lrmplans: { name: 'Your plans', textModel: 'codex', visionModel: 'codex', image: false, virtual: true, textModels: [{ id: 'codex', name: 'Codex · your ChatGPT plan' }], imageModels: [] },
   gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', visionModel: 'gemini-2.5-pro', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detailed'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Lightweight'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
 };
 
@@ -97,6 +104,12 @@ export async function geminiModels(key,{refresh=false}={}) {
 
 export async function generateText({ provider, model, key, system, prompt, images = [], imageDetail = 'low', maxTokens = 2400, jsonSchema = null }) {
   let result, text;
+  if (provider === PLANS_PROVIDER) {
+    // The plan answers through the Codex CLI in the bridge container. No key is
+    // involved: the owner's login lives there, not here. Ownership and the
+    // conversation id are checked inside planCompletion.
+    return planCompletion({ model, system, prompt, images, jsonSchema, maxTokens });
+  }
   if (provider === 'openai' && /codex/i.test(model)) {
     result = await jsonRequest('https://api.openai.com/v1/responses', { Authorization: `Bearer ${key}` }, { model, instructions:system, input:[{role:'user',content:[{type:'input_text',text:prompt},...images.map(x=>({type:'input_image',image_url:`data:${x.mime};base64,${x.data}`,detail:imageDetail}))]}], max_output_tokens:maxTokens, ...(jsonSchema?{text:{format:{type:'json_schema',name:'content_plan',strict:true,schema:jsonSchema}}}:{}) });
     text = result.output_text || result.output?.flatMap(item=>item.content||[]).filter(part=>part.type==='output_text').map(part=>part.text).join('\n');

@@ -15,6 +15,7 @@ product UI defaults to English.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Entry points, modules, data ownership and execution flows |
 | [API_WORKFLOWS.md](API_WORKFLOWS.md) | Important endpoint families and approval boundaries |
 | [RUNBOOK.md](RUNBOOK.md) | Isolated development/tests, deployment and troubleshooting |
+| [PLANS_BRIDGE.md](PLANS_BRIDGE.md) | "Your plans": the owner's ChatGPT subscription via the official Codex CLI |
 | [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) | Copyable prompt for the next LLM session |
 
 Also read the root [AGENTS.md](../../AGENTS.md). For a page redesign, consult only

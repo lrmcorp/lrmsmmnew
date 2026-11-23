@@ -13,6 +13,8 @@ services:
       DISABLE_WORKER: '0'
       ALLOW_SIGNUP: '0'
       ALLOW_INITIAL_SETUP: '0'
+      PLANS_BRIDGE_URL: http://teammates:8090/teammates/v1
+      PLANS_BRIDGE_TOKEN: ${PLANS_BRIDGE_TOKEN:-}
     volumes:
       - ./data:/data
     ports:
@@ -27,6 +29,44 @@ services:
       options:
         max-size: 10m
         max-file: '3'
+  teammates:
+    # Opt-in. `docker compose up` ignores this service unless the plans profile
+    # is selected, so an existing deployment keeps working untouched and the
+    # second image only has to exist once the owner wants the feature:
+    #   docker compose --profile plans up -d
+    profiles: [plans]
+    image: ${TEAMMATES_IMAGE:-ghcr.io/lrmcorp/lrmsmmnew-teammates:latest}
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: '8090'
+      WORK_DIR: /work
+      # Shared with the app only. It is not a ChatGPT credential: the ChatGPT
+      # login lives in the codex-home volume and is owned by the Codex CLI.
+      INTERNAL_TOKEN: ${PLANS_BRIDGE_TOKEN:?PLANS_BRIDGE_TOKEN is required when the plans profile is enabled}
+      CONSOLE_ORIGIN: ${PUBLIC_URL:-}
+      CODEX_TIMEOUT_MS: '300000'
+      MAX_TERMINALS: '3'
+    volumes:
+      # The signed-in session lives here, so a redeploy does not sign the owner
+      # out. Per-conversation working directories are deliberately not on it.
+      - codex-home:/home/codex
+    # No ports: the only way in is the reverse proxy, at /teammates/.
+    networks:
+      proxy:
+        aliases: [lrmsmmnew-teammates, teammates]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+volumes:
+  codex-home:
+
 networks:
   proxy:
     external: true

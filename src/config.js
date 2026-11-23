@@ -66,6 +66,16 @@ export const config = {
   },
   smtp: env.SMTP_URL || null,
   webhookVerifyToken: env.WEBHOOK_VERIFY_TOKEN || (MOCK ? 'lrmsmm-verify' : ''),
+  // The plans bridge: the owner's own ChatGPT subscription, reached through the
+  // official Codex CLI in the teammates container. The token is shared with that
+  // container only; no ChatGPT credential ever reaches this process.
+  plans: {
+    baseUrl: env.PLANS_BRIDGE_URL || 'http://teammates:8090/teammates/v1',
+    token: env.PLANS_BRIDGE_TOKEN || '',
+    // Longer than an ordinary request: a Codex turn is an agent, not a single
+    // completion, and the bridge's own per-request timeout is the real bound.
+    timeoutMs: Number(env.PLANS_TIMEOUT_MS || 330000),
+  },
   unrepliedAlertSeconds: Number(env.UNREPLIED_ALERT_SECONDS || 300),
 };
 

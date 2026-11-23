@@ -48,10 +48,15 @@ jobs:
           name: redesign-browser-screenshots
           path: /tmp/redesign-*.png
           if-no-files-found: ignore
+      - name: Plans bridge (its own package, fake Codex binary)
+        run: |
+          cd teammates
+          npm install --no-audit --no-fund
+          node --test test/*.test.js
       - name: Deployment boundary and closed initial setup tests
         run: |
           python3 -m unittest discover -s deploy/tests -v
-          NODE_ENV=production node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js test/account-specialist-session.js
+          NODE_ENV=production node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js test/account-specialist-session.js test/plans-bridge.js
 
   deploy:
     needs: test
@@ -87,7 +92,7 @@ jobs:
           IMAGE: ghcr.io/lrmcorp/lrmsmmnew:${{ github.sha }}
         run: |
           docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings test/e2e.js
-          docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js test/account-specialist-session.js
+          docker run --rm --network none --mount "type=bind,src=$GITHUB_WORKSPACE/test,dst=/app/test,readonly" "$IMAGE" node --no-warnings --test test/production-setup.js test/account-profile.js test/message-sync.js test/company-migration.js test/ai-images.js test/generator.js test/storytelling.js test/visual-production.js test/ui-helpers.js test/calendar-workspace.js test/audit-workspace.js test/brand-metadata.js test/dashboard.js test/story-memory-migration.js test/protected-composition.js test/account-specialist-session.js test/plans-bridge.js
       - name: Publish tested image
         id: publish
         env:

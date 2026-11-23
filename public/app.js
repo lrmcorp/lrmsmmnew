@@ -1,5 +1,6 @@
 import {storySessionPage} from './story-session-page.js';
 import { workspacePages } from './workspace-pages.js';
+import { aiPlansPanel } from './ai-plans.js';
 import { contentWorkspace } from './content-workspace.js';
 import { generatorWorkspace } from './generator-workspace.js';
 import { t } from './strings.en.js';
@@ -2656,10 +2657,10 @@ async function pageSettings() {
     style: {
       marginBottom: '20px'
     }
-  }, [['profile', 'Profile'], ['security', 'Security'], ['ai', 'AI connections']].map(([id, label]) => h('a', {
+  }, [['profile', 'Profile'], ['security', 'Security'], ['ai', 'AI connections'], ...(isOwner() ? [['plans', 'AI plans']] : [])].map(([id, label]) => h('a', {
     class: 'btn ' + (currentTab === id ? 'on' : ''),
     href: '#/settings?tab=' + id
-  }, label))), currentTab === 'security' ? h('section', {
+  }, label))), currentTab === 'plans' && isOwner() ? aiPlansPanel({ h, api, toast, errMsg }).panel : currentTab === 'security' ? h('section', {
     class: 'panel',
     style: {
       maxWidth: '500px'

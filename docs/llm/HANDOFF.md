@@ -230,6 +230,49 @@ Newest first. Each entry records what was reported, what actually caused it and
 what was decided, because several of these were misdiagnosed the first time and
 the reasoning is the part worth keeping.
 
+### "Your plans": the owner's ChatGPT subscription as a provider: 2026-11-23
+
+Built the plans bridge the owner asked for: a separate `teammates/` container
+running the **official** OpenAI Codex CLI, signed in to their own ChatGPT plan,
+behind an OpenAI-shaped API the application calls like any other provider. Full
+design in [PLANS_BRIDGE.md](PLANS_BRIDGE.md).
+
+The brief was written for the owner's other system, which is Python and has
+WhatsApp. This is Node and has neither, so point 5 was ported to
+`src/llm/providers.js` rather than copied, and "owner's own console or WhatsApp"
+became the workspace Owner check.
+
+**The flags were verified against the real CLI, not from documentation**, because
+`developers.openai.com` does not resolve from this container. `@openai/codex@0.171.0`
+was installed and inspected: `--device-auth` exists but is hidden from
+`codex login --help`, and `exec` carries `--output-schema`, which the generator's
+structured stages need and the brief did not mention.
+
+Two findings came out of running the real binary rather than the fixture:
+
+- A fresh `codex-home` volume has no `CODEX_HOME`, and the CLI then refuses every
+  call with *"that path does not exist"*. The bridge creates it at startup; without
+  that, the first deploy would have looked like a broken login.
+- `codex exec` can block for the whole request timeout when it cannot reach
+  OpenAI. It does not affect the signed-out path, because a turn checks
+  `codex login status` first (local, instant) and returns 409 before reaching
+  `exec`.
+
+**Unresolved, and deliberately not claimed either way: image generation.** The
+owner asked for images on their plan. The CLI binary contains `imagegen`,
+`image_gen.generation`, an `imagegen_premium` feature flag and `gpt-image-1/1.5/2`
+ids, so the machinery exists; whether it is reachable from `codex exec`, on a
+given plan, and can write a file the bridge could return, needs a signed-in
+account to test. The provider is registered `image: false` and image stages stay
+on an API-key provider until someone tests it. Do not flip that flag on the
+strength of the strings alone.
+
+**Not verified:** the image has never been built (no Docker daemon here), there
+has been no real sign-in and no real model answer, and whether Codex satisfies
+each stage's JSON schema in practice is unknown. Building and promoting the
+second image is also not wired into `deploy.yml`, which handles one image; the
+service is behind a compose profile so the current deployment is untouched.
+
 ### Security audit with Cloudflare's methodology: 2026-11-07
 
 Ran `cloudflare/security-audit-skill` (vendored at `.agents/skills/security-audit/`)

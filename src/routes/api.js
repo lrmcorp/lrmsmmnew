@@ -19,6 +19,7 @@ import { stats as webhookStats } from './webhooks.js';
 import { config } from '../config.js';
 import * as storytelling from '../services/storytelling.js';
 import * as generator from '../services/generator.js';
+import * as plans from '../llm/plans.js';
 import * as aiDrafts from '../services/ai-drafts.js';
 import {moveCalendarItem,duplicateCalendarPost} from '../services/calendar-workspace.js';
 import {listAuditWorkspace} from '../services/audit-workspace.js';
@@ -122,7 +123,27 @@ api.delete('/generator/story-jobs/:id',sessionOnly,(req,res)=>{const result=stor
 api.post('/generator/story-jobs/:id/retry',sessionOnly,(req,res)=>{if(req.body?.confirm_cost!==true)throw err(400,'cost_confirmation_required',"Confirm the retry cost.");const result=generator.retryStory(U(req),req.params.id,req.body||{});audit(req.auth,'story.retry','story_job',result.id);setImmediate(()=>generator.runGeneratorTick());res.json(result);});
 api.get('/generator/providers/gemini/models',sessionOnly,async(req,res)=>res.json(await generator.availableGeminiModels(U(req),req.query.refresh==='true')));
 api.post('/generator/quick-idea',sessionOnly,async(req,res)=>{const result=await generator.quickIdea(U(req),req.body||{});audit(req.auth,'generator.quick_idea','generator',null,{account_ids:req.body.account_ids,kind:req.body.kind});res.json(result);});
-api.get('/generator/settings', sessionOnly, (req, res) => res.json(generator.settings(U(req))));
+api.get('/generator/settings', sessionOnly, async (req, res) => {
+  // The provider list is resolved per user: "Your plans" is only offered to an
+  // Owner while a plan is actually signed in on the bridge.
+  const s = generator.settings(U(req));
+  res.json({ ...s, providers: await generator.availableProviders(U(req)) });
+});
+
+// ---- AI plans (the owner's own ChatGPT subscription, via the Codex CLI) ----
+api.get('/ai-plans/status', sessionOnly, requireOwner, async (_req, res) => {
+  const models = await plans.listModels({ refresh: true });
+  res.json({ configured: plans.configured(), signed_in: models.length > 0, models });
+});
+
+// A short-lived, single-purpose credential for the login terminal. The console
+// session proves who is asking; this hands the bridge a statement it can verify
+// without reaching into this application's database.
+api.post('/ai-plans/terminal-ticket', sessionOnly, requireOwner, (req, res) => {
+  if (!plans.configured()) throw err(503, 'plans_not_configured', "The plans bridge is not configured on this server.");
+  audit(req.auth, 'plans.terminal.open', 'user', U(req).id);
+  res.json({ ticket: plans.mintTerminalTicket(U(req)), expires_in: 120 });
+});
 api.put('/generator/settings', sessionOnly, (req, res) => res.json(generator.saveSettings(U(req), req.body || {})));
 api.delete('/generator/settings', sessionOnly, (req, res) => {const result=generator.resetSettings(U(req));audit(req.auth,'generator.settings.reset','generator_settings',U(req).id);res.json(result);});
 api.put('/generator/keys/:provider', sessionOnly, (req, res) => {
