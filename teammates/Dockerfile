@@ -34,12 +34,16 @@ WORKDIR /app
 COPY --from=build --chown=codex:codex /build/node_modules ./node_modules
 COPY --chown=codex:codex package.json ./
 COPY --chown=codex:codex src ./src
-COPY --chown=codex:codex public ./public
-# The console loads the terminal widget from this service, so the application
-# image carries no vendored copy and the two never drift apart.
+# public/ holds nothing but the vendored terminal widget, which is generated
+# here from node_modules and is therefore gitignored. Git does not track empty
+# directories, so a clean checkout has no teammates/public at all and COPYing it
+# failed the build. The directory is created rather than copied.
+# The console loads the widget from this service, so the application image
+# carries no vendored copy and the two never drift apart.
 RUN mkdir -p public/vendor \
  && cp node_modules/@xterm/xterm/lib/xterm.js public/vendor/xterm.js \
- && cp node_modules/@xterm/xterm/css/xterm.css public/vendor/xterm.css
+ && cp node_modules/@xterm/xterm/css/xterm.css public/vendor/xterm.css \
+ && chown -R codex:codex public
 
 # Per-conversation working directories live here, not in HOME, so a wiped
 # workspace never costs the login.
