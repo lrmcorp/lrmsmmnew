@@ -244,7 +244,7 @@ const errMsg=e=>{
   if(e.ui)return e.message;
   if(e.code==='schedule_capacity'&&e.details)return `Only ${e.details.available_slots} posting slots are available for ${e.details.required_slots} items. Add posting times or extend the date range. Existing drafts and scheduled posts also reserve slots.`;
   if(e.code==='invalid_credentials')return t('login.error.generic');
-  if(e.code&&/^(provider_|story_|generator_)/.test(e.code)&&e.message)return e.message;
+  if(e.code&&/^(provider_|story_|generator_|plans?_)/.test(e.code)&&e.message)return e.message;
   if(e.status&&e.status<500&&e.code&&e.message)return e.message;
   if(e.code&&ERR[e.code])return ERR[e.code];
   if(e.code==='provider_key_missing')return t('gen.ready.key.missing',{provider:'AI'});
