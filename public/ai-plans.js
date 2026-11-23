@@ -10,17 +10,40 @@ let xtermReady = null;
 function loadXterm() {
   // Loaded on demand and from the bridge, so the console pays nothing for it
   // until an owner actually opens this tab.
-  xtermReady ??= new Promise((resolve, reject) => {
-    if (globalThis.Terminal) return resolve(globalThis.Terminal);
+  xtermReady ??= (async () => {
+    if (globalThis.Terminal) return globalThis.Terminal;
+    // Ask first, so a failure says why. A <script> tag that fails reports
+    // nothing but "error", which is how this page once told the owner only
+    // that the terminal "could not be loaded" with no way to tell a refused
+    // request from a missing file or an unreachable service.
+    const probe = await fetch(`${ASSET_BASE}/xterm.js`, { credentials: 'same-origin', cache: 'no-store' }).catch((e) => ({ ok: false, status: 0, statusText: e.message }));
+    if (!probe.ok) {
+      const why = probe.status === 403 ? 'access was refused (sign in again as the workspace Owner)'
+        : probe.status === 404 ? 'the file was not found on the plans service'
+        : probe.status === 502 || probe.status === 503 ? 'the plans service did not answer'
+        : probe.status === 0 ? `the request failed: ${probe.statusText}`
+        : `HTTP ${probe.status}`;
+      throw new Error(`The terminal could not be loaded: ${why}.`);
+    }
+    return new Promise((resolve, reject) => {
     const css = document.createElement('link');
     css.rel = 'stylesheet'; css.href = `${ASSET_BASE}/xterm.css`;
     document.head.append(css);
     const script = document.createElement('script');
     script.src = `${ASSET_BASE}/xterm.js`;
-    script.onload = () => globalThis.Terminal ? resolve(globalThis.Terminal) : reject(new Error('Terminal did not load'));
-    script.onerror = () => reject(new Error('The terminal could not be loaded from the plans service.'));
+    script.onload = () => {
+      // This build copies its exports onto the global object; tolerate a build
+      // that exposes the exports object instead.
+      const T = globalThis.Terminal?.Terminal || globalThis.Terminal;
+      typeof T === 'function' ? resolve(T) : reject(new Error('The terminal widget loaded but did not register itself.'));
+    };
+    script.onerror = () => reject(new Error('The terminal widget was served but the browser refused to run it.'));
     document.head.append(script);
-  });
+    });
+  })();
+  // A failed load must not be cached forever, or one bad moment breaks the
+  // panel until the page is reloaded.
+  xtermReady.catch(() => { xtermReady = null; });
   return xtermReady;
 }
 
