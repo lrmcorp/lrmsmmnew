@@ -6,7 +6,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
+// config.js creates its media directory at import time, and DATA_DIR defaults
+// to /data, which the production image's unprivileged user cannot write. Every
+// other backend test points it at a temporary directory first; this one did
+// not, and only failed inside that image.
+Object.assign(process.env, {
+  DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'lrmsmm-plans-')),
+  META_MOCK: '1',
+  DISABLE_WORKER: '1',
+});
 process.env.PLANS_BRIDGE_URL = 'http://teammates.test/teammates/v1';
 process.env.PLANS_BRIDGE_TOKEN = 'shared-internal-token-0123456789';
 process.env.ENCRYPTION_KEY ||= crypto.randomBytes(32).toString('hex');
