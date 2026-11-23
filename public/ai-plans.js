@@ -27,7 +27,7 @@ function loadXterm() {
 export function aiPlansPanel({ h, api, toast, errMsg, title = 'AI plans' }) {
   const statusLine = h('p', { class: 'muted small', role: 'status' }, 'Checking…');
   const screen = h('div', { class: 'plans-terminal', style: { height: '380px', background: '#0b0b0d', borderRadius: '10px', padding: '8px', display: 'none' } });
-  let socket = null, term = null;
+  let socket = null, term = null, ready = false;
 
   const setStatus = (text, tone = '') => {
     statusLine.textContent = text;
@@ -37,10 +37,16 @@ export function aiPlansPanel({ h, api, toast, errMsg, title = 'AI plans' }) {
   async function refresh() {
     try {
       const s = await api('GET', '/v1/ai-plans/status');
-      if (!s.configured) return setStatus('The plans service is not configured on this server.', 'warn');
+      // Signing in needs the plans service to exist. Offering the button
+      // without it only produces an error the owner cannot act on, so the
+      // controls follow the state rather than the other way round.
+      setReady(!!s.configured);
+      if (!s.configured) {
+        return setStatus('The plans service is not running on this server. Set PLANS_BRIDGE_TOKEN in the deployment .env and start it with: docker compose --profile plans up -d', 'warn');
+      }
       // The exact wording the brief asks for, so the state is unambiguous.
       setStatus(s.signed_in ? `Signed in (ChatGPT) · ${s.models.join(', ')}` : 'Not signed in', s.signed_in ? 'ok' : 'warn');
-    } catch (e) { setStatus(errMsg(e), 'warn'); }
+    } catch (e) { setReady(false); setStatus(errMsg(e), 'warn'); }
   }
 
   function closeTerminal() {
@@ -53,6 +59,7 @@ export function aiPlansPanel({ h, api, toast, errMsg, title = 'AI plans' }) {
   }
 
   async function openTerminal(cmd) {
+    if (!ready) return toast('The plans service is not running on this server.', true);
     closeTerminal();
     let ticket;
     try { ({ ticket } = await api('POST', '/v1/ai-plans/terminal-ticket', {})); }
@@ -82,14 +89,24 @@ export function aiPlansPanel({ h, api, toast, errMsg, title = 'AI plans' }) {
     term.onData((data) => socket?.readyState === WebSocket.OPEN && socket.send(JSON.stringify({ data })));
   }
 
+  // Built before the panel so their disabled state can follow the service.
+  const signIn = h('button', { class: 'btn primary', disabled: true, onclick: () => openTerminal('login') }, 'Sign in');
+  const checkStatus = h('button', { class: 'btn', disabled: true, onclick: () => openTerminal('status') }, 'Check status');
+  function setReady(value) {
+    ready = value;
+    for (const button of [signIn, checkStatus]) {
+      button.disabled = !value;
+      button.title = value ? '' : 'The plans service is not running on this server.';
+    }
+  }
+
   const panel = h('section', { class: 'panel' },
     h('h2', {}, title),
     h('p', { class: 'muted small' },
       'Sign the official OpenAI Codex CLI into your own ChatGPT plan. The sign-in runs inside the plans service; this console never receives or stores a ChatGPT credential, and the session survives a redeploy.'),
     statusLine,
     h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap', marginTop: '12px' } },
-      h('button', { class: 'btn primary', onclick: () => openTerminal('login') }, 'Sign in'),
-      h('button', { class: 'btn', onclick: () => openTerminal('status') }, 'Check status'),
+      signIn, checkStatus,
       h('button', { class: 'btn', onclick: refresh }, 'Refresh'),
       h('button', { class: 'btn', onclick: closeTerminal }, 'Close terminal')),
     h('ol', { class: 'muted small', style: { marginTop: '14px', paddingLeft: '18px', lineHeight: '1.7' } },

@@ -100,24 +100,25 @@ jobs:
         run: |
           docker push "$IMAGE"
           echo "ref=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}')" >> "$GITHUB_OUTPUT"
-      # The plans bridge is a second image and is opt-in: until
-      # ENABLE_PLANS_BRIDGE is set, nothing below runs and the deployment is
-      # exactly the single-image one it has always been.
+      # The bridge image is always built and published. Whether it RUNS is a
+      # separate decision, made by the plans compose profile on the server, so
+      # building it costs nothing but removes a step the owner would otherwise
+      # have to remember before the feature could be switched on at all.
       - name: Build plans bridge image
-        if: vars.ENABLE_PLANS_BRIDGE == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./teammates
           load: true
           platforms: linux/amd64
-          tags: ghcr.io/lrmcorp/lrmsmmnew-teammates:${{ github.sha }}
+          tags: |
+            ghcr.io/lrmcorp/lrmsmmnew-teammates:${{ github.sha }}
+            ghcr.io/lrmcorp/lrmsmmnew-teammates:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           labels: |
             org.opencontainers.image.source=https://github.com/lrmcorp/lrmsmmnew
             org.opencontainers.image.revision=${{ github.sha }}
       - name: Test the actual plans bridge image
-        if: vars.ENABLE_PLANS_BRIDGE == 'true'
         env:
           IMAGE: ghcr.io/lrmcorp/lrmsmmnew-teammates:${{ github.sha }}
         run: |
@@ -142,11 +143,14 @@ jobs:
             })"
       - name: Publish tested plans bridge image
         id: publish_bridge
-        if: vars.ENABLE_PLANS_BRIDGE == 'true'
         env:
           IMAGE: ghcr.io/lrmcorp/lrmsmmnew-teammates:${{ github.sha }}
+          LATEST: ghcr.io/lrmcorp/lrmsmmnew-teammates:latest
         run: |
           docker push "$IMAGE"
+          # The compose file's default is :latest, so that tag has to exist for
+          # someone starting the profile by hand rather than through a deploy.
+          docker push "$LATEST"
           echo "ref=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}')" >> "$GITHUB_OUTPUT"
       - name: Deploy to the dedicated VPS receiver
         if: vars.ENABLE_VPS_DEPLOY == 'true'

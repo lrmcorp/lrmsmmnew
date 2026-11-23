@@ -126,7 +126,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
   {
     const main=await page.locator('main').innerText();
     assert.ok(/Your ChatGPT plan/.test(main),'the plan panel appears on API & AI');
-    assert.ok(/Not signed in|Signed in \(ChatGPT\)|not configured/.test(main),'with its status');
+    assert.ok(/Not signed in|Signed in \(ChatGPT\)|not running on this server/.test(main),'with its status');
     assert.equal(await page.locator('main a[href*="chatgpt.com"]').count(),1,'and a link to the ChatGPT setting it depends on');
     assert.equal(await page.locator('main .plans-terminal').isVisible(),false,'terminal stays closed until asked for');
     assert.ok(/API/.test(main),'without displacing the API key section');
@@ -140,10 +140,16 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
   {
     const main=await page.locator('main').innerText();
     assert.ok(/AI plans/.test(main),'the AI plans tab renders for an Owner');
-    assert.ok(/Not signed in|Signed in \(ChatGPT\)|not configured/.test(main),'and states the plan status plainly');
+    assert.ok(/Not signed in|Signed in \(ChatGPT\)|not running on this server/.test(main),'and states the plan status plainly');
     assert.ok(/Settings . Security|device code/i.test(main),'including what to do when device codes are off');
     assert.equal(await page.locator('main .plans-terminal').count(),1,'the terminal is present but closed until asked for');
     assert.equal(await page.locator('main .plans-terminal').isVisible(),false,'and hidden until Sign in is selected');
+    // With no plans service configured, Sign in must not be offerable: clicking
+    // it only produced a generic 503 the owner could do nothing with.
+    const signIn=page.locator('main button',{hasText:'Sign in'}).first();
+    assert.equal(await signIn.isDisabled(),true,'Sign in is disabled while the service is not running');
+    assert.equal(await page.locator('main button',{hasText:'Check status'}).first().isDisabled(),true,'and so is Check status');
+    assert.match(await page.locator('main').innerText(),/docker compose --profile plans up -d/,'the status line says exactly what to do');
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.locator('main button',{hasText:'Refresh'}).first().click();
     await page.waitForTimeout(300);

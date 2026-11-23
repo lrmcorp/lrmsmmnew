@@ -16,14 +16,18 @@ handoff is for.
 - Repository **lrmcorp/lrmsmmnew**, serving `https://lrmsosmed.playgo.id`.
   `lrmsocmedauto` is retired; do not deploy its Temporal/Postgres/Redis
   architecture or copy its environment.
-- **Last verified deployed commit: `197c00d`**, PR
-  [#51](https://github.com/lrmcorp/lrmsmmnew/pull/51), deployment run
-  [41672272309](https://github.com/lrmcorp/lrmsmmnew/actions/runs/41672272309),
-  receiver and public health check both passing. The last release that changed
-  application behaviour is `a38a3a6` (PR #50, DM paging); #51 is diagnostic text.
-- Last verified checks: the English/SVG gates, **40 application e2e**, **95
-  production-mode backend checks**, 6 deployment tests and the real-browser
-  redesign workflow.
+- **Last verified deployed commit: `6025bf8`**, PR
+  [#53](https://github.com/lrmcorp/lrmsmmnew/pull/53), deployment run
+  [45140078232](https://github.com/lrmcorp/lrmsmmnew/actions/runs/45140078232),
+  receiver and public health check both passing. The release that changed
+  application behaviour is `e54d94c` (PR #52: the security fixes and "Your
+  plans"); #53 only fixed the test that blocked its deploy.
+- **The plans bridge is not running.** It is behind the `plans` compose profile
+  and needs `PLANS_BRIDGE_TOKEN`, so the panel reports "not configured" until
+  the owner enables it on the VPS.
+- Last verified checks: the English/SVG gates, **42 application e2e**, **113
+  production-mode backend checks**, **36 plans-bridge checks**, 9 deployment
+  tests and the real-browser redesign workflow.
 - **Verify this rather than trusting it.** This line was once thirteen commits
   stale, naming PR #8 as deployed long after #15 and later had shipped. Check
   the latest successful `deploy.yml` run on `main` and update it on every
