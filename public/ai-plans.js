@@ -102,7 +102,7 @@ export function aiPlansPanel({ h, api, toast, errMsg }) {
     screen);
 
   refresh();
-  // The caller disposes the page; a live socket must not outlive it.
-  panel.addEventListener('lrm:dispose', closeTerminal);
+  // The caller registers dispose with the page's cleanup, so a live socket
+  // never outlives the view that opened it.
   return { panel, dispose: closeTerminal };
 }

@@ -118,6 +118,27 @@ test('a failed resume restarts the turn with a summary', async () => {
   assert.ok(!/resume/.test(lines[2]), 'and the retry ran as a first message');
 });
 
+test('a failed first turn does not make the next one resume', async () => {
+  // Resuming depends on a turn having completed, not on the conversation having
+  // been seen: otherwise a first turn that failed leaves the second one trying
+  // to resume a Codex thread that was never created.
+  resetArgs();
+  fixture({ FAIL: 1, FAIL_MSG: 'transient explosion' });
+  const first = await call('/teammates/v1/chat/completions', {
+    method: 'POST', session: 'conv-failed-first',
+    body: { messages: [{ role: 'user', content: 'one' }] },
+  });
+  assert.equal(first.status, 502, 'the first turn fails');
+  fixture();
+  const second = await call('/teammates/v1/chat/completions', {
+    method: 'POST', session: 'conv-failed-first',
+    body: { messages: [{ role: 'user', content: 'one' }, { role: 'user', content: 'two' }] },
+  });
+  assert.equal(second.status, 200);
+  const lines = readArgs();
+  assert.ok(!lines.some((l) => /resume/.test(l)), 'neither turn resumed');
+});
+
 test('two conversations do not share a working directory', async () => {
   const a = await (await call('/teammates/v1/chat/completions', { method: 'POST', session: 'conv-A', body: { messages: [{ role: 'user', content: 'x' }] } })).json();
   const b = await (await call('/teammates/v1/chat/completions', { method: 'POST', session: 'conv-B', body: { messages: [{ role: 'user', content: 'x' }] } })).json();

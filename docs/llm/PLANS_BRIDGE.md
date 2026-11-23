@@ -87,9 +87,25 @@ for:
 `PLANS_BRIDGE_TOKEN` is the application↔bridge token. It is **not** a ChatGPT
 credential, and rotating it signs nobody out.
 
-Building and publishing the second image is not yet wired into
-`.github/workflows/deploy.yml`, which builds and promotes one image. That is the
-remaining deployment step.
+Compose deliberately uses `${PLANS_BRIDGE_TOKEN:-}` rather than the
+required-variable form. Interpolation runs over the whole file *before* profiles
+are applied, so a required variable here would break every `docker compose`
+command for the application too, profile off or not. The bridge refuses to start
+without the token instead, which fails in the right place with a clearer message.
+
+### Through CI
+
+Set the repository variable `ENABLE_PLANS_BRIDGE=true`. The deploy workflow then
+builds the bridge image, smoke-tests the real image (the pinned CLI runs, the
+container is non-root, it refuses to start without its token and serves
+`/teammates/healthz` with one), publishes it by digest, and passes that digest
+to the receiver as `teammates_image`.
+
+The receiver validates it against `ghcr.io/lrmcorp/lrmsmmnew-teammates` exactly
+as strictly as the application image, and against its own repository: a digest
+for one is never accepted for the other. When the field is absent the receiver
+runs the single-image deployment it always has — no profile, no extra variable
+— so leaving the feature off changes nothing.
 
 ## What is verified, and what is not
 
@@ -106,7 +122,11 @@ Verified here, against the real CLI at the pinned version:
 
 **Not** verified, and not claimed:
 
-- The container image has never been built: no Docker daemon was available.
+- The container image has never been built: no Docker daemon is available here.
+  The build's own steps were verified instead — `npm ci --omit=dev` resolves from
+  the committed lockfile, the xterm files the image copies exist at those paths,
+  `codex --version` prints `codex-cli 0.171.0`, and the two startup assertions CI
+  makes on the image were run directly against the same entrypoint.
 - No real sign-in, and no real model answer. Whether Codex's output satisfies
   each generator stage's JSON schema in practice is unknown until a plan is
   signed in.

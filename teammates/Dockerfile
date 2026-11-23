@@ -7,8 +7,10 @@ WORKDIR /build
 # here and only the result is copied forward. The runtime image keeps no compiler.
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
-COPY package.json ./
-RUN npm install --omit=dev --no-audit --no-fund
+COPY package.json package-lock.json ./
+# ci, not install: the lockfile is committed, so the image is reproducible and
+# a drifting transitive dependency cannot change what ships.
+RUN npm ci --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim
 # git: Codex expects a repository context for some operations and warns without it.

@@ -44,7 +44,11 @@ services:
       WORK_DIR: /work
       # Shared with the app only. It is not a ChatGPT credential: the ChatGPT
       # login lives in the codex-home volume and is owned by the Codex CLI.
-      INTERNAL_TOKEN: ${PLANS_BRIDGE_TOKEN:?PLANS_BRIDGE_TOKEN is required when the plans profile is enabled}
+      # Interpolation runs over the whole file before profiles are applied, so a
+      # required-variable form here would break every compose command for the
+      # app too, profile off or not. The bridge refuses to start without it
+      # instead, which fails in the right place with a clearer message.
+      INTERNAL_TOKEN: ${PLANS_BRIDGE_TOKEN:-}
       CONSOLE_ORIGIN: ${PUBLIC_URL:-}
       CODEX_TIMEOUT_MS: '300000'
       MAX_TERMINALS: '3'

@@ -13,6 +13,7 @@ import time
 
 ROOT = Path('/opt/lrmsmmnew')
 IMAGE = 'ghcr.io/lrmcorp/lrmsmmnew'
+TEAMMATES_IMAGE = 'ghcr.io/lrmcorp/lrmsmmnew-teammates'
 MARKER = 'lrmsmmnew: lrmcorp/lrmsmmnew\n'
 
 
@@ -22,18 +23,42 @@ def image_ref(value):
     return value
 
 
+def teammates_ref(value):
+    """The plans bridge image, or None when this deployment does not use it.
+
+    Validated exactly as strictly as the application image, and against its own
+    repository: a digest for one must never be accepted for the other.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str) or not re.fullmatch(re.escape(TEAMMATES_IMAGE) + r'@sha256:[0-9a-f]{64}', value):
+        raise ValueError('Only a digest pinned to ghcr.io/lrmcorp/lrmsmmnew-teammates is accepted')
+    return value
+
+
 def call(args, *, env=None, timeout=120, input=None):
     return subprocess.run(args, env=env, input=input, text=True, check=True, timeout=timeout)
 
 
-def compose(image, *args):
+def compose(image, *args, teammates=None):
+    """Run compose for this deployment.
+
+    Without a plans-bridge image the command is exactly what it has always
+    been: no profile, no extra variable, so an existing deployment that does
+    not use the bridge is unaffected by its existence.
+    """
     env = {**os.environ, 'APP_IMAGE': image}
+    profile = []
+    if teammates:
+        env['TEAMMATES_IMAGE'] = teammates
+        profile = ['--profile', 'plans']
     call(['docker', 'compose', '-p', 'lrmsmmnew', '--env-file', str(ROOT / '.env'),
-          '-f', str(ROOT / 'compose.yml'), *args], env=env, timeout=180)
+          '-f', str(ROOT / 'compose.yml'), *profile, *args], env=env, timeout=180)
 
 
 def deploy(payload):
     image = image_ref(payload.get('image'))
+    teammates = teammates_ref(payload.get('teammates_image'))
     actor, token = payload.get('actor'), payload.get('token')
     if not isinstance(actor, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', actor):
         raise ValueError('Invalid registry actor')
@@ -45,14 +70,18 @@ def deploy(payload):
         call(['docker', 'login', 'ghcr.io', '-u', actor, '--password-stdin'], env=env, input=token, timeout=30)
         print('Pulling changed image layers (maximum 15 minutes).', flush=True)
         call(['docker', 'pull', image], env=env, timeout=900)
+        if teammates:
+            call(['docker', 'pull', teammates], env=env, timeout=900)
     current = ROOT / 'current-image'
     previous = image_ref(current.read_text().strip()) if current.exists() else None
+    current_teammates = ROOT / 'current-teammates-image'
+    previous_teammates = teammates_ref(current_teammates.read_text().strip()) if current_teammates.exists() else None
     backup = ROOT / 'backups' / (time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()) + '-' + str(os.getpid()))
     required = sum(p.stat().st_size for p in (ROOT / 'data').rglob('*') if p.is_file())
     if shutil.disk_usage(ROOT).free < required + 512 * 1024**2:
         raise RuntimeError('Insufficient free space for an application backup')
     if previous:
-        compose(previous, 'stop', 'app')
+        compose(previous, 'stop', 'app', teammates=previous_teammates)
     backup.mkdir(mode=0o700)
     try:
         shutil.copy2(ROOT / '.env', backup / '.env')
@@ -60,13 +89,13 @@ def deploy(payload):
     except Exception:
         # An incomplete backup must never replace the still-original live data.
         if previous:
-            compose(previous, 'up', '-d', '--no-build', '--wait', '--wait-timeout', '90')
+            compose(previous, 'up', '-d', '--no-build', '--wait', '--wait-timeout', '90', teammates=previous_teammates)
         raise
     try:
-        compose(image, 'up', '-d', '--no-build', '--wait', '--wait-timeout', '90')
+        compose(image, 'up', '-d', '--no-build', '--wait', '--wait-timeout', '90', teammates=teammates)
     except Exception:
         # Stop the new worker before restoring its private SQLite/media snapshot.
-        compose(image, 'stop', 'app')
+        compose(image, 'stop', 'app', teammates=teammates)
         if (backup / 'data').exists():
             failed = ROOT / ('failed-data-' + backup.name)
             (ROOT / 'data').rename(failed)
@@ -76,13 +105,17 @@ def deploy(payload):
                 for name in files:
                     os.chown(Path(directory) / name, 1000, 1000)
         if previous:
-            compose(previous, 'up', '-d', '--no-build', '--wait', '--wait-timeout', '90')
+            compose(previous, 'up', '-d', '--no-build', '--wait', '--wait-timeout', '90', teammates=previous_teammates)
             print('Deployment failed; previous release and data restored.', flush=True)
         raise
     temporary = ROOT / '.current-image.tmp'
     temporary.write_text(image + '\n')
     temporary.replace(current)
-    print('Deployed ' + image, flush=True)
+    if teammates:
+        temporary = ROOT / '.current-teammates-image.tmp'
+        temporary.write_text(teammates + '\n')
+        temporary.replace(current_teammates)
+    print('Deployed ' + image + ((' with ' + teammates) if teammates else ''), flush=True)
 
 
 def main():

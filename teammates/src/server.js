@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { requireBearer } from './auth.js';
+import { requireBearer, configured } from './auth.js';
 import { attachTerminal } from './terminal.js';
 import { runTurn, status } from './turn.js';
 import { modelList, DEFAULT_MODEL, MODELS } from './openai.js';
@@ -44,9 +44,18 @@ api.post('/chat/completions', async (req, res) => {
     return res.status(400).json({ error: { code: 'validation_failed', message: 'messages must be a non-empty array.' } });
   }
   const model = typeof body.model === 'string' && body.model ? body.model : DEFAULT_MODEL;
+  // Express does not give the request an AbortSignal, so one is made here and
+  // tied to the response. Without it a caller that gives up (its own timeout,
+  // a dropped connection) would leave Codex running for the full request
+  // timeout, holding a model turn nobody is waiting for.
+  const abort = new AbortController();
+  let finished = false;
+  res.on('close', () => { if (!finished) abort.abort(); });
   try {
-    await runTurn({ body, sessionId, model, stream: body.stream === true, res, signal: req.signal });
+    await runTurn({ body, sessionId, model, stream: body.stream === true, res, signal: abort.signal });
+    finished = true;
   } catch (e) {
+    finished = true;
     const status = e?.status || 500;
     const payload = { error: { code: e?.code || 'bridge_error', message: e?.message || 'The plans bridge failed.' } };
     if (res.headersSent) { try { res.end(); } catch { /* client gone */ } return; }
@@ -59,6 +68,14 @@ app.use('/teammates/assets', express.static(path.join(here, '..', 'public'), { m
 
 const server = http.createServer(app);
 attachTerminal(server);
+
+// Fail at startup, not on the first request: an unconfigured bridge that
+// accepts connections and refuses every one of them is harder to diagnose than
+// a container that says why it will not run.
+if (!configured()) {
+  console.error('[teammates] INTERNAL_TOKEN is required (at least 16 characters). Set PLANS_BRIDGE_TOKEN in .env; it is shared with the application and is not a ChatGPT credential.');
+  process.exit(1);
+}
 
 const port = Number(process.env.PORT || 8090);
 // Bound to every interface inside the container only; the compose file

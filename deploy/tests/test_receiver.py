@@ -26,6 +26,48 @@ class ReceiverTests(unittest.TestCase):
                     receiver.deploy(body)
                 call.assert_not_called()
 
+    def test_plans_bridge_digest_must_belong_to_its_own_repository(self):
+        """A digest for one image must never be accepted for the other."""
+        app = 'ghcr.io/lrmcorp/lrmsmmnew@sha256:' + 'a' * 64
+        bridge = 'ghcr.io/lrmcorp/lrmsmmnew-teammates@sha256:' + 'b' * 64
+        self.assertEqual(receiver.teammates_ref(bridge), bridge)
+        self.assertIsNone(receiver.teammates_ref(None))
+        for bad in [app, 'ghcr.io/lrmcorp/other-teammates@sha256:' + 'b' * 64,
+                    'ghcr.io/lrmcorp/lrmsmmnew-teammates:latest',
+                    'ghcr.io/lrmcorp/lrmsmmnew-teammates@sha256:' + 'b' * 63, '', 7]:
+            with self.assertRaises(ValueError):
+                receiver.teammates_ref(bad)
+        # And the application reference must not accept the bridge's digest.
+        with self.assertRaises(ValueError):
+            receiver.image_ref(bridge)
+
+    def test_a_deployment_without_the_bridge_is_unchanged(self):
+        """Omitting the bridge must reproduce the command this has always run."""
+        seen = []
+
+        def call(args, *, env=None, timeout=120, input=None):
+            seen.append((args, env))
+
+        with patch.object(receiver, 'call', call), patch.object(receiver, 'ROOT', Path('/opt/lrmsmmnew')):
+            receiver.compose('ghcr.io/lrmcorp/lrmsmmnew@sha256:' + 'a' * 64, 'up', '-d')
+        args, env = seen[0]
+        self.assertNotIn('--profile', args, 'no profile is selected')
+        self.assertNotIn('TEAMMATES_IMAGE', env, 'and no bridge variable is set')
+
+    def test_a_deployment_with_the_bridge_selects_the_profile(self):
+        seen = []
+
+        def call(args, *, env=None, timeout=120, input=None):
+            seen.append((args, env))
+
+        bridge = 'ghcr.io/lrmcorp/lrmsmmnew-teammates@sha256:' + 'b' * 64
+        with patch.object(receiver, 'call', call), patch.object(receiver, 'ROOT', Path('/opt/lrmsmmnew')):
+            receiver.compose('ghcr.io/lrmcorp/lrmsmmnew@sha256:' + 'a' * 64, 'up', '-d', teammates=bridge)
+        args, env = seen[0]
+        self.assertIn('--profile', args)
+        self.assertEqual(args[args.index('--profile') + 1], 'plans')
+        self.assertEqual(env['TEAMMATES_IMAGE'], bridge)
+
     def test_compose_is_scoped_to_the_application(self):
         image = receiver.IMAGE + '@sha256:' + 'a' * 64
         with patch.object(receiver, 'call') as call:
@@ -61,7 +103,7 @@ class ReceiverTests(unittest.TestCase):
             new = receiver.IMAGE + '@sha256:' + 'b' * 64
             (root / 'current-image').write_text(old)
             calls = []
-            def compose(image, *args):
+            def compose(image, *args, teammates=None):
                 calls.append((image, args))
                 if image == new and args[0] == 'up':
                     (root / 'data' / 'lrmsmm.db').write_text('new-schema')

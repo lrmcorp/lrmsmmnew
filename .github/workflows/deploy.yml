@@ -51,7 +51,7 @@ jobs:
       - name: Plans bridge (its own package, fake Codex binary)
         run: |
           cd teammates
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           node --test test/*.test.js
       - name: Deployment boundary and closed initial setup tests
         run: |
@@ -100,6 +100,54 @@ jobs:
         run: |
           docker push "$IMAGE"
           echo "ref=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}')" >> "$GITHUB_OUTPUT"
+      # The plans bridge is a second image and is opt-in: until
+      # ENABLE_PLANS_BRIDGE is set, nothing below runs and the deployment is
+      # exactly the single-image one it has always been.
+      - name: Build plans bridge image
+        if: vars.ENABLE_PLANS_BRIDGE == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./teammates
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/lrmcorp/lrmsmmnew-teammates:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=https://github.com/lrmcorp/lrmsmmnew
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Test the actual plans bridge image
+        if: vars.ENABLE_PLANS_BRIDGE == 'true'
+        env:
+          IMAGE: ghcr.io/lrmcorp/lrmsmmnew-teammates:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # The pinned CLI is present and runnable as the non-root user.
+          test "$(docker run --rm --network none "$IMAGE" codex --version | tr -d '\r')" = "codex-cli 0.171.0" \
+            || docker run --rm --network none "$IMAGE" codex --version
+          docker run --rm --network none "$IMAGE" id -un | grep -qx codex
+          # It refuses to start without its token, rather than accepting
+          # connections and rejecting every one of them.
+          if docker run --rm --network none "$IMAGE" node src/server.js; then
+            echo "bridge started without INTERNAL_TOKEN" >&2; exit 1
+          fi
+          # And with one, it serves its health endpoint.
+          docker run --rm --network none -e INTERNAL_TOKEN=ci-token-0123456789abcdef "$IMAGE" \
+            node -e "import('./src/server.js').then(async ({server}) => {
+              await new Promise(r => server.listening ? r() : server.once('listening', r));
+              const res = await fetch('http://127.0.0.1:8090/teammates/healthz');
+              if (!res.ok) { console.error('healthz', res.status); process.exit(1); }
+              console.log('healthz ok');
+              server.close(); process.exit(0);
+            })"
+      - name: Publish tested plans bridge image
+        id: publish_bridge
+        if: vars.ENABLE_PLANS_BRIDGE == 'true'
+        env:
+          IMAGE: ghcr.io/lrmcorp/lrmsmmnew-teammates:${{ github.sha }}
+        run: |
+          docker push "$IMAGE"
+          echo "ref=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}')" >> "$GITHUB_OUTPUT"
       - name: Deploy to the dedicated VPS receiver
         if: vars.ENABLE_VPS_DEPLOY == 'true'
         timeout-minutes: 21
@@ -110,6 +158,7 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
           APP_IMAGE: ${{ steps.publish.outputs.ref }}
+          TEAMMATES_IMAGE: ${{ steps.publish_bridge.outputs.ref }}
           REGISTRY_ACTOR: ${{ github.actor }}
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 deploy/ssh-client.py

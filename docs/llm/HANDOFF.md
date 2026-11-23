@@ -230,6 +230,42 @@ Newest first. Each entry records what was reported, what actually caused it and
 what was decided, because several of these were misdiagnosed the first time and
 the reasoning is the part worth keeping.
 
+### Plans bridge: bugs found by reviewing and running it: 2026-11-23
+
+A self-review of the plans bridge, plus running it rather than reading it, found
+five real defects. Four were mine from the same day.
+
+- **A compose change that would have broken the next deploy.** `INTERNAL_TOKEN:
+  ${PLANS_BRIDGE_TOKEN:?...}` was written on the assumption that an inactive
+  profile is not interpolated. It is: compose interpolates the whole file before
+  applying profiles, so without that variable in `.env` *every* `docker compose`
+  command failed, application included. Confirmed with `docker compose config`
+  and fixed to `:-`, with the requirement enforced at the bridge's startup
+  instead. The previous commit's claim that the deployment was untouched was
+  wrong.
+- **The terminal's WebSocket leaked on navigation.** The panel listened for an
+  `lrm:dispose` event that nothing in this app dispatches. This app disposes a
+  view through the `cleanupFor` WeakMap; the panel is registered there now.
+- **Client disconnects did not stop a turn.** The route passed `req.signal`,
+  which Express 5 does not provide, so the whole thing was a no-op and a caller
+  that gave up left Codex running for the full timeout. An AbortController tied
+  to the response close replaces it.
+- **A failed first turn made the next one resume a thread that never existed.**
+  Resume state was recorded when a conversation was first seen rather than when
+  a turn completed. It is now only the on-disk marker, which also removes an
+  unbounded in-memory set.
+- The deploy pipeline carried no second image at all; it does now, behind
+  `ENABLE_PLANS_BRIDGE`, with the receiver validating the bridge digest against
+  its own repository.
+
+Each fix has a test that was confirmed to fail without it: the abort and timeout
+tests kill a hanging fixture and leave no orphaned process, the resume test fails
+against the old `sessions.js`, and the browser check of Settings → AI plans was
+verified by breaking the panel and watching the suite go red.
+
+Still unverified, unchanged: no image build (no Docker daemon), no real sign-in,
+no real model answer, and image generation on a plan remains untested.
+
 ### "Your plans": the owner's ChatGPT subscription as a provider: 2026-11-23
 
 Built the plans bridge the owner asked for: a separate `teammates/` container

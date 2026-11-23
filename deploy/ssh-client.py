@@ -19,7 +19,12 @@ with tempfile.TemporaryDirectory() as temp:
     key, known = Path(temp) / 'key', Path(temp) / 'known_hosts'
     key.write_text(env['VPS_SSH_KEY'] + '\n'); key.chmod(0o600)
     known.write_text(env['VPS_KNOWN_HOSTS'] + '\n'); known.chmod(0o600)
-    payload = json.dumps({'image': env['APP_IMAGE'], 'actor': env['REGISTRY_ACTOR'], 'token': env['REGISTRY_TOKEN']})
+    body = {'image': env['APP_IMAGE'], 'actor': env['REGISTRY_ACTOR'], 'token': env['REGISTRY_TOKEN']}
+    # Only sent when the workflow actually built one. Absent, the receiver runs
+    # exactly the deployment it always has, with no plans profile.
+    if env.get('TEAMMATES_IMAGE'):
+        body['teammates_image'] = env['TEAMMATES_IMAGE']
+    payload = json.dumps(body)
     subprocess.run(['ssh', '-i', str(key), '-p', env['VPS_PORT'],
         '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
         '-o', 'HostKeyAlias=lrmsmmnew-vps', '-o', 'UserKnownHostsFile=' + str(known),

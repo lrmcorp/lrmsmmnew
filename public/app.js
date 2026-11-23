@@ -2650,7 +2650,10 @@ async function pageSettings() {
     class: 'btn primary',
     type: 'submit'
   }, 'Change password'));
-  return shell('/settings', h('div', {
+  // The plans panel holds a live WebSocket, so the page's own cleanup must
+  // close it; cleanupFor is how this app disposes a view on navigation.
+  const plansTab = currentTab === 'plans' && isOwner() ? aiPlansPanel({ h, api, toast, errMsg }) : null;
+  const settingsView = shell('/settings', h('div', {
     class: 'personal-settings rd-page'
   }, pagehead('Personal settings', 'Profile, security and personal AI connections.'), h('div', {
     class: 'rd-tabs',
@@ -2660,7 +2663,7 @@ async function pageSettings() {
   }, [['profile', 'Profile'], ['security', 'Security'], ['ai', 'AI connections'], ...(isOwner() ? [['plans', 'AI plans']] : [])].map(([id, label]) => h('a', {
     class: 'btn ' + (currentTab === id ? 'on' : ''),
     href: '#/settings?tab=' + id
-  }, label))), currentTab === 'plans' && isOwner() ? aiPlansPanel({ h, api, toast, errMsg }).panel : currentTab === 'security' ? h('section', {
+  }, label))), plansTab ? plansTab.panel : currentTab === 'security' ? h('section', {
     class: 'panel',
     style: {
       maxWidth: '500px'
@@ -2672,6 +2675,8 @@ async function pageSettings() {
   }, h('h2', {}, 'Personal AI connections', keySummary), h('p', {
     class: 'muted small'
   }, 'Add or replace your OpenAI, Claude or Gemini key here. New requests use the latest saved key. OpenAI keys also support available Codex models. Claude can plan and review text; images require OpenAI or Gemini. Keys are encrypted and never displayed again. Provider rates apply. Configure each agent’s model in Content Generator.'), keys)));
+  if (plansTab) cleanupFor.set(settingsView, plansTab.dispose);
+  return settingsView;
 }
 
 // ---------------- Sosmed Generator ----------------
