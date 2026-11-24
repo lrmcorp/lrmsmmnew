@@ -234,9 +234,8 @@ test('generateImage draws on the plan and returns the same { buffer } as every p
     (e) => e.code === 'plans_owner_only', 'a representative cannot spend the plan on images either');
 });
 
-// Owner's instruction (revised): text stages on the plan fall back to DeepSeek,
-// then Gemini, never OpenAI; DeepSeek reads no images, so image-carrying text
-// requests skip it. The image stage falls back to OpenAI images.
+// Owner's instruction (final): text stages on the plan fall back to DeepSeek,
+// then Gemini, then OpenAI. The image stage falls back to OpenAI images.
 test('a stage on Your plans falls back to the Owner\'s own keys', async (t) => {
   const { withPlanFallback } = await import('../src/services/provider-fallback.js');
   const quiet = { warn() {} };
@@ -265,14 +264,17 @@ test('a stage on Your plans falls back to the Owner\'s own keys', async (t) => {
     assert.equal(out.usage.served_by, 'deepseek/deepseek-flash');
     assert.equal(out.usage.fallback_reason, 'codex_failed');
   });
-  await t.test('text: plan and DeepSeek fail, Gemini answers; OpenAI is never used for text', async () => {
+  await t.test('text: plan and DeepSeek fail, Gemini answers', async () => {
     const r = recorder({ lrmplans: fail('timeout'), deepseek: fail('provider_error'), gemini: 'from gemini' });
     const out = await text(r);
     assert.equal(out.text, 'from gemini');
     assert.deepEqual(r.calls.slice(1), ['deepseek/deepseek-flash:d-key', 'gemini/gemini-2.5-flash:g-key']);
-    const r2 = recorder({ lrmplans: fail('timeout'), deepseek: fail('x'), gemini: fail('RESOURCE_EXHAUSTED') });
-    await assert.rejects(text(r2));
-    assert.ok(!r2.calls.some((c) => c.startsWith('openai')), 'no OpenAI credits for text');
+  });
+  await t.test('text: plan, DeepSeek and Gemini fail, OpenAI answers last', async () => {
+    const r = recorder({ lrmplans: fail('timeout'), deepseek: fail('x'), gemini: fail('RESOURCE_EXHAUSTED'), openai: 'from openai' });
+    const out = await text(r);
+    assert.equal(out.text, 'from openai');
+    assert.deepEqual(r.calls.slice(1), ['deepseek/deepseek-flash:d-key', 'gemini/gemini-2.5-flash:g-key', 'openai/gpt-4.1-mini:o-key']);
   });
   await t.test('text with images still tries DeepSeek first, then Gemini\'s vision model', async () => {
     const r = recorder({ lrmplans: fail('codex_failed'), deepseek: fail('provider_error'), gemini: 'seen' });
@@ -287,8 +289,8 @@ test('a stage on Your plans falls back to the Owner\'s own keys', async (t) => {
     assert.equal(out.usage.served_by, 'openai/gpt-image-2.5-sunburst');
   });
   await t.test('every fallback failing names both causes', async () => {
-    const r = recorder({ lrmplans: fail('codex_failed'), deepseek: fail('x'), gemini: fail('RESOURCE_EXHAUSTED') });
-    await assert.rejects(text(r), (e) => /Your plans failed \(codex_failed\)/.test(e.message) && /deepseek\/deepseek-flash then gemini\/gemini-2\.5-flash/.test(e.message) && /RESOURCE_EXHAUSTED/.test(e.message));
+    const r = recorder({ lrmplans: fail('codex_failed'), deepseek: fail('x'), gemini: fail('y'), openai: fail('insufficient_quota') });
+    await assert.rejects(text(r), (e) => /Your plans failed \(codex_failed\)/.test(e.message) && /deepseek\/deepseek-flash then gemini\/gemini-2\.5-flash then openai\/gpt-4\.1-mini/.test(e.message) && /insufficient_quota/.test(e.message));
   });
   await t.test('no saved keys: the plan error stands', async () => {
     const r = recorder({ lrmplans: fail('codex_failed') });
