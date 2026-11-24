@@ -12,7 +12,7 @@ owns the login and the model call; the bridge only shells out to it.
 ## Shape
 
 ```
-console  ──/teammates/terminal (WebSocket)──▶  pty: codex login --device-auth
+console  ──/v1/ai-plans/terminals (SSE + POST)──▶  app ──WebSocket──▶  pty: codex login --device-auth
   app    ──/teammates/v1/chat/completions──▶  codex exec … -o <file>  ──▶  answer
 ```
 
@@ -23,6 +23,7 @@ console  ──/teammates/terminal (WebSocket)──▶  pty: codex login --devi
 | One working directory per conversation | `teammates/src/sessions.js` |
 | OpenAI ⇄ Codex translation | `teammates/src/openai.js` |
 | Login terminal (pty + WebSocket) | `teammates/src/terminal.js` |
+| Browser side of the terminal (SSE + POST) | `src/services/plans-terminal.js` |
 | Application client | `src/llm/plans.js` |
 | Run/conversation context | `src/llm/plan-context.js` |
 | Console page | `public/ai-plans.js` (Settings → AI plans, Owner only) |
@@ -65,6 +66,17 @@ before any call leaves the process. Representatives keep their own API keys.
   It requires a same-origin upgrade, an HMAC ticket minted only for an Owner with
   a live console session, and allows at most three terminals at once.
 - **No published port.** The only way in is the reverse proxy at `/teammates/`.
+
+## Why the browser does not use a WebSocket
+
+The browser first opened a WebSocket to `/teammates/terminal`. In production the
+reverse proxy in front of the application dropped the upgrade: a handshake
+through the public URL answered 404, the same handshake straight to the
+application 403, and enabling WebSocket support on the proxy host did not change
+that. The browser now uses plain HTTP — an event stream for output and small
+POSTs for keys — and the application holds the WebSocket to the bridge itself,
+inside the docker network. Output printed before the stream connects is kept and
+replayed, so the device code is never lost to that race.
 
 ## Signing in
 
