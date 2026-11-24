@@ -193,3 +193,20 @@ test('a saved plan stage is kept, not swapped for a keyed provider', async () =>
     assert.equal(view.keys.some((k) => k.virtual), false, 'no virtual key while no plan is signed in');
   } finally { signedOut(); }
 });
+
+// The stages call generateText(), not planCompletion(), and read result.text.
+// The plan branch returned a bare string, so every stage saw undefined and
+// failed as "The concept response was truncated or could not be read" although
+// Codex had answered. Tested here through the function the stages actually use.
+test('generateText answers on the plan with the same { text } shape as every provider', async () => {
+  const { generateText } = await import('../src/llm/providers.js');
+  const answer = JSON.stringify({ title: 'Reformer', caption: 'Line one.\n\nLine two.', slides: [{ prompt: 'a studio' }] });
+  const restore = stubFetch(async () => ok({ choices: [{ message: { role: 'assistant', content: answer } }] }));
+  try {
+    const result = await withPlanContext({ user: owner, sessionId: 'gen:1' }, () =>
+      generateText({ provider: 'lrmplans', model: 'codex', system: 's', prompt: 'p', jsonSchema: { type: 'object' } }));
+    assert.equal(typeof result, 'object');
+    assert.equal(result.text, answer);
+    assert.equal(JSON.parse(result.text).slides.length, 1, 'the stage can parse it');
+  } finally { restore(); }
+});
