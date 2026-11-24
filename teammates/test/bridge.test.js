@@ -199,3 +199,16 @@ test('terminal tickets', async (t) => {
     assert.equal(verifyTicket(`${forged}.${good.split('.')[1]}`), null);
   });
 });
+
+test('a failed turn names the CLI reason, not only the exit code', async () => {
+  const { cliReason } = await import('../src/turn.js');
+  const out = [
+    'OpenAI Codex v0.171.0', 'model: gpt-6.2-sol', '--------', 'user', 'BRIEF: x',
+    'warning: Codex could not find bubblewrap on PATH.',
+    'ERROR: unexpected status 400 Bad Request: Invalid image data',
+  ].join('\n');
+  assert.equal(cliReason(out), 'ERROR: unexpected status 400 Bad Request: Invalid image data');
+  assert.equal(cliReason('warning: only a warning\nNo prompt provided via stdin.'), 'No prompt provided via stdin.');
+  assert.ok(cliReason('ERROR: ' + 'x'.repeat(1000)).length <= 301, 'bounded');
+  assert.equal(cliReason(''), '');
+});
