@@ -30,9 +30,9 @@ handoff is for.
   JSON schema is satisfied, and image generation.
 - **Fallback for "Your plans" (owner's instruction, 2026-11-24, revised the
   same day):** a stage set to `lrmplans` that fails is retried on the Owner's
-  own saved keys. Text stages go to DeepSeek then Gemini, never OpenAI; a text
-  request carrying images skips DeepSeek (text only) and goes to Gemini's vision
-  model. The image stage goes to OpenAI images. Lives in
+  own saved keys. Every text stage goes to DeepSeek then Gemini, never OpenAI;
+  a request carrying images still tries DeepSeek first, which gets the text
+  only and an explicit note that it saw no images, then Gemini's vision model. The image stage goes to OpenAI images. Lives in
   `src/services/provider-fallback.js`, wired in `generator.js`. Other providers
   are never redirected, connection tests pass `noFallback`, `plans_owner_only`
   is not rerouted. The stage's `usage` records `served_by`, `fallback_from`
@@ -40,7 +40,7 @@ handoff is for.
 - **DeepSeek provider added (2026-11-24):** OpenAI-compatible
   `https://api.deepseek.com/chat/completions`, models `deepseek-flash` (default)
   and `deepseek-v4-flash`, `response_format: json_object` with the schema in the
-  system prompt, images refused with `provider_no_vision`. The model ids and
+  system prompt; images are not sent and the system prompt says so. The model ids and
   JSON mode come from DeepSeek's change log as found by web search; the docs
   host was not reachable from the build session and **no call has been made
   with a real key**. Token limits are unknown.
