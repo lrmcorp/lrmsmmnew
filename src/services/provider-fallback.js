@@ -3,9 +3,9 @@
 // provider the Owner has a saved key for:
 //   text stages:  Your plans -> DeepSeek -> Gemini   (never OpenAI)
 //   image stage:  Your plans -> OpenAI images
-// DeepSeek reads no images, so a text request that carries images (reference
-// inspection, visual concept, final review) goes Your plans -> Gemini.
-// The order is the owner's instruction (2026-11-24, revised the same day). A stage set to any other
+// Every text stage tries DeepSeek first, including those that carry images:
+// DeepSeek then answers from the text alone and is told it saw no images.
+// The order is the owner's instruction (2026-11-24, revised twice that day). A stage set to any other
 // provider is never redirected: only the plan has a fallback.
 import { PROVIDERS } from '../llm/providers.js';
 import { PLANS_PROVIDER } from '../llm/plans.js';
@@ -39,7 +39,6 @@ export function withPlanFallback(call, kind, keyFor, log = console) {
       const tried = [];
       let last = null;
       for (const provider of chain) {
-        if (kind !== 'image' && opts.images?.length && !PROVIDERS[provider].visionModel) continue;
         const key = user ? keyFor(user.id, provider) : null;
         if (!key) continue;
         const model = modelFor(provider, kind, opts);

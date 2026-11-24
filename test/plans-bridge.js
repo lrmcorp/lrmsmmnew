@@ -274,11 +274,11 @@ test('a stage on Your plans falls back to the Owner\'s own keys', async (t) => {
     await assert.rejects(text(r2));
     assert.ok(!r2.calls.some((c) => c.startsWith('openai')), 'no OpenAI credits for text');
   });
-  await t.test('text with images skips DeepSeek and uses Gemini\'s vision model', async () => {
-    const r = recorder({ lrmplans: fail('codex_failed'), gemini: 'seen' });
+  await t.test('text with images still tries DeepSeek first, then Gemini\'s vision model', async () => {
+    const r = recorder({ lrmplans: fail('codex_failed'), deepseek: fail('provider_error'), gemini: 'seen' });
     const out = await text(r, { images: [{ mime: 'image/png', data: 'x' }] });
     assert.equal(out.text, 'seen');
-    assert.deepEqual(r.calls, ['lrmplans/codex:', 'gemini/gemini-2.5-pro:g-key']);
+    assert.deepEqual(r.calls, ['lrmplans/codex:', 'deepseek/deepseek-flash:d-key', 'gemini/gemini-2.5-pro:g-key']);
   });
   await t.test('image: plan fails, OpenAI draws it and nothing else is tried', async () => {
     const r = recorder({ lrmplans: fail('image_not_generated'), openai: Buffer.from('png') });
@@ -324,6 +324,11 @@ test('DeepSeek speaks the OpenAI-compatible chat API, text only, schema in the p
     assert.match(seen.body.messages[0].content, /JSON Schema/);
     assert.match(seen.body.messages[0].content, /"title"/);
   } finally { restore(); }
-  await assert.rejects(generateText({ provider: 'deepseek', model: 'deepseek-flash', key: 'k', system: 's', prompt: 'p', images: [{ mime: 'image/png', data: 'x' }] }),
-    (e) => e.code === 'provider_no_vision');
+  // Images are not sent (DeepSeek reads none); the model is told it saw none.
+  const restore2 = stubFetch(async (url, init) => { seen = JSON.parse(init.body); return ok({ choices: [{ message: { content: 'ok' } }] }); });
+  try {
+    await generateText({ provider: 'deepseek', model: 'deepseek-flash', key: 'k', system: 's', prompt: 'p', images: [{ mime: 'image/png', data: 'x' }, { mime: 'image/png', data: 'y' }] });
+    assert.ok(seen.messages.every((m) => typeof m.content === 'string'), 'no image parts are sent');
+    assert.match(seen.messages[0].content, /2 image\(s\) belong to this request but could not be shown to you/);
+  } finally { restore2(); }
 });

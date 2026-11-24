@@ -124,12 +124,13 @@ export async function generateText({ provider, model, key, system, prompt, image
     result = await jsonRequest('https://api.openai.com/v1/chat/completions', { Authorization: `Bearer ${key}` }, { model, ...(jsonSchema?{response_format:{type:'json_schema',json_schema:{name:'content_plan',strict:true,schema:jsonSchema}}}:{}), max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content }] });
     text = result.choices?.[0]?.message?.content;
   } else if (provider === 'deepseek') {
-    // Text only: a stage that must look at images cannot be served here, and
-    // saying so is better than an answer written without seeing them.
-    if (images.length) throw err(400, 'provider_no_vision', "DeepSeek does not read images. Choose Gemini, OpenAI or Your plans for stages that inspect images.");
+    // DeepSeek reads no images. The owner chose DeepSeek first for every text
+    // stage, so images are left out and the model is told so plainly: it must
+    // not describe or judge what it was not shown.
+    const blind = images.length ? `\nIMPORTANT: ${images.length} image(s) belong to this request but could not be shown to you. Do not describe, judge or claim anything about how they look. Work from the text only, and where the task asks for visual inspection, say plainly that the images were not inspected and human verification is required.` : '';
     // JSON mode is json_object (no strict schema), so the schema travels in the
     // system prompt; the stage still validates what comes back.
-    const sys = jsonSchema ? `${system}\nReturn ONLY one JSON object, no prose and no code fence, that matches this JSON Schema exactly:\n${JSON.stringify(jsonSchema)}` : system;
+    const sys = `${system}${blind}${jsonSchema ? `\nReturn ONLY one JSON object, no prose and no code fence, that matches this JSON Schema exactly:\n${JSON.stringify(jsonSchema)}` : ''}`;
     result = await jsonRequest('https://api.deepseek.com/chat/completions', { Authorization: `Bearer ${key}` }, { model, max_tokens: maxTokens, messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }], ...(jsonSchema ? { response_format: { type: 'json_object' } } : {}) });
     text = result.choices?.[0]?.message?.content;
   } else if (provider === 'anthropic') {
