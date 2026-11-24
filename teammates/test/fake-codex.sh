@@ -10,7 +10,7 @@ set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CONTROL="$DIR/fake-control.env"
 ARGLOG="$DIR/fake-args.log"
-SIGNED_IN=1; REPLY_TEXT="Hello from the plan."; FAIL=0; FAIL_MSG="boom"; RESUME_FAILS=0; HANG=0
+SIGNED_IN=1; REPLY_TEXT="Hello from the plan."; FAIL=0; FAIL_MSG="boom"; RESUME_FAILS=0; HANG=0; IMAGE=1
 # shellcheck disable=SC1090
 [ -f "$CONTROL" ] && . "$CONTROL"
 
@@ -61,5 +61,15 @@ printf '%s' "$prompt" > "$DIR/fake-prompt.txt"
 
 [ "$FAIL" = "1" ] && { echo "$FAIL_MSG" >&2; exit 1; }
 [ "$HANG" = "1" ] && { sleep 120; exit 0; }
+# The built-in image_gen tool: the real CLI saves under $CODEX_HOME/generated_images.
+if printf '%s' "$prompt" | grep -q "image_gen"; then
+  if [ "$IMAGE" = "1" ]; then
+    d="${CODEX_HOME:-$HOME/.codex}/generated_images/$$"; mkdir -p "$d"
+    printf '%s' "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" | base64 -d > "$d/ig_fake.png"
+    REPLY_TEXT="DONE"
+  else
+    REPLY_TEXT="Image generation is not available for this account."
+  fi
+fi
 [ -n "$out" ] && printf '%s' "$REPLY_TEXT" > "$out"
 exit 0

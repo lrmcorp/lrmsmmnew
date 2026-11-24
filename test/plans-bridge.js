@@ -210,3 +210,26 @@ test('generateText answers on the plan with the same { text } shape as every pro
     assert.equal(JSON.parse(result.text).slides.length, 1, 'the stage can parse it');
   } finally { restore(); }
 });
+
+test('generateImage draws on the plan and returns the same { buffer } as every provider', async () => {
+  const { generateImage, PROVIDERS } = await import('../src/llm/providers.js');
+  assert.equal(PROVIDERS.lrmplans.image, true, 'offered for the Image stage');
+  const png = Buffer.from('89504e470d0a1a0a0000', 'hex');
+  let seen = null;
+  const restore = stubFetch(async (url, init) => {
+    seen = { url: String(url), headers: init.headers, body: JSON.parse(init.body) };
+    return ok({ created: 1, data: [{ b64_json: png.toString('base64'), mime: 'image/png' }] });
+  });
+  try {
+    const out = await withPlanContext({ user: owner, sessionId: 'run:img' }, () =>
+      generateImage({ provider: 'lrmplans', model: 'codex', prompt: 'a studio', references: [{ mime: 'image/png', buffer: png }] }));
+    assert.ok(Buffer.isBuffer(out.buffer));
+    assert.deepEqual(out.buffer, png);
+    assert.match(seen.url, /\/images\/generations$/);
+    assert.equal(seen.headers['x-lrm-session'], 'run:img');
+    assert.equal(seen.body.references[0].b64_json, png.toString('base64'), 'references travel with the prompt');
+  } finally { restore(); }
+  await assert.rejects(
+    withPlanContext({ user: rep, sessionId: 'run:img' }, () => generateImage({ provider: 'lrmplans', model: 'codex', prompt: 'x' })),
+    (e) => e.code === 'plans_owner_only', 'a representative cannot spend the plan on images either');
+});

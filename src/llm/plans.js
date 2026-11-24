@@ -131,3 +131,35 @@ export async function planCompletion({ model, system, prompt, images = [], jsonS
   if (typeof text !== 'string' || !text.trim()) throw err(502, 'plans_empty', "The plan returned an empty answer.");
   return text;
 }
+
+/**
+ * One image through the plan: the bridge runs Codex's built-in image_gen tool,
+ * which uses the ChatGPT login rather than an API key. Mirrors generateImage()'s
+ * contract ({ buffer }), so the image stage does not care who drew it.
+ */
+export async function planImage({ prompt, references = [] }) {
+  if (!configured()) throw err(503, 'plans_not_configured', "The plans bridge is not configured on this server.");
+  const { user, sessionId } = planContext();
+  assertOwnerMayUsePlans(user);
+  if (!sessionId) throw err(500, 'plans_session_missing', "No conversation id is in scope for this plan request.");
+  let r;
+  try {
+    r = await fetch(`${base()}/images/generations`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${config.plans.token}`, 'content-type': 'application/json', 'x-lrm-session': String(sessionId) },
+      body: JSON.stringify({ prompt, references: references.map((x) => ({ mime: x.mime, b64_json: Buffer.from(x.buffer).toString('base64') })) }),
+      signal: AbortSignal.timeout(Number(config.plans.timeoutMs || 330_000)),
+    });
+  } catch (e) {
+    throw err(504, 'plans_unreachable', `The plans bridge did not answer: ${e.message}`);
+  }
+  const payload = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const code = payload?.error?.code || 'plans_failed';
+    if (code === 'plan_signed_out' || r.status === 409) throw err(409, 'plan_signed_out', payload?.error?.message || SIGNED_OUT);
+    throw err(r.status === 504 ? 504 : 502, code, payload?.error?.message || `The plan image request failed (HTTP ${r.status}).`);
+  }
+  const b64 = payload?.data?.[0]?.b64_json;
+  if (typeof b64 !== 'string' || !b64) throw err(502, 'plans_empty', "The plan returned no image.");
+  return { base64: b64, mime: payload.data[0].mime || 'image/png' };
+}
