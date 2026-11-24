@@ -28,6 +28,13 @@ handoff is for.
   API & AI panel, reported by the owner ("codex logged in"); not observed by an
   agent. Still unverified: a real model answer, whether each generator stage's
   JSON schema is satisfied, and image generation.
+- **Fallback for "Your plans" (owner's instruction, 2026-11-24):** a stage set
+  to `lrmplans` that fails is retried on the Owner's own saved keys, text
+  stages Gemini then OpenAI, the image stage straight to OpenAI
+  (`src/services/provider-fallback.js`, wired in `generator.js`). Other
+  providers are never redirected, connection tests pass `noFallback`, and
+  `plans_owner_only` is not rerouted. The stage's `usage` records `served_by`,
+  `fallback_from` and `fallback_reason`. A fallback spends API credits.
 - **Images on the plan (2026-11-24, at the owner's request after Gemini's quota
   ran out):** `lrmplans` is now `image: true`. The bridge's
   `POST /teammates/v1/images/generations` runs `codex exec` asking for Codex's
