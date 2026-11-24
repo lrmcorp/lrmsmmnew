@@ -1,18 +1,19 @@
 // Fallback for stages that run on "Your plans" (the Owner's ChatGPT plan via
 // the Codex CLI). If the plan cannot answer, the same request goes to the next
 // provider the Owner has a saved key for:
-//   text stages:  Your plans -> DeepSeek -> Gemini   (never OpenAI)
-//   image stage:  Your plans -> OpenAI images
+//   text stages:  Your plans -> DeepSeek -> Gemini -> OpenAI
+//   image stage:  Your plans -> OpenAI images (the image stage itself defaults
+//                 to OpenAI; this only applies if it is set to Your plans)
 // Every text stage tries DeepSeek first, including those that carry images:
 // DeepSeek then answers from the text alone and is told it saw no images.
-// The order is the owner's instruction (2026-11-24, revised twice that day). A stage set to any other
+// The order is the owner's instruction (2026-11-24, final revision that day). A stage set to any other
 // provider is never redirected: only the plan has a fallback.
 import { PROVIDERS } from '../llm/providers.js';
 import { PLANS_PROVIDER } from '../llm/plans.js';
 import { planContext } from '../llm/plan-context.js';
 import { err } from '../util.js';
 
-export const TEXT_FALLBACK = ['deepseek', 'gemini'];
+export const TEXT_FALLBACK = ['deepseek', 'gemini', 'openai'];
 export const IMAGE_FALLBACK = ['openai'];
 
 // Refusals that a different provider must not paper over: the plan is the

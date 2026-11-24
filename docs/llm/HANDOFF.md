@@ -28,11 +28,12 @@ handoff is for.
   API & AI panel, reported by the owner ("codex logged in"); not observed by an
   agent. Still unverified: a real model answer, whether each generator stage's
   JSON schema is satisfied, and image generation.
-- **Fallback for "Your plans" (owner's instruction, 2026-11-24, revised the
-  same day):** a stage set to `lrmplans` that fails is retried on the Owner's
-  own saved keys. Every text stage goes to DeepSeek then Gemini, never OpenAI;
+- **Fallback for "Your plans" (owner's instruction, 2026-11-24, final
+  revision):** a stage set to `lrmplans` that fails is retried on the Owner's
+  own saved keys. Every text stage goes to DeepSeek, then Gemini, then OpenAI;
   a request carrying images still tries DeepSeek first, which gets the text
-  only and an explicit note that it saw no images, then Gemini's vision model. The image stage goes to OpenAI images. Lives in
+  only and an explicit note that it saw no images, then Gemini's vision model. The image stage goes to OpenAI images; the owner wants the image stage
+  itself on OpenAI by default (it already is in `DEFAULT_AGENTS`). Lives in
   `src/services/provider-fallback.js`, wired in `generator.js`. Other providers
   are never redirected, connection tests pass `noFallback`, `plans_owner_only`
   is not rerouted. The stage's `usage` records `served_by`, `fallback_from`
