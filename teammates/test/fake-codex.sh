@@ -31,13 +31,33 @@ if [ "${2:-}" = "resume" ] && [ "$RESUME_FAILS" = "1" ]; then
   echo "error: no session to resume" >&2; exit 1
 fi
 
-out=""
+# Parse the way the real CLI (0.171) does, because that is where it broke:
+# `-i/--image` takes every following value that is not a flag, so a prompt placed
+# after it is read as an image path; `-` (or no prompt) reads stdin; and a model
+# the plan does not know is refused.
+out=""; prompt=""; have_prompt=0; model=""
+[ "${2:-}" = "resume" ] && shift 2 || shift 1
+[ "${1:-}" = "--last" ] && shift
 while [ $# -gt 0 ]; do
   case "$1" in
     -o|--output-last-message) out="${2:-}"; shift 2 ;;
-    *) shift ;;
+    -m|--model) model="${2:-}"; shift 2 ;;
+    --output-schema) shift 2 ;;
+    --image=*) [ -f "${1#--image=}" ] || { echo "error: image not found: ${1#--image=}" >&2; exit 1; }; shift ;;
+    -i|--image) shift; while [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; do
+        [ -f "$1" ] || { echo "error: image not found: $1" >&2; exit 1; }; shift; done ;;
+    -) prompt="$(cat)"; have_prompt=1; shift ;;
+    -*) shift ;;
+    *) prompt="$1"; have_prompt=1; shift ;;
   esac
 done
+if [ "$have_prompt" = "0" ]; then
+  prompt="$(cat 2>/dev/null || true)"
+  [ -n "$prompt" ] || { echo "No prompt provided via stdin." >&2; exit 1; }
+fi
+[ -z "$prompt" ] && { echo "No prompt provided via stdin." >&2; exit 1; }
+[ "$model" = "codex" ] && { echo "error: unexpected status 400: The 'codex' model is not supported" >&2; exit 1; }
+printf '%s' "$prompt" > "$DIR/fake-prompt.txt"
 
 [ "$FAIL" = "1" ] && { echo "$FAIL_MSG" >&2; exit 1; }
 [ "$HANG" = "1" ] && { sleep 120; exit 0; }

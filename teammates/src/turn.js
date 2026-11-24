@@ -37,14 +37,17 @@ async function attempt({ cwd, prompt, model, resume, schema, images, signal }) {
     imageFiles.push(await writeTemp(cwd, `.img-${stamp}-${i}.${ext}`, img.buffer));
   }
   try {
-    const args = execArgs({ prompt, outFile, model, resume, schemaFile, images: imageFiles });
-    const r = await runCodex(args, { cwd, signal });
+    const args = execArgs({ outFile, model, resume, schemaFile, images: imageFiles });
+    const r = await runCodex(args, { cwd, signal, input: prompt });
     const message = await readLastMessage(outFile);
     if (r.timedOut) throw new CodexError('timeout', `Codex did not finish in time (${r.timedOut}).`, { status: 504, stderr: r.stderr });
     if (r.spawnError) throw new CodexError('codex_unavailable', 'The Codex CLI could not be started.', { status: 503, stderr: r.stderr });
     if (r.code !== 0 || message === null) {
       const detail = `${r.stderr || ''}${r.stdout || ''}`;
       if (looksSignedOut(detail)) throw new CodexError('plan_signed_out', SIGNED_OUT, { status: 409, stderr: detail });
+      // The caller only sees the exit code, so the reason goes to the bridge log
+      // for the operator: the tail of the CLI's output, where its error is.
+      console.error(`[teammates] codex exited ${r.code}: ${detail.replace(/\s+/g, ' ').trim().slice(-600)}`);
       throw new CodexError('codex_failed', `Codex exited with ${r.code}.`, { status: 502, stderr: detail });
     }
     return message;

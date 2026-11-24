@@ -23,30 +23,49 @@ const { verifyTicket } = await import('../src/auth.js');
 const crypto = await import('node:crypto');
 
 test('codex exec argument composition', async (t) => {
-  await t.test('a first message starts a session', () => {
-    const args = execArgs({ prompt: 'write a caption', outFile: '/w/out.txt' });
-    assert.deepEqual(args, ['exec', '--skip-git-repo-check', '-o', '/w/out.txt', 'write a caption']);
+  await t.test('a first message starts a session and reads the prompt from stdin', () => {
+    const args = execArgs({ outFile: '/w/out.txt' });
+    assert.deepEqual(args, ['exec', '--skip-git-repo-check', '-o', '/w/out.txt', '-']);
     assert.ok(!args.includes('resume'), 'the first message must not resume');
   });
 
   await t.test('a later message resumes the most recent thread', () => {
-    const args = execArgs({ prompt: 'and shorter', outFile: '/w/out.txt', resume: true });
+    const args = execArgs({ outFile: '/w/out.txt', resume: true });
     assert.deepEqual(args.slice(0, 5), ['exec', 'resume', '--last', '--skip-git-repo-check', '-o']);
-    assert.equal(args.at(-1), 'and shorter', 'the prompt stays the final positional argument');
+    assert.equal(args.at(-1), '-', 'stdin stays the final positional argument');
   });
 
-  await t.test('model, schema and images are passed through', () => {
-    const args = execArgs({ prompt: 'p', outFile: '/w/o.txt', model: 'codex', schemaFile: '/w/s.json', images: ['/w/a.png', '/w/b.png'] });
-    assert.ok(args.includes('-m') && args[args.indexOf('-m') + 1] === 'codex');
+  await t.test('schema and images are passed through, images in the one-value form', () => {
+    const args = execArgs({ outFile: '/w/o.txt', schemaFile: '/w/s.json', images: ['/w/a.png', '/w/b.png'] });
     assert.ok(args.includes('--output-schema') && args[args.indexOf('--output-schema') + 1] === '/w/s.json');
-    assert.equal(args.filter((a) => a === '-i').length, 2, 'one -i per image');
+    assert.deepEqual(args.filter((a) => a.startsWith('--image=')), ['--image=/w/a.png', '--image=/w/b.png']);
+    assert.ok(!args.includes('-i'), '-i takes several values and would swallow what follows it');
   });
 
-  await t.test('the prompt is never shell-interpolated', () => {
-    const nasty = '"; rm -rf / #$(whoami)`id`';
-    const args = execArgs({ prompt: nasty, outFile: '/w/o.txt' });
-    assert.equal(args.at(-1), nasty, 'passed verbatim through the argument vector');
+  await t.test('the advertised "codex" name means the plan default, not -m codex', () => {
+    assert.ok(!execArgs({ outFile: '/w/o.txt', model: 'codex' }).includes('-m'));
+    const named = execArgs({ outFile: '/w/o.txt', model: 'gpt-5.5' });
+    assert.equal(named[named.indexOf('-m') + 1], 'gpt-5.5', 'a real model id is still passed');
   });
+
+  await t.test('the prompt is never in the argument vector', () => {
+    const args = execArgs({ outFile: '/w/o.txt', model: 'codex', images: ['/w/a.png'] });
+    assert.ok(!args.some((a) => /rm -rf/.test(a)));
+  });
+});
+
+test('runCodex delivers the prompt on stdin verbatim', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stdin-'));
+  const bin = path.join(dir, 'echo-stdin.sh');
+  fs.writeFileSync(bin, '#!/usr/bin/env bash\ncat\n', { mode: 0o755 });
+  const nasty = '"; rm -rf / #$(whoami)`id`\n' + 'x'.repeat(200_000);
+  const r = await runCodex(['exec', '-'], { cwd: dir, bin, input: nasty });
+  assert.equal(r.code, 0);
+  assert.equal(r.stdout, nasty, 'longer than one argv entry may be, and not shell-interpreted');
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('the child environment carries no secrets', () => {
