@@ -132,8 +132,8 @@ api.get('/generator/settings', sessionOnly, async (req, res) => {
 
 // ---- AI plans (the owner's own ChatGPT subscription, via the Codex CLI) ----
 api.get('/ai-plans/status', sessionOnly, requireOwner, async (_req, res) => {
-  const models = await plans.listModels({ refresh: true });
-  res.json({ configured: plans.configured(), signed_in: models.length > 0, models });
+  const { reachable, models } = await plans.probe();
+  res.json({ configured: plans.configured(), reachable, signed_in: models.length > 0, models });
 });
 
 // A short-lived, single-purpose credential for the login terminal. The console

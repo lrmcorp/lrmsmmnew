@@ -52,7 +52,10 @@ VOLUME ["/home/codex"]
 USER codex
 EXPOSE 8090
 # tini reaps the codex processes this service spawns and kills per request.
-ENTRYPOINT ["/usr/bin/tini", "--"]
+# -s: compose runs this with `init: true`, which already puts an init at PID 1,
+# so tini is then a child and warns that it cannot reap. Registering as a
+# subreaper makes it correct both there and under a plain `docker run`.
+ENTRYPOINT ["/usr/bin/tini", "-s", "--"]
 CMD ["node", "src/server.js"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:8090/teammates/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

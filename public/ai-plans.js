@@ -63,9 +63,12 @@ export function aiPlansPanel({ h, api, toast, errMsg, title = 'AI plans' }) {
       // Signing in needs the plans service to exist. Offering the button
       // without it only produces an error the owner cannot act on, so the
       // controls follow the state rather than the other way round.
-      setReady(!!s.configured);
+      setReady(!!s.configured && s.reachable !== false);
       if (!s.configured) {
         return setStatus('The plans service is not running on this server. Set PLANS_BRIDGE_TOKEN in the deployment .env and start it with: docker compose --profile plans up -d', 'warn');
+      }
+      if (s.reachable === false) {
+        return setStatus('The plans service is configured but not answering, so the container is stopped or failed to start. On the server: docker compose --profile plans up -d teammates, then check docker logs for the teammates container.', 'warn');
       }
       // The exact wording the brief asks for, so the state is unambiguous.
       setStatus(s.signed_in ? `Signed in (ChatGPT) · ${s.models.join(', ')}` : 'Not signed in', s.signed_in ? 'ok' : 'warn');

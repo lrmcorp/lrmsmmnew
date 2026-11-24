@@ -146,3 +146,21 @@ test('the terminal ticket this app mints is the one the bridge accepts', async (
     assert.throws(() => plans.mintTerminalTicket(rep), (e) => e.code === 'plans_owner_only');
   });
 });
+
+test('a stopped bridge is reported as unreachable, not as signed out', async (t) => {
+  // The status page once showed "Not signed in" for a bridge container that was
+  // not running at all, because both failures collapsed into "no models". The
+  // owner was sent to a sign-in button that could never work.
+  await t.test('connection refused -> unreachable', async () => {
+    const restore = stubFetch(async () => { throw new TypeError('fetch failed', { cause: { code: 'ENOTFOUND' } }); });
+    try { plans._resetModelCache(); assert.deepEqual(await plans.probe(), { reachable: false, models: [] }); } finally { restore(); }
+  });
+  await t.test('answering but signed out -> reachable with no models', async () => {
+    const restore = stubFetch(async () => ok({ object: 'list', data: [] }));
+    try { plans._resetModelCache(); assert.deepEqual(await plans.probe(), { reachable: true, models: [] }); } finally { restore(); }
+  });
+  await t.test('signed in -> reachable with models', async () => {
+    const restore = stubFetch(async () => ok({ object: 'list', data: [{ id: 'codex' }] }));
+    try { plans._resetModelCache(); assert.deepEqual(await plans.probe(), { reachable: true, models: ['codex'] }); } finally { restore(); }
+  });
+});

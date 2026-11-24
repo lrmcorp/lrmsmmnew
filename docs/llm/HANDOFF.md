@@ -32,6 +32,12 @@ handoff is for.
   `deploy/compose.production.yml` therefore never reaches an existing server,
   and the operator has to update that file by hand. This cost the owner two
   failed attempts and deserves a real mechanism.
+- **The receiver on the server is not refreshed by a deploy either.**
+  `/usr/local/sbin/lrmsmmnew-receiver` is copied once by `bootstrap.py`, so the
+  `teammates_image` support in `deploy/receiver.py` has never run there: deploys
+  do not start or update the plans bridge. It is started by hand with
+  `APP_IMAGE=$(cat current-image) docker compose --profile plans up -d teammates`
+  and keeps whatever image it was started with until restarted the same way.
 - **Compose cannot be run by hand without `APP_IMAGE`.** The receiver injects
   it, a manual command must pass it:
   `APP_IMAGE=$(cat current-image) docker compose --profile plans up -d`.
