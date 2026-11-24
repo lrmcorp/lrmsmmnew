@@ -108,9 +108,12 @@ export async function generateText({ provider, model, key, system, prompt, image
     // The plan answers through the Codex CLI in the bridge container. No key is
     // involved: the owner's login lives there, not here. Ownership and the
     // conversation id are checked inside planCompletion.
-    return planCompletion({ model, system, prompt, images, jsonSchema, maxTokens });
-  }
-  if (provider === 'openai' && /codex/i.test(model)) {
+    // Same contract as every other provider: { text, usage }. Returning the bare
+    // string made every stage read result.text as undefined and report an
+    // unreadable answer although Codex had replied.
+    text = await planCompletion({ model, system, prompt, images, jsonSchema, maxTokens });
+    result = {};
+  } else if (provider === 'openai' && /codex/i.test(model)) {
     result = await jsonRequest('https://api.openai.com/v1/responses', { Authorization: `Bearer ${key}` }, { model, instructions:system, input:[{role:'user',content:[{type:'input_text',text:prompt},...images.map(x=>({type:'input_image',image_url:`data:${x.mime};base64,${x.data}`,detail:imageDetail}))]}], max_output_tokens:maxTokens, ...(jsonSchema?{text:{format:{type:'json_schema',name:'content_plan',strict:true,schema:jsonSchema}}}:{}) });
     text = result.output_text || result.output?.flatMap(item=>item.content||[]).filter(part=>part.type==='output_text').map(part=>part.text).join('\n');
   } else if (provider === 'openai') {

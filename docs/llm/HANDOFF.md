@@ -43,6 +43,13 @@ handoff is for.
   the CLI's output on failure. `teammates/test/fake-codex.sh` now parses like
   the real CLI; 8 bridge tests go red against the old code. The bridge must be
   pulled and restarted by hand for this to reach production (see below).
+- **Then every plan stage failed as `generator_format`** ("truncated or could not
+  be read") although Codex had answered: `generateText()` returned the plan's
+  bare string while every caller reads `result.text`. It now returns
+  `{ text, usage }` like every provider; Storyteller was affected the same way.
+  First real answers on the plan, observed by the owner in the production
+  container: a plain prompt and a JSON-schema prompt (`gpt-6.2-sol`, the plan
+  default). A full generator run on the plan is still unconfirmed.
 - **The plans bridge image is published** at
   `ghcr.io/lrmcorp/lrmsmmnew-teammates`, both `:latest` and the commit tag,
   confirmed against the registry rather than inferred from the workflow step.
