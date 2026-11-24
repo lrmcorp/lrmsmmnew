@@ -146,6 +146,9 @@ Verified here, against the real CLI at the pinned version:
   `image_gen.generation`, an `imagegen_premium` feature flag, `gpt-image-1/1.5/2`
   model ids), but whether any of it is reachable from `codex exec`, on a given
   plan, and able to write an image file the bridge could return, could not be
-  tested without a signed-in account. The provider is therefore registered with
-  `image: false`, and image stages stay on an API-key provider. Resolve this by
-  testing with a signed-in plan before changing that flag.
+  tested without a signed-in account. Since 2026-11-24 the provider is
+  `image: true`: `POST /teammates/v1/images/generations` asks Codex to use its
+  built-in `image_gen` tool, collects the newest image that appeared under
+  `$CODEX_HOME/generated_images` during the turn, returns it as `b64_json` and
+  deletes it. Image turns run one at a time (attribution is by time window).
+  Not yet observed with a real plan.

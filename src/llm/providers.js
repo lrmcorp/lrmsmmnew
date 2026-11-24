@@ -1,17 +1,16 @@
 // Fixed official API origins. API keys never leave the corresponding provider.
 import { createHash } from 'node:crypto';
 import { err } from '../util.js';
-import { PLANS_PROVIDER, planCompletion } from './plans.js';
+import { PLANS_PROVIDER, planCompletion, planImage } from './plans.js';
 
 export const PROVIDERS = {
   openai: { name: 'OpenAI (ChatGPT & Codex)', textModel: 'gpt-4.1-mini', visionModel: 'gpt-4.1', imageModel: 'gpt-image-2.5-sunburst', image: true, textModels: [{id:'gpt-4.1-mini',name:'GPT-4.1 mini · Lightweight'}, {id:'gpt-4.1',name:'GPT-4.1 · Detailed'}, {id:'gpt-4o',name:'GPT-4o · Multimodal'}, {id:'gpt-5.1-codex-mini',name:'GPT-5.1 Codex mini · Responses API'}], imageModels: [{id:'gpt-image-2.5-sunburst',name:'GPT Image 2.5 Sunburst · Detailed'}, {id:'gpt-image-2.5-flare',name:'GPT Image 2.5 Flare · Faster'}] },
   anthropic: { name: 'Anthropic (Claude)', textModel: 'claude-sonnet-5-5', visionModel: 'claude-opus-5-5', image: false, textModels: [{id:'claude-sonnet-5-5',name:'Claude Sonnet 5.5'}, {id:'claude-haiku-5-5',name:'Claude Haiku 5.5 · Lightweight'}, {id:'claude-opus-5-5',name:'Claude Opus 5.5 · Detailed'}, {id:'claude-opus-5',name:'Claude Opus 5 · Detailed'}], imageModels: [] },
   // A virtual provider: no API key of its own, no endpoint of its own. It is
   // offered only while a plan is signed in on the bridge, and only to the Owner,
-  // whose subscription it spends. Image stages are deliberately absent — the
-  // Codex CLI exposes no image-generation output, so claiming image:true here
-  // would put a stage in the picker that cannot run.
-  lrmplans: { name: 'Your plans', textModel: 'codex', visionModel: 'codex', image: false, virtual: true, textModels: [{ id: 'codex', name: 'Codex · your ChatGPT plan' }], imageModels: [] },
+  // whose subscription it spends. Images go through Codex's built-in image_gen
+  // tool on the same login (the bridge's /images/generations).
+  lrmplans: { name: 'Your plans', textModel: 'codex', visionModel: 'codex', imageModel: 'codex', image: true, virtual: true, textModels: [{ id: 'codex', name: 'Codex · your ChatGPT plan' }], imageModels: [{ id: 'codex', name: 'Codex image_gen · your ChatGPT plan' }] },
   gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', visionModel: 'gemini-2.5-pro', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detailed'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Lightweight'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
 };
 
@@ -153,7 +152,11 @@ export async function generateImage({ provider, model, key, prompt, references =
   } else if (provider === 'gemini') {
     result = await jsonRequest(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { 'x-goog-api-key': key }, { contents: [{ role: 'user', parts: [...references.map(ref=>({inlineData:{mimeType:ref.mime,data:ref.buffer.toString('base64')}})),{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } });
     base64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.mimeType?.startsWith('image/'))?.inlineData?.data;
-  } else throw err(400, 'image_provider_invalid', "Choose OpenAI or Gemini for image generation. Claude does not generate images.");
+  } else if (provider === PLANS_PROVIDER) {
+    // Codex's built-in image_gen tool, on the Owner's ChatGPT login. No key.
+    result = {};
+    base64 = (await planImage({ prompt, references })).base64;
+  } else throw err(400, 'image_provider_invalid', "Choose OpenAI, Gemini or Your plans for image generation. Claude does not generate images.");
   if (typeof base64 !== 'string' || base64.length > 12 * 1024 * 1024) throw err(502, 'provider_image_invalid', "Provider did not return a valid image, up to 8 MB.");
   return { buffer: Buffer.from(base64, 'base64'), usage: result.usage || result.usageMetadata || null };
 }

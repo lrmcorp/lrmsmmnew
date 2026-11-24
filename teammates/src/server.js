@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { requireBearer, configured } from './auth.js';
 import { attachTerminal } from './terminal.js';
 import { runTurn, status } from './turn.js';
+import { generatePlanImage } from './image.js';
 import { modelList, DEFAULT_MODEL, MODELS } from './openai.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,7 +20,9 @@ app.set('trust proxy', 1);
 app.get('/teammates/healthz', (_req, res) => res.json({ ok: true }));
 
 const api = express.Router();
-api.use(express.json({ limit: '12mb' }));
+// Image requests carry their reference images, so the body limit is generous;
+// only the application, holding the internal token, can reach it.
+api.use(express.json({ limit: '40mb' }));
 api.use(requireBearer);
 
 // Signed out is reported as an empty catalogue rather than an error, so the
@@ -60,6 +63,30 @@ api.post('/chat/completions', async (req, res) => {
     const payload = { error: { code: e?.code || 'bridge_error', message: e?.message || 'The plans bridge failed.' } };
     if (res.headersSent) { try { res.end(); } catch { /* client gone */ } return; }
     res.status(status).json(payload);
+  }
+});
+
+// One image through the plan (Codex's built-in image_gen tool). OpenAI-shaped
+// response: data[0].b64_json, plus the detected mime type.
+api.post('/images/generations', async (req, res) => {
+  const body = req.body || {};
+  if (typeof body.prompt !== 'string' || !body.prompt.trim() || body.prompt.length > 60_000) {
+    return res.status(400).json({ error: { code: 'validation_failed', message: 'prompt must be a non-empty string up to 60,000 characters.' } });
+  }
+  const refs = Array.isArray(body.references) ? body.references : [];
+  if (refs.length > 16 || refs.some((r) => typeof r?.b64_json !== 'string' || typeof r?.mime !== 'string' || !/^image\/(png|jpeg|webp)$/.test(r.mime))) {
+    return res.status(400).json({ error: { code: 'validation_failed', message: 'references must be up to 16 PNG, JPEG or WebP images.' } });
+  }
+  const abort = new AbortController();
+  let finished = false;
+  res.on('close', () => { if (!finished) abort.abort(); });
+  try {
+    const out = await generatePlanImage({ prompt: body.prompt, references: refs.map((r) => ({ mime: r.mime, buffer: Buffer.from(r.b64_json, 'base64') })), signal: abort.signal });
+    finished = true;
+    res.json({ created: Math.floor(Date.now() / 1000), data: [{ b64_json: out.buffer.toString('base64'), mime: out.mime }] });
+  } catch (e) {
+    finished = true;
+    if (!res.headersSent) res.status(e?.status || 500).json({ error: { code: e?.code || 'bridge_error', message: e?.message || 'The plans bridge failed.' } });
   }
 });
 

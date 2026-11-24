@@ -14,13 +14,14 @@ const control = path.join(here, 'fake-control.env');
 
 process.env.CODEX_BIN = path.join(here, 'fake-codex.sh');
 process.env.WORK_DIR = work;
+process.env.CODEX_HOME = path.join(work, 'codex-home');
 process.env.INTERNAL_TOKEN = 'e2e-internal-token-0123456789';
 process.env.PORT = '0';
 
 // The bridge runs Codex with a minimal environment on purpose, so the fixture
 // is steered through a file beside it rather than exported variables.
 const fixture = (settings = {}) => {
-  const base = { SIGNED_IN: 1, REPLY_TEXT: 'Hello from the plan.', FAIL: 0, FAIL_MSG: 'boom', RESUME_FAILS: 0, HANG: 0 };
+  const base = { SIGNED_IN: 1, REPLY_TEXT: 'Hello from the plan.', FAIL: 0, FAIL_MSG: 'boom', RESUME_FAILS: 0, HANG: 0, IMAGE: 1 };
   const merged = { ...base, ...settings };
   fs.writeFileSync(control, Object.entries(merged).map(([k, v]) => `${k}=${JSON.stringify(String(v))}`).join('\n') + '\n');
 };
@@ -230,4 +231,44 @@ test('a generator-shaped turn with images reaches Codex with its prompt intact',
   const args = readArgs().at(-1);
   assert.equal((args.match(/--image=/g) || []).length, 2, 'both images attached');
   assert.ok(!/(^| )-m codex/.test(args), '"codex" is the plan default, not a model id');
+});
+
+// Images on the plan: Codex's built-in image_gen tool writes into
+// $CODEX_HOME/generated_images, and the bridge returns that file.
+test('an image request returns the file image_gen produced, with references attached', async () => {
+  resetArgs();
+  fixture({ IMAGE: 1 });
+  const png = Buffer.from('89504e470d0a1a0a', 'hex').toString('base64');
+  const r = await call('/teammates/v1/images/generations', {
+    method: 'POST', session: 'run:img',
+    body: { prompt: 'A reformer in a bright studio, headline "Find your flow"', references: [{ mime: 'image/png', b64_json: png }, { mime: 'image/jpeg', b64_json: png }] },
+  });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  const buf = Buffer.from(j.data[0].b64_json, 'base64');
+  assert.equal(j.data[0].mime, 'image/png');
+  assert.equal(buf.subarray(1, 4).toString(), 'PNG');
+  const args = readArgs().at(-1);
+  assert.equal((args.match(/--image=/g) || []).length, 2, 'both references reach the CLI');
+  assert.ok(!/ -m /.test(args), 'no model flag: the plan default makes the image');
+  const prompt = fs.readFileSync(path.join(here, 'fake-prompt.txt'), 'utf8');
+  assert.match(prompt, /image_gen/);
+  assert.match(prompt, /Find your flow/, 'the brief reaches Codex intact');
+  const left = fs.readdirSync(path.join(process.env.CODEX_HOME, 'generated_images'), { recursive: true }).filter((f) => /\.png$/.test(f));
+  assert.equal(left.length, 0, 'the volume keeps no copy');
+});
+
+test('a plan that makes no image says so instead of returning nothing', async () => {
+  fixture({ IMAGE: 0 });
+  const r = await call('/teammates/v1/images/generations', { method: 'POST', session: 'run:img2', body: { prompt: 'x' } });
+  assert.equal(r.status, 502);
+  const j = await r.json();
+  assert.equal(j.error.code, 'image_not_generated');
+  assert.match(j.error.message, /not available for this account/, 'the reason Codex gave is shown');
+});
+
+test('an image request is validated', async () => {
+  assert.equal((await call('/teammates/v1/images/generations', { method: 'POST', body: { prompt: '' } })).status, 400);
+  assert.equal((await call('/teammates/v1/images/generations', { method: 'POST', body: { prompt: 'x', references: [{ mime: 'image/svg+xml', b64_json: 'x' }] } })).status, 400);
+  assert.equal((await call('/teammates/v1/images/generations', { method: 'POST', token: null, body: { prompt: 'x' } })).status, 401);
 });

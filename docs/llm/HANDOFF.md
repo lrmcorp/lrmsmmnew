@@ -27,7 +27,18 @@ handoff is for.
 - **The owner signed Codex in to their ChatGPT plan on 2026-11-24** through the
   API & AI panel, reported by the owner ("codex logged in"); not observed by an
   agent. Still unverified: a real model answer, whether each generator stage's
-  JSON schema is satisfied, and image generation (provider stays `image:false`).
+  JSON schema is satisfied, and image generation.
+- **Images on the plan (2026-11-24, at the owner's request after Gemini's quota
+  ran out):** `lrmplans` is now `image: true`. The bridge's
+  `POST /teammates/v1/images/generations` runs `codex exec` asking for Codex's
+  built-in `image_gen` tool (feature `image_generation`, stable and on in CLI
+  0.171; its bundled skill text says it needs no `OPENAI_API_KEY` and saves to
+  `$CODEX_HOME/generated_images`), then returns the newest image file that
+  appeared there during the turn and deletes it. Image turns are serialised
+  because results are attributed by time window. Tested only with the fake CLI
+  (`teammates/test/e2e.test.js`) and a stubbed bridge (`test/plans-bridge.js`);
+  **a real image on the owner's plan has not been observed**, and plan rate
+  limits for images are unknown.
 - **Fixed after the first sign-in:** `settings()` swapped every provider without
   a saved key for a keyed one, so a stage saved as "Your plans" came back as
   OpenAI and would have spent the Owner's API key; the generator also warned
@@ -348,9 +359,8 @@ owner asked for images on their plan. The CLI binary contains `imagegen`,
 `image_gen.generation`, an `imagegen_premium` feature flag and `gpt-image-1/1.5/2`
 ids, so the machinery exists; whether it is reachable from `codex exec`, on a
 given plan, and can write a file the bridge could return, needs a signed-in
-account to test. The provider is registered `image: false` and image stages stay
-on an API-key provider until someone tests it. Do not flip that flag on the
-strength of the strings alone.
+account to test. (Superseded 2026-11-24: the flag was flipped at the owner's
+request; see the images entry near the top.)
 
 **Not verified:** the image has never been built (no Docker daemon here), there
 has been no real sign-in and no real model answer, and whether Codex satisfies
