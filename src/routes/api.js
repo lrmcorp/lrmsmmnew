@@ -127,8 +127,7 @@ api.post('/generator/quick-idea',sessionOnly,async(req,res)=>{const result=await
 api.get('/generator/settings', sessionOnly, async (req, res) => {
   // The provider list is resolved per user: "Your plans" is only offered to an
   // Owner while a plan is actually signed in on the bridge.
-  const s = generator.settings(U(req));
-  res.json({ ...s, providers: await generator.availableProviders(U(req)) });
+  res.json(await generator.settingsView(U(req)));
 });
 
 // ---- AI plans (the owner's own ChatGPT subscription, via the Codex CLI) ----
@@ -149,8 +148,8 @@ api.post('/ai-plans/terminals', sessionOnly, requireOwner, (req, res) => {
 api.get('/ai-plans/terminals/:id/stream', sessionOnly, requireOwner, (req, res) => plansTerminal.streamTerminal(U(req), req.params.id, res));
 api.post('/ai-plans/terminals/:id/input', sessionOnly, requireOwner, (req, res) => res.json(plansTerminal.sendInput(U(req), req.params.id, req.body)));
 api.delete('/ai-plans/terminals/:id', sessionOnly, requireOwner, (req, res) => res.json(plansTerminal.closeTerminal(U(req), req.params.id)));
-api.put('/generator/settings', sessionOnly, (req, res) => res.json(generator.saveSettings(U(req), req.body || {})));
-api.delete('/generator/settings', sessionOnly, (req, res) => {const result=generator.resetSettings(U(req));audit(req.auth,'generator.settings.reset','generator_settings',U(req).id);res.json(result);});
+api.put('/generator/settings', sessionOnly, async (req, res) => {generator.saveSettings(U(req), req.body || {});res.json(await generator.settingsView(U(req)));});
+api.delete('/generator/settings', sessionOnly, async (req, res) => {generator.resetSettings(U(req));audit(req.auth,'generator.settings.reset','generator_settings',U(req).id);res.json(await generator.settingsView(U(req)));});
 api.put('/generator/keys/:provider', sessionOnly, (req, res) => {
   generator.saveKey(U(req), req.params.provider, req.body?.key);
   audit(req.auth, 'generator.key.save', 'provider', req.params.provider);

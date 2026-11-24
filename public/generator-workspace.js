@@ -774,7 +774,7 @@ export async function generatorWorkspace(ctx, workspace) {
       return (config.providers[p]?.[role === 'image' ? 'imageModels' : 'textModels'] || []).filter(m => role === 'image' || !/transcribe|computer.?use|tts|embedding|image|imagen|nano.?banana|veo|audio/i.test(m.id + ' ' + m.name));
     }
     function applyPreset(name) {
-      const textProvider = keys.has('openai') ? 'openai' : keys.has('anthropic') ? 'anthropic' : keys.has('gemini') ? 'gemini' : null,
+      const textProvider = keys.has('openai') ? 'openai' : keys.has('anthropic') ? 'anthropic' : keys.has('gemini') ? 'gemini' : keys.has('lrmplans') ? 'lrmplans' : null,
         imageProvider = keys.has('openai') ? 'openai' : keys.has('gemini') ? 'gemini' : null;
       if (!textProvider) {
         toast('Add an API key for a provider first.', true);

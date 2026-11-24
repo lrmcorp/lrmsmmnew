@@ -16,13 +16,24 @@ handoff is for.
 - Repository **lrmcorp/lrmsmmnew**, serving `https://lrmsosmed.playgo.id`.
   `lrmsocmedauto` is retired; do not deploy its Temporal/Postgres/Redis
   architecture or copy its environment.
-- **Last verified deployed commit: `c45909c`**, PR
-  [#56](https://github.com/lrmcorp/lrmsmmnew/pull/56), deployment run
-  [45148758912](https://github.com/lrmcorp/lrmsmmnew/actions/runs/45148758912),
-  receiver and public health check both passing. Confirmed on the server: the
-  running app container carries the `/teammates/` proxy. The release that
-  changed application behaviour is `e54d94c` (PR #52); #53 to #56 fixed what
-  stopped it reaching a server and a browser.
+- **Last verified deployed commit: `b3dce93`**, PR
+  [#58](https://github.com/lrmcorp/lrmsmmnew/pull/58), deployment run
+  [45329407921](https://github.com/lrmcorp/lrmsmmnew/actions/runs/45329407921),
+  receiver and public health check both passing. #58 carries the login
+  terminal over HTTP (SSE + POST) because the proxy in front of the app drops
+  WebSocket upgrades. The release that changed application behaviour is
+  `e54d94c` (PR #52); #53 to #58 fixed what stopped it reaching a server and a
+  browser.
+- **The owner signed Codex in to their ChatGPT plan on 2026-11-24** through the
+  API & AI panel, reported by the owner ("codex logged in"); not observed by an
+  agent. Still unverified: a real model answer, whether each generator stage's
+  JSON schema is satisfied, and image generation (provider stays `image:false`).
+- **Fixed after the first sign-in:** `settings()` swapped every provider without
+  a saved key for a keyed one, so a stage saved as "Your plans" came back as
+  OpenAI and would have spent the Owner's API key; the generator also warned
+  "Add an API key for lrmplans". `lrmplans` now counts as available for the
+  Owner, and `settingsView()` lists it as a `virtual` key while a plan is
+  signed in. Covered in `test/plans-bridge.js` (red against the old code).
 - **The plans bridge image is published** at
   `ghcr.io/lrmcorp/lrmsmmnew-teammates`, both `:latest` and the commit tag,
   confirmed against the registry rather than inferred from the workflow step.

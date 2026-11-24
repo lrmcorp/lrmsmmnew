@@ -164,3 +164,32 @@ test('a stopped bridge is reported as unreachable, not as signed out', async (t)
     try { plans._resetModelCache(); assert.deepEqual(await plans.probe(), { reachable: true, models: ['codex'] }); } finally { restore(); }
   });
 });
+
+test('a saved plan stage is kept, not swapped for a keyed provider', async () => {
+  const { run } = await import('../src/db.js');
+  const generator = await import('../src/services/generator.js');
+  const user = { id: 'u-owner-settings', role: 'owner' };
+  run("INSERT OR IGNORE INTO users(id,email,password_hash,role) VALUES(?,?,?,'owner')", user.id, 'owner-settings@test.local', 'x');
+  // An OpenAI key is saved: before the fix every keyless provider fell back to it.
+  run("INSERT OR REPLACE INTO generator_keys(user_id,provider,secret_enc,updated_at) VALUES(?,?,?,?)", user.id, 'openai', 'not-read-here', new Date().toISOString());
+  const agents = generator.settings(user).agents;
+  agents.concept = { ...agents.concept, provider: 'lrmplans', model: 'codex' };
+  generator.saveSettings(user, { agents });
+  assert.equal(generator.settings(user).agents.concept.provider, 'lrmplans');
+
+  const restore = stubFetch(async () => ok({ object: 'list', data: [{ id: 'codex' }] }));
+  try {
+    plans._resetModelCache();
+    const view = await generator.settingsView(user);
+    assert.equal(view.agents.concept.provider, 'lrmplans');
+    assert.ok(view.providers.lrmplans, 'offered while signed in');
+    assert.deepEqual(view.keys.filter((k) => k.virtual).map((k) => k.provider), ['lrmplans'], 'the browser sees it as ready without a key');
+  } finally { restore(); }
+
+  plans._resetModelCache();
+  const signedOut = stubFetch(async () => ok({ object: 'list', data: [] }));
+  try {
+    const view = await generator.settingsView(user);
+    assert.equal(view.keys.some((k) => k.virtual), false, 'no virtual key while no plan is signed in');
+  } finally { signedOut(); }
+});

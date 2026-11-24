@@ -2527,10 +2527,13 @@ async function pageSettings() {
     class: 'generator-key-summary'
   });
   function drawKeys() {
-    keySummary.textContent = config.keys.length ? t("ui.copy.0203", {
-      "0": config.keys.length
+    // "Your plans" is keyless (the ChatGPT login lives in the plans bridge), so
+    // it is neither counted as a saved key nor offered a key field here.
+    const savedKeys = config.keys.filter(k => !k.virtual);
+    keySummary.textContent = savedKeys.length ? t("ui.copy.0203", {
+      "0": savedKeys.length
     }) : t("ui.copy.0204");
-    keys.replaceChildren(...Object.entries(config.providers).map(([provider, p]) => {
+    keys.replaceChildren(...Object.entries(config.providers).filter(([, p]) => !p.virtual).map(([provider, p]) => {
       const saved = config.keys.find(k => k.provider === provider);
       const input = h('input', {
         type: 'password',
