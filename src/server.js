@@ -15,7 +15,7 @@ import { oauth } from './routes/oauth.js';
 import { metaCb } from './routes/metaCallbacks.js';
 import { webhooks } from './routes/webhooks.js';
 import { mcpHandler } from './mcp.js';
-import { plansAssets, attachPlansUpgrade } from './routes/plans-proxy.js';
+import { plansAssets } from './routes/plans-proxy.js';
 import { beginConnect, finishConnect } from './services/accounts.js';
 import { startWorker } from './worker.js';
 import { mockRouter } from './meta/mock.js';
@@ -128,7 +128,7 @@ app.use((e, req, res, _next) => {
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const server = app.listen(config.port, () => {
+  app.listen(config.port, () => {
     console.log(`LRMsmm running on ${config.publicUrl} (port ${config.port})`);
     console.log(`  MCP endpoint: ${config.publicUrl}/mcp`);
     if (!config.mock) {
@@ -138,7 +138,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     startWorker();
   });
-  // The login terminal's WebSocket is forwarded to the bridge over the docker
-  // network, so the shared reverse proxy needs no rule for it.
-  attachPlansUpgrade(server);
 }

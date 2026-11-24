@@ -1,6 +1,8 @@
 // Config → AI plans: sign the Codex CLI into the owner's ChatGPT subscription.
 //
-// The terminal is a real pty in the bridge container, reached over a WebSocket.
+// The terminal is a real pty in the bridge container. This page reaches it over
+// plain HTTP (an event stream for output, POSTs for keys); the application holds
+// the WebSocket to the bridge on the server side.
 // Nothing about the login happens in this page: it only draws what the CLI
 // prints and forwards what the owner types, so no credential is ever handled by
 // the browser or by the application.
@@ -50,7 +52,7 @@ function loadXterm() {
 export function aiPlansPanel({ h, api, toast, errMsg, title = 'AI plans' }) {
   const statusLine = h('p', { class: 'muted small', role: 'status' }, 'Checking…');
   const screen = h('div', { class: 'plans-terminal', style: { height: '380px', background: '#0b0b0d', borderRadius: '10px', padding: '8px', display: 'none' } });
-  let socket = null, term = null, ready = false;
+  let stream = null, term = null, ready = false, terminalId = null, pending = '', flushTimer = null;
 
   const setStatus = (text, tone = '') => {
     statusLine.textContent = text;
@@ -76,43 +78,62 @@ export function aiPlansPanel({ h, api, toast, errMsg, title = 'AI plans' }) {
   }
 
   function closeTerminal() {
-    try { socket?.close(); } catch { /* already closed */ }
-    socket = null;
+    try { stream?.close(); } catch { /* already closed */ }
+    stream = null;
+    clearTimeout(flushTimer); pending = '';
+    // Tell the server too, so the bridge's pty does not wait out its idle timer.
+    if (terminalId) api('DELETE', `/v1/ai-plans/terminals/${terminalId}`).catch(() => {});
+    terminalId = null;
     try { term?.dispose(); } catch { /* already disposed */ }
     term = null;
     screen.style.display = 'none';
     screen.replaceChildren();
   }
 
+  // Keystrokes are batched briefly: typing is rare in the device-code flow, but
+  // a paste or a held key must not become one request per character.
+  function sendKeys(data) {
+    pending += data;
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(() => {
+      const chunk = pending; pending = '';
+      if (chunk && terminalId) api('POST', `/v1/ai-plans/terminals/${terminalId}/input`, { data: chunk }).catch(() => {});
+    }, 40);
+  }
+
   async function openTerminal(cmd) {
     if (!ready) return toast('The plans service is not running on this server.', true);
     closeTerminal();
-    let ticket;
-    try { ({ ticket } = await api('POST', '/v1/ai-plans/terminal-ticket', {})); }
-    catch (e) { return toast(errMsg(e), true); }
-
     let Terminal;
     try { Terminal = await loadXterm(); } catch (e) { return toast(e.message, true); }
+    try { ({ id: terminalId } = await api('POST', '/v1/ai-plans/terminals', { cmd })); }
+    catch (e) { return toast(errMsg(e), true); }
 
     screen.style.display = '';
     term = new Terminal({ convertEol: true, fontSize: 13, theme: { background: '#0b0b0d' }, cursorBlink: true });
     term.open(screen);
+    term.focus();
 
-    const url = new URL('/teammates/terminal', location.href);
-    url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    url.searchParams.set('ticket', ticket);
-    url.searchParams.set('cmd', cmd);
-    socket = new WebSocket(url);
-
-    socket.addEventListener('open', () => term.focus());
-    socket.addEventListener('message', (e) => term.write(typeof e.data === 'string' ? e.data : ''));
-    socket.addEventListener('close', (e) => {
-      term?.write(`\r\n\x1b[90m[session closed${e.code === 4408 ? ': idle' : ''}]\x1b[0m\r\n`);
-      socket = null;
+    // Plain HTTP both ways. A WebSocket from the browser was dropped by the
+    // reverse proxy in front of production; Server-Sent Events are ordinary
+    // responses that proxy already carries.
+    const id = terminalId;
+    stream = new EventSource(`/v1/ai-plans/terminals/${id}/stream`);
+    stream.addEventListener('data', (e) => { try { term?.write(JSON.parse(e.data)); } catch { /* malformed frame */ } });
+    stream.addEventListener('end', () => {
+      term?.write('\r\n\x1b[90m[session closed]\x1b[0m\r\n');
+      stream?.close(); stream = null;
+      if (terminalId === id) terminalId = null;
       refresh();
     });
-    socket.addEventListener('error', () => toast('The terminal connection failed.', true));
-    term.onData((data) => socket?.readyState === WebSocket.OPEN && socket.send(JSON.stringify({ data })));
+    stream.addEventListener('error', () => {
+      // EventSource retries on its own while it can; CLOSED means it gave up.
+      if (stream?.readyState === EventSource.CLOSED) {
+        toast('The terminal stream was interrupted.', true);
+        stream = null;
+      }
+    });
+    term.onData(sendKeys);
   }
 
   // Built before the panel so their disabled state can follow the service.
@@ -148,7 +169,7 @@ export function aiPlansPanel({ h, api, toast, errMsg, title = 'AI plans' }) {
     screen);
 
   refresh();
-  // The caller registers dispose with the page's cleanup, so a live socket
+  // The caller registers dispose with the page's cleanup, so a live stream
   // never outlives the view that opened it.
   return { panel, dispose: closeTerminal };
 }

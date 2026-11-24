@@ -20,6 +20,7 @@ import { config } from '../config.js';
 import * as storytelling from '../services/storytelling.js';
 import * as generator from '../services/generator.js';
 import * as plans from '../llm/plans.js';
+import * as plansTerminal from '../services/plans-terminal.js';
 import * as aiDrafts from '../services/ai-drafts.js';
 import {moveCalendarItem,duplicateCalendarPost} from '../services/calendar-workspace.js';
 import {listAuditWorkspace} from '../services/audit-workspace.js';
@@ -136,14 +137,18 @@ api.get('/ai-plans/status', sessionOnly, requireOwner, async (_req, res) => {
   res.json({ configured: plans.configured(), reachable, signed_in: models.length > 0, models });
 });
 
-// A short-lived, single-purpose credential for the login terminal. The console
-// session proves who is asking; this hands the bridge a statement it can verify
-// without reaching into this application's database.
-api.post('/ai-plans/terminal-ticket', sessionOnly, requireOwner, (req, res) => {
-  if (!plans.configured()) throw err(503, 'plans_not_configured', "The plans bridge is not configured on this server.");
-  audit(req.auth, 'plans.terminal.open', 'user', U(req).id);
-  res.json({ ticket: plans.mintTerminalTicket(U(req)), expires_in: 120 });
+// The login terminal over plain HTTP: open, stream output (SSE), send keys,
+// close. The browser never opens a WebSocket, because the reverse proxy in
+// front of production drops them; this app holds the socket to the bridge
+// inside the docker network.
+api.post('/ai-plans/terminals', sessionOnly, requireOwner, (req, res) => {
+  const opened = plansTerminal.openTerminal(U(req), req.body?.cmd);
+  audit(req.auth, 'plans.terminal.open', 'user', U(req).id, { cmd: req.body?.cmd === 'status' ? 'status' : 'login' });
+  res.status(201).json(opened);
 });
+api.get('/ai-plans/terminals/:id/stream', sessionOnly, requireOwner, (req, res) => plansTerminal.streamTerminal(U(req), req.params.id, res));
+api.post('/ai-plans/terminals/:id/input', sessionOnly, requireOwner, (req, res) => res.json(plansTerminal.sendInput(U(req), req.params.id, req.body)));
+api.delete('/ai-plans/terminals/:id', sessionOnly, requireOwner, (req, res) => res.json(plansTerminal.closeTerminal(U(req), req.params.id)));
 api.put('/generator/settings', sessionOnly, (req, res) => res.json(generator.saveSettings(U(req), req.body || {})));
 api.delete('/generator/settings', sessionOnly, (req, res) => {const result=generator.resetSettings(U(req));audit(req.auth,'generator.settings.reset','generator_settings',U(req).id);res.json(result);});
 api.put('/generator/keys/:provider', sessionOnly, (req, res) => {

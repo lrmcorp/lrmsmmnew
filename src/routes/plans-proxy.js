@@ -7,9 +7,9 @@
 // the application forwards the two browser-facing paths itself, over the docker
 // network it already uses to reach the bridge.
 //
-// Only two paths are forwarded, and nothing else under /teammates/ is:
-//   /teammates/assets/…  the terminal widget
-//   /teammates/terminal  the login WebSocket
+// Only the terminal widget is forwarded, and nothing else under /teammates/ is.
+// The login terminal itself travels over /v1/ai-plans/terminals as plain HTTP,
+// because the reverse proxy in front of production drops WebSocket upgrades.
 // The bridge's own API at /teammates/v1 stays server-to-server and must never
 // become reachable from a browser, because the internal bearer token is what
 // guards it and a browser would not be carrying one.
@@ -19,7 +19,6 @@ import { config } from '../config.js';
 import { sessionUser } from '../auth.js';
 
 const ASSETS = /^\/teammates\/assets\/[A-Za-z0-9._/-]*$/;
-const TERMINAL = '/teammates/terminal';
 
 /** Where the bridge lives, derived from the base URL the app already uses. */
 function upstream() {
@@ -55,44 +54,4 @@ export function plansAssets(req, res, next) {
   proxied.on('timeout', () => proxied.destroy(new Error('timeout')));
   proxied.on('error', () => { if (!res.headersSent) res.status(502).end(); else res.end(); });
   proxied.end();
-}
-
-/**
- * Forward the terminal's WebSocket upgrade.
- *
- * The bridge checks its own ticket and the Origin header; this only decides
- * whether the request is worth forwarding at all, so an unauthenticated socket
- * never reaches it.
- */
-export function attachPlansUpgrade(server) {
-  server.on('upgrade', (req, socket, head) => {
-    let path;
-    try { path = new URL(req.url, 'http://localhost').pathname; } catch { return socket.destroy(); }
-    if (path !== TERMINAL) return; // not ours; another handler may own it
-    const target = upstream();
-    const deny = (code, text, reason) => {
-      console.warn(`[plans-proxy] terminal refused (${code}): ${reason}`);
-      socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); socket.destroy();
-    };
-    if (!target) return deny(503, 'Service Unavailable', 'PLANS_BRIDGE_URL is not a valid URL');
-    if (!owner(req)) return deny(403, 'Forbidden', 'no Owner session on the upgrade request');
-
-    const proxied = http.request({
-      ...target, method: 'GET', path: req.url,
-      headers: { ...req.headers, host: `${target.hostname}:${target.port}` },
-    });
-    proxied.on('upgrade', (upstreamRes, upstreamSocket, upstreamHead) => {
-      const lines = Object.entries(upstreamRes.headers).map(([k, v]) => `${k}: ${v}`).join('\r\n');
-      socket.write(`HTTP/1.1 101 Switching Protocols\r\n${lines}\r\n\r\n`);
-      if (upstreamHead?.length) socket.unshift(upstreamHead);
-      upstreamSocket.pipe(socket).pipe(upstreamSocket);
-      const close = () => { upstreamSocket.destroy(); socket.destroy(); };
-      socket.on('error', close); upstreamSocket.on('error', close);
-    });
-    // The bridge refused before switching protocols: pass its answer through.
-    proxied.on('response', (upstreamRes) => deny(upstreamRes.statusCode || 502, upstreamRes.statusMessage || 'Error', `bridge answered ${upstreamRes.statusCode} instead of switching protocols; see the teammates log`));
-    proxied.on('error', (e) => deny(502, 'Bad Gateway', `bridge unreachable: ${e.code || e.message}`));
-    if (head?.length) proxied.write(head);
-    proxied.end();
-  });
 }
