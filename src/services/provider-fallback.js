@@ -1,17 +1,18 @@
 // Fallback for stages that run on "Your plans" (the Owner's ChatGPT plan via
 // the Codex CLI). If the plan cannot answer, the same request goes to the next
 // provider the Owner has a saved key for:
-//   text stages:  Your plans -> Gemini -> OpenAI
-//   image stage:  Your plans -> OpenAI   (Gemini's image quota is too small to
-//                                          be a useful middle step)
-// The order is the owner's instruction (2026-11-24). A stage set to any other
+//   text stages:  Your plans -> DeepSeek -> Gemini   (never OpenAI)
+//   image stage:  Your plans -> OpenAI images
+// DeepSeek reads no images, so a text request that carries images (reference
+// inspection, visual concept, final review) goes Your plans -> Gemini.
+// The order is the owner's instruction (2026-11-24, revised the same day). A stage set to any other
 // provider is never redirected: only the plan has a fallback.
 import { PROVIDERS } from '../llm/providers.js';
 import { PLANS_PROVIDER } from '../llm/plans.js';
 import { planContext } from '../llm/plan-context.js';
 import { err } from '../util.js';
 
-export const TEXT_FALLBACK = ['gemini', 'openai'];
+export const TEXT_FALLBACK = ['deepseek', 'gemini'];
 export const IMAGE_FALLBACK = ['openai'];
 
 // Refusals that a different provider must not paper over: the plan is the
@@ -38,6 +39,7 @@ export function withPlanFallback(call, kind, keyFor, log = console) {
       const tried = [];
       let last = null;
       for (const provider of chain) {
+        if (kind !== 'image' && opts.images?.length && !PROVIDERS[provider].visionModel) continue;
         const key = user ? keyFor(user.id, provider) : null;
         if (!key) continue;
         const model = modelFor(provider, kind, opts);

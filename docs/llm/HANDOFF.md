@@ -28,13 +28,22 @@ handoff is for.
   API & AI panel, reported by the owner ("codex logged in"); not observed by an
   agent. Still unverified: a real model answer, whether each generator stage's
   JSON schema is satisfied, and image generation.
-- **Fallback for "Your plans" (owner's instruction, 2026-11-24):** a stage set
-  to `lrmplans` that fails is retried on the Owner's own saved keys, text
-  stages Gemini then OpenAI, the image stage straight to OpenAI
-  (`src/services/provider-fallback.js`, wired in `generator.js`). Other
-  providers are never redirected, connection tests pass `noFallback`, and
-  `plans_owner_only` is not rerouted. The stage's `usage` records `served_by`,
-  `fallback_from` and `fallback_reason`. A fallback spends API credits.
+- **Fallback for "Your plans" (owner's instruction, 2026-11-24, revised the
+  same day):** a stage set to `lrmplans` that fails is retried on the Owner's
+  own saved keys. Text stages go to DeepSeek then Gemini, never OpenAI; a text
+  request carrying images skips DeepSeek (text only) and goes to Gemini's vision
+  model. The image stage goes to OpenAI images. Lives in
+  `src/services/provider-fallback.js`, wired in `generator.js`. Other providers
+  are never redirected, connection tests pass `noFallback`, `plans_owner_only`
+  is not rerouted. The stage's `usage` records `served_by`, `fallback_from`
+  and `fallback_reason`. A fallback spends API credits.
+- **DeepSeek provider added (2026-11-24):** OpenAI-compatible
+  `https://api.deepseek.com/chat/completions`, models `deepseek-flash` (default)
+  and `deepseek-v4-flash`, `response_format: json_object` with the schema in the
+  system prompt, images refused with `provider_no_vision`. The model ids and
+  JSON mode come from DeepSeek's change log as found by web search; the docs
+  host was not reachable from the build session and **no call has been made
+  with a real key**. Token limits are unknown.
 - **Images on the plan (2026-11-24, at the owner's request after Gemini's quota
   ran out):** `lrmplans` is now `image: true`. The bridge's
   `POST /teammates/v1/images/generations` runs `codex exec` asking for Codex's

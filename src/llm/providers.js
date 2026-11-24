@@ -11,6 +11,10 @@ export const PROVIDERS = {
   // whose subscription it spends. Images go through Codex's built-in image_gen
   // tool on the same login (the bridge's /images/generations).
   lrmplans: { name: 'Your plans', textModel: 'codex', visionModel: 'codex', imageModel: 'codex', image: true, virtual: true, textModels: [{ id: 'codex', name: 'Codex · your ChatGPT plan' }], imageModels: [{ id: 'codex', name: 'Codex image_gen · your ChatGPT plan' }] },
+  // OpenAI-compatible chat API, text only. Model ids per DeepSeek's change log
+  // as reported 2026-11-24 (deepseek-flash, with deepseek-v4-flash still
+  // accepted); not confirmed against a live key from this repository.
+  deepseek: { name: 'DeepSeek', textModel: 'deepseek-flash', image: false, textModels: [{ id: 'deepseek-flash', name: 'DeepSeek Flash (V4)' }, { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash (legacy id)' }], imageModels: [] },
   gemini: { name: 'Google Gemini', textModel: 'gemini-2.5-flash', visionModel: 'gemini-2.5-pro', imageModel: 'gemini-2.5-flash-image', image: true, textModels: [{id:'gemini-2.5-flash',name:'Gemini 2.5 Flash'}, {id:'gemini-2.5-pro',name:'Gemini 2.5 Pro · Detailed'}, {id:'gemini-2.5-flash-lite',name:'Gemini 2.5 Flash-Lite · Lightweight'}], imageModels: [{id:'gemini-2.5-flash-image',name:'Gemini 2.5 Flash Image'}] },
 };
 
@@ -118,6 +122,15 @@ export async function generateText({ provider, model, key, system, prompt, image
   } else if (provider === 'openai') {
     const content = [{ type: 'text', text: prompt }, ...images.map(x => ({ type: 'image_url', image_url: { url: `data:${x.mime};base64,${x.data}`, detail: imageDetail } }))];
     result = await jsonRequest('https://api.openai.com/v1/chat/completions', { Authorization: `Bearer ${key}` }, { model, ...(jsonSchema?{response_format:{type:'json_schema',json_schema:{name:'content_plan',strict:true,schema:jsonSchema}}}:{}), max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content }] });
+    text = result.choices?.[0]?.message?.content;
+  } else if (provider === 'deepseek') {
+    // Text only: a stage that must look at images cannot be served here, and
+    // saying so is better than an answer written without seeing them.
+    if (images.length) throw err(400, 'provider_no_vision', "DeepSeek does not read images. Choose Gemini, OpenAI or Your plans for stages that inspect images.");
+    // JSON mode is json_object (no strict schema), so the schema travels in the
+    // system prompt; the stage still validates what comes back.
+    const sys = jsonSchema ? `${system}\nReturn ONLY one JSON object, no prose and no code fence, that matches this JSON Schema exactly:\n${JSON.stringify(jsonSchema)}` : system;
+    result = await jsonRequest('https://api.deepseek.com/chat/completions', { Authorization: `Bearer ${key}` }, { model, max_tokens: maxTokens, messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }], ...(jsonSchema ? { response_format: { type: 'json_object' } } : {}) });
     text = result.choices?.[0]?.message?.content;
   } else if (provider === 'anthropic') {
     result = await jsonRequest('https://api.anthropic.com/v1/messages', { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, { model, ...(jsonSchema?{tools:[{name:'submit_content_plan',description:'Return the structured content plan.',input_schema:jsonSchema}],tool_choice:{type:'tool',name:'submit_content_plan'}}:{}), max_tokens: maxTokens, system, messages: [{ role: 'user', content: [...images.map(x => ({ type: 'image', source: { type: 'base64', media_type: x.mime, data: x.data } })), { type: 'text', text: prompt }] }] });
