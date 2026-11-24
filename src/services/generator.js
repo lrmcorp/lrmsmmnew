@@ -20,7 +20,8 @@ import * as media from './media.js';
 import { createPost, publicPost, getPost } from './posts.js';
 import { receiveDraft } from './ai-drafts.js';
 import * as storytelling from './storytelling.js';
-import { PROVIDERS, generateText, generateImage, geminiModels, currentModel } from '../llm/providers.js';
+import { PROVIDERS, generateText as providerText, generateImage as providerImage, geminiModels, currentModel } from '../llm/providers.js';
+import { withPlanFallback } from './provider-fallback.js';
 import { PLANS_PROVIDER, plansAvailable, assertOwnerMayUsePlans } from '../llm/plans.js';
 import { withPlanContext } from '../llm/plan-context.js';
 
@@ -53,6 +54,11 @@ const keyOf = (userId, provider) => {
   if (!row) throw err(400, 'provider_key_missing', `Add your personal API key for ${PROVIDERS[provider]?.name || provider}.`);
   return decrypt(row.secret_enc);
 };
+// A stage on "Your plans" falls back to the Owner's own keys when the plan
+// cannot answer: text to Gemini then OpenAI, images to OpenAI.
+const savedKey = (userId, provider) => { try { return keyOf(userId, provider) || null; } catch { return null; } };
+const generateText = withPlanFallback(providerText, 'text', savedKey);
+const generateImage = withPlanFallback(providerImage, 'image', savedKey);
 export function settings(user) {
   const stored=parseJSON(one('SELECT agents FROM generator_settings WHERE user_id=?',user.id)?.agents,{});
   const keys=all('SELECT provider,updated_at FROM generator_keys WHERE user_id=?', user.id);
@@ -137,7 +143,8 @@ export async function testKey(user, provider, model) {
 }
 async function testKeyInner(user, provider, model) {
   if (!PROVIDERS[provider] || typeof model !== 'string' || !/^[A-Za-z0-9._-]{1,100}$/.test(model)) throw err(400, 'validation_failed', "Invalid provider or model.");
-  await generateText({ provider, model, key: keyOf(user.id, provider), system: 'You are testing a connection.', prompt: 'Reply only OK.' });
+  // A connection test must report this provider, never a fallback's answer.
+  await generateText({ provider, model, key: keyOf(user.id, provider), system: 'You are testing a connection.', prompt: 'Reply only OK.', noFallback: true });
   return { ok: true, note: 'Model teks dapat diakses. Akses model gambar bisa berbeda.' };
 }
 function rawRun(user, runId) {
