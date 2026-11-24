@@ -34,7 +34,7 @@ before(async () => {
   if (!server.listening) await new Promise((r) => server.once('listening', r));
   base = `http://127.0.0.1:${server.address().port}`;
 });
-after(() => { server.close(); fs.rmSync(control, { force: true }); fs.rmSync(argLog, { force: true }); });
+after(() => { server.close(); fs.rmSync(control, { force: true }); fs.rmSync(argLog, { force: true }); fs.rmSync(path.join(here, 'fake-prompt.txt'), { force: true }); });
 
 const TOKEN = process.env.INTERNAL_TOKEN;
 const call = (p, { method = 'GET', body, token = TOKEN, session = 'conv-1' } = {}) =>
@@ -198,4 +198,36 @@ test('response_format reaches Codex as --output-schema', async () => {
     },
   });
   assert.match(readArgs().join(' '), /--output-schema/, 'structured output is honoured');
+});
+
+// The generator's Concept stage: a system prompt, reference images, a schema
+// and the "codex" model name, all in one request. This is the shape that made
+// the real CLI exit 1 in production, so the fixture parses like the real one.
+test('a generator-shaped turn with images reaches Codex with its prompt intact', async () => {
+  resetArgs();
+  fixture({ REPLY_TEXT: '{"title":"ok"}' });
+  const png = Buffer.from('89504e470d0a1a0a', 'hex').toString('base64');
+  const r = await call('/teammates/v1/chat/completions', {
+    method: 'POST', session: 'conv-concept',
+    body: {
+      model: 'codex',
+      messages: [
+        { role: 'system', content: 'You are the Conceptor.' },
+        { role: 'user', content: [
+          { type: 'text', text: 'BRIEF: Reformer class promo' },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${png}` } },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${png}` } },
+        ] },
+      ],
+      response_format: { type: 'json_schema', json_schema: { name: 'plan', schema: { type: 'object' } } },
+    },
+  });
+  assert.equal(r.status, 200, 'the CLI accepted the arguments');
+  assert.equal((await r.json()).choices[0].message.content, '{"title":"ok"}');
+  const prompt = fs.readFileSync(path.join(here, 'fake-prompt.txt'), 'utf8');
+  assert.match(prompt, /You are the Conceptor\./);
+  assert.match(prompt, /BRIEF: Reformer class promo/);
+  const args = readArgs().at(-1);
+  assert.equal((args.match(/--image=/g) || []).length, 2, 'both images attached');
+  assert.ok(!/(^| )-m codex/.test(args), '"codex" is the plan default, not a model id');
 });

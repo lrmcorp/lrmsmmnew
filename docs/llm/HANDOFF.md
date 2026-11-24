@@ -34,6 +34,15 @@ handoff is for.
   "Add an API key for lrmplans". `lrmplans` now counts as available for the
   Owner, and `settingsView()` lists it as a `virtual` key while a plan is
   signed in. Covered in `test/plans-bridge.js` (red against the old code).
+- **Every plan turn failed with `codex_failed` (exit 1) on the first real use.**
+  Two argument bugs, both reproduced against the real Codex CLI 0.171 here:
+  `-m codex` asked the API for a model named "codex" (the bridge's alias for
+  the plan default), and `-i a.png "prompt"` swallowed the prompt as another
+  image path ("No prompt provided"). The bridge now omits `-m` for the alias,
+  uses `--image=<file>`, sends the prompt on stdin (`-`), and logs the tail of
+  the CLI's output on failure. `teammates/test/fake-codex.sh` now parses like
+  the real CLI; 8 bridge tests go red against the old code. The bridge must be
+  pulled and restarted by hand for this to reach production (see below).
 - **The plans bridge image is published** at
   `ghcr.io/lrmcorp/lrmsmmnew-teammates`, both `:latest` and the commit tag,
   confirmed against the registry rather than inferred from the workflow step.

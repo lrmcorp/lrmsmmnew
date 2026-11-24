@@ -2,3 +2,4 @@ node_modules/
 public/vendor/
 test/fake-args.log
 test/fake-control.env
+test/fake-prompt.txt

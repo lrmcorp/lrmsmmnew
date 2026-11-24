@@ -20,23 +20,32 @@ export class CodexError extends Error {
   }
 }
 
+// The name this bridge advertises for "whatever model the plan defaults to".
+// It is not an OpenAI model id: passed on as `-m codex` the CLI asked the API
+// for a model called "codex" and the turn failed.
+export const PLAN_DEFAULT_MODEL = 'codex';
+
 /**
- * Argument vector for one turn.
+ * Argument vector for one turn. The prompt is NOT in it: it goes to stdin, which
+ * the trailing `-` tells the CLI to read.
  *
  * First message of a conversation starts a session; every later message resumes
  * the most recent one in that working directory. `--skip-git-repo-check` is
  * required because each conversation gets a plain directory, not a repository.
+ *
+ * Images use `--image=<file>`: `-i` takes several values, so `-i a.png "prompt"`
+ * swallowed the prompt as a second image path and Codex exited 1 with "No prompt
+ * provided". Stdin also keeps long prompts clear of the 128 KiB per-argument
+ * limit that a brief with account context can reach.
  */
-export function execArgs({ prompt, outFile, model, resume = false, schemaFile = null, images = [] }) {
+export function execArgs({ outFile, model, resume = false, schemaFile = null, images = [] }) {
   const args = ['exec'];
   if (resume) args.push('resume', '--last');
   args.push('--skip-git-repo-check', '-o', outFile);
-  if (model) args.push('-m', model);
+  if (model && model !== PLAN_DEFAULT_MODEL) args.push('-m', model);
   if (schemaFile) args.push('--output-schema', schemaFile);
-  for (const image of images) args.push('-i', image);
-  // The prompt is the final positional argument. It is passed through the
-  // argument vector rather than a shell, so no quoting or escaping applies.
-  args.push(prompt);
+  for (const image of images) args.push(`--image=${image}`);
+  args.push('-');
   return args;
 }
 
@@ -57,10 +66,10 @@ export function childEnv() {
 }
 
 /** Run one `codex` invocation to completion, bounded in time. */
-export function runCodex(args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, bin = CODEX_BIN } = {}) {
+export function runCodex(args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, bin = CODEX_BIN, input = null } = {}) {
   return new Promise((resolve) => {
     const child = spawn(bin, args, {
-      cwd, env: childEnv(), stdio: ['ignore', 'pipe', 'pipe'],
+      cwd, env: childEnv(), stdio: [input === null ? 'ignore' : 'pipe', 'pipe', 'pipe'],
       // Its own process group, so a timeout can take down the whole tree. Codex
       // spawns helpers; killing only the parent would leave them holding the CPU.
       detached: true,
@@ -80,6 +89,12 @@ export function runCodex(args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, bi
     const onAbort = () => stop('aborted');
     signal?.addEventListener('abort', onAbort, { once: true });
 
+    if (input !== null) {
+      // A child that exits early closes the pipe; that EPIPE is reported by the
+      // exit code, not as an unhandled stream error.
+      child.stdin.on('error', () => {});
+      child.stdin.end(input);
+    }
     child.stdout.on('data', (d) => { stdout += d; });
     child.stderr.on('data', (d) => { stderr += d; });
     child.on('error', (e) => {
