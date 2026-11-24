@@ -57,6 +57,10 @@ export function settings(user) {
   const stored=parseJSON(one('SELECT agents FROM generator_settings WHERE user_id=?',user.id)?.agents,{});
   const keys=all('SELECT provider,updated_at FROM generator_keys WHERE user_id=?', user.id);
   const available=new Set(keys.map(k=>k.provider));
+  // "Your plans" needs no key, so it must never count as missing and be swapped
+  // for a keyed provider: that silently spent the Owner's API key instead of
+  // their subscription. If the bridge is down the stage fails with plans_*.
+  if(user?.role==='owner')available.add(PLANS_PROVIDER);
   const preferred=['openai','gemini','anthropic'].find(p=>available.has(p));
   const imagePreferred=['openai','gemini'].find(p=>available.has(p));
   const agents=Object.fromEntries(ROLES.map(role=>{
@@ -80,6 +84,16 @@ export function settings(user) {
  * in on the bridge AND this user is the Owner whose subscription it spends, so
  * a representative never sees a provider they would be refused at run time.
  */
+/**
+ * What the browser receives: the stored team, the providers this user may pick,
+ * and the saved keys. A keyless provider on offer is listed as a `virtual` key
+ * so every "is a key saved for this provider?" check treats it as ready.
+ */
+export async function settingsView(user) {
+  const s = settings(user), providers = await availableProviders(user);
+  const keys = providers[PLANS_PROVIDER] ? [...s.keys, { provider: PLANS_PROVIDER, updated_at: null, virtual: true }] : s.keys;
+  return { ...s, keys, providers };
+}
 export async function availableProviders(user) {
   const offered = { ...PROVIDERS };
   const mayUse = user?.role === 'owner' && await plansAvailable();

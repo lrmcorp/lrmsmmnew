@@ -28,6 +28,12 @@ handoff is for.
   API & AI panel, reported by the owner ("codex logged in"); not observed by an
   agent. Still unverified: a real model answer, whether each generator stage's
   JSON schema is satisfied, and image generation (provider stays `image:false`).
+- **Fixed after the first sign-in:** `settings()` swapped every provider without
+  a saved key for a keyed one, so a stage saved as "Your plans" came back as
+  OpenAI and would have spent the Owner's API key; the generator also warned
+  "Add an API key for lrmplans". `lrmplans` now counts as available for the
+  Owner, and `settingsView()` lists it as a `virtual` key while a plan is
+  signed in. Covered in `test/plans-bridge.js` (red against the old code).
 - **The plans bridge image is published** at
   `ghcr.io/lrmcorp/lrmsmmnew-teammates`, both `:latest` and the commit tag,
   confirmed against the registry rather than inferred from the workflow step.
