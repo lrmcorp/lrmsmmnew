@@ -26,6 +26,19 @@ async function writeTemp(cwd, name, data) {
   return file;
 }
 
+/**
+ * The one line of CLI output that says why a turn failed, for the caller's error
+ * message: the last line naming an error, else the last line that is not a
+ * warning. Without it the app could only show "Codex exited with 1", and every
+ * diagnosis needed someone to read the bridge log on the server.
+ */
+export function cliReason(detail) {
+  const lines = String(detail || '').replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/).map((l) => l.trim())
+    .filter((l) => l && !/^warning:/i.test(l));
+  const line = [...lines].reverse().find((l) => /\berror\b|failed|not supported|invalid|denied|refused|unexpected status/i.test(l)) || lines.at(-1) || '';
+  return line.length > 300 ? `${line.slice(0, 300)}…` : line;
+}
+
 /** Run Codex once and return its last message, or throw a CodexError. */
 async function attempt({ cwd, prompt, model, resume, schema, images, signal }) {
   const stamp = crypto.randomBytes(8).toString('hex');
@@ -48,7 +61,8 @@ async function attempt({ cwd, prompt, model, resume, schema, images, signal }) {
       // The caller only sees the exit code, so the reason goes to the bridge log
       // for the operator: the tail of the CLI's output, where its error is.
       console.error(`[teammates] codex exited ${r.code}: ${detail.replace(/\s+/g, ' ').trim().slice(-600)}`);
-      throw new CodexError('codex_failed', `Codex exited with ${r.code}.`, { status: 502, stderr: detail });
+      const reason = cliReason(detail);
+      throw new CodexError('codex_failed', `Codex exited with ${r.code}${reason ? `: ${reason}` : '.'}`, { status: 502, stderr: detail });
     }
     return message;
   } finally {
