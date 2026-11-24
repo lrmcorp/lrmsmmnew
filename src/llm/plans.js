@@ -43,7 +43,12 @@ export function mintTerminalTicket(user, { ttlMs = 120_000 } = {}) {
 // The model list is a process spawn on the far side, and the picker asks for it
 // on every render, so it is cached briefly as the brief requires.
 const TTL_MS = 60_000;
-let cache = { at: 0, models: [] };
+// reachable is tracked separately from models because the two failures need
+// different actions: a bridge that is down has to be started on the server, a
+// bridge that answers with no models has to be signed in. Folding both into
+// "no models" made a stopped container read as "Not signed in", which sent the
+// owner to a sign-in button that could never work.
+let cache = { at: 0, models: [], reachable: false };
 
 export async function listModels({ refresh = false } = {}) {
   if (!configured()) return [];
@@ -55,16 +60,24 @@ export async function listModels({ refresh = false } = {}) {
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const body = await r.json();
-    cache = { at: Date.now(), models: (body?.data || []).map((m) => m.id).filter((id) => typeof id === 'string') };
+    cache = { at: Date.now(), reachable: true, models: (body?.data || []).map((m) => m.id).filter((id) => typeof id === 'string') };
   } catch {
-    // A bridge that is down or signed out is reported as "no plans", which is
-    // what the picker needs; it is not an error the operator must act on.
-    cache = { at: Date.now(), models: [] };
+    // For the model picker a bridge that is down means "no plans", which is
+    // what it needs. The status page asks probe() instead, which keeps the
+    // difference.
+    cache = { at: Date.now(), models: [], reachable: false };
   }
   return cache.models;
 }
 
-export const _resetModelCache = () => { cache = { at: 0, models: [] }; };
+/** { reachable, models } for the status page, refreshed now. */
+export async function probe() {
+  if (!configured()) return { reachable: false, models: [] };
+  const models = await listModels({ refresh: true });
+  return { reachable: cache.reachable, models };
+}
+
+export const _resetModelCache = () => { cache = { at: 0, models: [], reachable: false }; };
 
 /** True when at least one plan is signed in, so the provider may be offered. */
 export const plansAvailable = async (opts) => (await listModels(opts)).length > 0;

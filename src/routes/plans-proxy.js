@@ -70,9 +70,12 @@ export function attachPlansUpgrade(server) {
     try { path = new URL(req.url, 'http://localhost').pathname; } catch { return socket.destroy(); }
     if (path !== TERMINAL) return; // not ours; another handler may own it
     const target = upstream();
-    const deny = (code, text) => { socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); socket.destroy(); };
-    if (!target) return deny(503, 'Service Unavailable');
-    if (!owner(req)) return deny(403, 'Forbidden');
+    const deny = (code, text, reason) => {
+      console.warn(`[plans-proxy] terminal refused (${code}): ${reason}`);
+      socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); socket.destroy();
+    };
+    if (!target) return deny(503, 'Service Unavailable', 'PLANS_BRIDGE_URL is not a valid URL');
+    if (!owner(req)) return deny(403, 'Forbidden', 'no Owner session on the upgrade request');
 
     const proxied = http.request({
       ...target, method: 'GET', path: req.url,
@@ -87,8 +90,8 @@ export function attachPlansUpgrade(server) {
       socket.on('error', close); upstreamSocket.on('error', close);
     });
     // The bridge refused before switching protocols: pass its answer through.
-    proxied.on('response', (upstreamRes) => deny(upstreamRes.statusCode || 502, upstreamRes.statusMessage || 'Error'));
-    proxied.on('error', () => deny(502, 'Bad Gateway'));
+    proxied.on('response', (upstreamRes) => deny(upstreamRes.statusCode || 502, upstreamRes.statusMessage || 'Error', `bridge answered ${upstreamRes.statusCode} instead of switching protocols; see the teammates log`));
+    proxied.on('error', (e) => deny(502, 'Bad Gateway', `bridge unreachable: ${e.code || e.message}`));
     if (head?.length) proxied.write(head);
     proxied.end();
   });

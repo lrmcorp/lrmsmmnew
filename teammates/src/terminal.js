@@ -28,14 +28,18 @@ export function attachTerminal(server, { path = '/teammates/terminal' } = {}) {
     try { url = new URL(req.url, 'http://localhost'); } catch { return socket.destroy(); }
     if (url.pathname !== path) return; // another handler may own it
 
-    const deny = (code, why) => {
+    // Every refusal is logged with its reason: a browser reports a failed
+    // WebSocket handshake only as "connection failed", so the server log is the
+    // one place the cause can be read. The ticket itself is never logged.
+    const deny = (code, why, reason) => {
+      console.warn(`[teammates] terminal refused (${code}): ${reason}`);
       socket.write(`HTTP/1.1 ${code} ${why}\r\nConnection: close\r\n\r\n`);
       socket.destroy();
     };
-    if (!sameOrigin(req)) return deny(403, 'Forbidden');
+    if (!sameOrigin(req)) return deny(403, 'Forbidden', `origin ${JSON.stringify(req.headers.origin)} is not CONSOLE_ORIGIN ${JSON.stringify(process.env.CONSOLE_ORIGIN || '')}`);
     const ticket = verifyTicket(url.searchParams.get('ticket'));
-    if (!ticket) return deny(401, 'Unauthorized');
-    if (open >= MAX_TERMINALS) return deny(429, 'Too Many Requests');
+    if (!ticket) return deny(401, 'Unauthorized', 'ticket missing, expired or not signed with this INTERNAL_TOKEN');
+    if (open >= MAX_TERMINALS) return deny(429, 'Too Many Requests', `${open} terminals already open`);
 
     wss.handleUpgrade(req, socket, head, (ws) => {
       open++;

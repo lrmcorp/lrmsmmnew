@@ -16,22 +16,30 @@ handoff is for.
 - Repository **lrmcorp/lrmsmmnew**, serving `https://lrmsosmed.playgo.id`.
   `lrmsocmedauto` is retired; do not deploy its Temporal/Postgres/Redis
   architecture or copy its environment.
-- **Last verified deployed commit: `04ba158`**, PR
-  [#55](https://github.com/lrmcorp/lrmsmmnew/pull/55), deployment run
-  [45145923577](https://github.com/lrmcorp/lrmsmmnew/actions/runs/45145923577),
-  receiver and public health check both passing. The release that changed
-  application behaviour is `e54d94c` (PR #52: the security fixes and "Your
-  plans"); #53, #54 and #55 fixed what stopped it reaching a server.
+- **Last verified deployed commit: `c45909c`**, PR
+  [#56](https://github.com/lrmcorp/lrmsmmnew/pull/56), deployment run
+  [45148758912](https://github.com/lrmcorp/lrmsmmnew/actions/runs/45148758912),
+  receiver and public health check both passing. Confirmed on the server: the
+  running app container carries the `/teammates/` proxy. The release that
+  changed application behaviour is `e54d94c` (PR #52); #53 to #56 fixed what
+  stopped it reaching a server and a browser.
 - **The plans bridge image is published** at
   `ghcr.io/lrmcorp/lrmsmmnew-teammates`, both `:latest` and the commit tag,
   confirmed against the registry rather than inferred from the workflow step.
-  It is **not running**: the `plans` compose profile has to be started on the
-  server, and the panel says so until it is.
+  It was started **by hand** on the server on 2026-11-24 and is running. Before
+  that it had never run, which the status page misreported as "Not signed in";
+  see PR #57.
 - **`/opt/lrmsmmnew/compose.yml` is not refreshed by a deploy.** It is written
   once by `bootstrap.py:90`; `receiver.py:56` only reads it. A service added to
   `deploy/compose.production.yml` therefore never reaches an existing server,
   and the operator has to update that file by hand. This cost the owner two
   failed attempts and deserves a real mechanism.
+- **The receiver on the server is not refreshed by a deploy either.**
+  `/usr/local/sbin/lrmsmmnew-receiver` is copied once by `bootstrap.py`, so the
+  `teammates_image` support in `deploy/receiver.py` has never run there: deploys
+  do not start or update the plans bridge. It is started by hand with
+  `APP_IMAGE=$(cat current-image) docker compose --profile plans up -d teammates`
+  and keeps whatever image it was started with until restarted the same way.
 - **Compose cannot be run by hand without `APP_IMAGE`.** The receiver injects
   it, a manual command must pass it:
   `APP_IMAGE=$(cat current-image) docker compose --profile plans up -d`.

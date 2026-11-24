@@ -43,12 +43,18 @@ export function verifyTicket(ticket) {
   return payload;
 }
 
+// CONSOLE_ORIGIN comes from PUBLIC_URL, which may carry a trailing slash or a
+// path; the browser's Origin header never does. Comparing the raw strings made
+// "https://example.com/" refuse "https://example.com". Both sides are reduced
+// to scheme://host[:port] first.
+const originOf = (value) => { try { return new URL(String(value).trim()).origin; } catch { return null; } };
+
 /** Same-origin check for the WebSocket upgrade. */
 export function sameOrigin(req) {
   const origin = req.headers.origin;
   // A non-browser client sends no Origin; the ticket is what authorises it.
   if (!origin) return true;
-  const allowed = (process.env.CONSOLE_ORIGIN || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const allowed = (process.env.CONSOLE_ORIGIN || '').split(',').map(originOf).filter(Boolean);
   if (!allowed.length) return false;
-  return allowed.includes(origin);
+  return allowed.includes(originOf(origin));
 }
