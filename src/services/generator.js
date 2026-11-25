@@ -216,6 +216,7 @@ export function createRun(user, body) {
   const rid = id('gen');
   run('INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,scheduled_at,created_at,updated_at,caption_language) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)', rid, user.id, body.request_id, hash, body.brief, JSON.stringify(payload.targets), count, JSON.stringify(agents), payload.at, now(), now(), languageOf(body,refs.notes));
   run('UPDATE generator_runs SET reference_media_ids=?,reference_notes=?,reference_roles=?,draft_touched_at=? WHERE id=?',JSON.stringify(refs.ids),refs.notes,JSON.stringify(refs.roles),now(),rid);
+  if (differsFromSettings(user, agents)) run('UPDATE generator_runs SET agents_pinned=1 WHERE id=?', rid);
   if(body.produce_media===true)run('UPDATE generator_runs SET concept_approved_at=? WHERE id=?',now(),rid);
   return getRun(user, rid);
 }
@@ -399,8 +400,31 @@ export function runGeneratorTick() {
   }
 }
 export async function waitGenerator() { await Promise.all([...active.values()].map(x => x.promise)); }
+// A draft keeps a copy of the agent team from the day it was created. Stages
+// that have not run yet follow the Owner's current Settings instead, so moving
+// a stage to another provider (or away from one whose quota is gone) reaches
+// drafts already in the queue. Finished stages keep their record of who ran
+// them; `redo` names stages that are about to run again.
+const RUN_STAGES = ['concept', 'revision', 'visual', 'image', 'final'];
+// A team that differs from Settings at creation was chosen on purpose for that
+// draft, so it is kept (pinned) rather than refreshed.
+const differsFromSettings = (user, agents) => {
+  const current = settings(user).agents;
+  return RUN_STAGES.some((role) => agents?.[role] && (agents[role].provider !== current[role]?.provider || agents[role].model !== current[role]?.model));
+};
+function refreshAgents(user, r, redo = []) {
+  if (r.agents_pinned) return parseJSON(r.agents, {});
+  const current = settings(user).agents, steps = parseJSON(r.steps, {});
+  const merged = { ...current, ...parseJSON(r.agents, {}) };
+  for (const role of RUN_STAGES) if ((steps[role]?.status !== 'done' || redo.includes(role)) && current[role]) merged[role] = current[role];
+  const agents = cleanAgents(merged, user);
+  run('UPDATE generator_runs SET agents=? WHERE id=?', JSON.stringify(agents), r.id);
+  return agents;
+}
 export function retryRun(user, rid) {
-  rawRun(user, rid);
+  const r = rawRun(user, rid);
+  if (r.status !== 'failed') throw err(409, 'generator_state', "Only failed runs can be retried.");
+  refreshAgents(user, r);
   if (!run("UPDATE generator_runs SET status='queued',error=NULL,updated_at=? WHERE id=? AND status='failed'", now(), rid).changes) throw err(409, 'generator_state', "Only failed runs can be retried.");
   return getRun(user, rid);
 }
@@ -585,6 +609,7 @@ async function createPlanInner(user, body) {
       ideas.forEach((idea,i) => body.account_ids.forEach((aid,a) => run(`INSERT INTO generator_runs(id,user_id,request_id,request_hash,brief,targets,slide_count,agents,scheduled_at,status,caption,created_at,updated_at,plan_id,title,caption_language) VALUES(?,?,?,?,?,?,?,?,?,'planned','',?,?,?,?,?)`, id('gen'), user.id, `plan-${pid}-${i}-${a}`, hash, composeContentBrief(body.brief,idea), JSON.stringify([{ account_id: aid }]), body.slide_count || 1, JSON.stringify(agents), perAccount.get(aid)[i], now(), now(), pid, idea.title, language)));
     });
     run('UPDATE generator_runs SET reference_media_ids=?,reference_notes=?,reference_roles=?,draft_touched_at=? WHERE plan_id=?',JSON.stringify(refs.ids),refs.notes,JSON.stringify(refs.roles),now(),pid);
+    if (differsFromSettings(user, agents)) run('UPDATE generator_runs SET agents_pinned=1 WHERE plan_id=?', pid);
     // Each content item in the campaign gets the next product in the account's
     // catalogue, so a run of twelve uses twelve different ones where twelve
     // exist and cycles evenly where fewer do.
@@ -609,7 +634,7 @@ export function listPlans(user) {
 }
 export function startPlanned(user, rid) {
   const r = rawRun(user, rid);
-  const agents = parseJSON(r.agents,{});
+  const agents = r.status === 'planned' ? refreshAgents(user, r) : parseJSON(r.agents,{});
   for (const role of ['concept','revision']) keyOf(user.id, agents[role].provider);
   if (!run("UPDATE generator_runs SET status='queued',updated_at=? WHERE id=? AND status='planned'", now(), rid).changes) throw err(409, 'generator_state', "This content has already been processed.");
   return getRun(user, rid);
@@ -619,7 +644,7 @@ export function startPlan(user, pid) {
   const rows = all("SELECT id FROM generator_runs WHERE plan_id=? AND user_id=? AND status='planned'", pid,user.id);
   for (const r of rows) {
     const record = rawRun(user,r.id);
-    const agents=parseJSON(record.agents,{});for(const role of ['concept','revision'])keyOf(user.id,agents[role].provider);
+    const agents=refreshAgents(user,record);for(const role of ['concept','revision'])keyOf(user.id,agents[role].provider);
   }
   const busy=one("SELECT COUNT(*) n FROM generator_runs WHERE user_id=? AND status IN ('queued','running','concept_review','review')",user.id).n;
   if (busy+rows.length>40) throw err(409,'generator_limit',"Complete active content before starting this batch. A maximum of 40 active items is allowed.");
@@ -697,7 +722,7 @@ export function approveConcept(user,rid,body) {
   const steps=parseJSON(r.steps,{});
   if(!steps.revision?.output)throw err(409,'generator_state',"Concept is incomplete.");
   const plan=planOf(JSON.stringify(body.concept ?? steps.revision.output),r.slide_count);
-  const agents=parseJSON(r.agents,{});for(const role of ['visual','image','final'])keyOf(user.id,(agents[role]||agents.concept).provider);
+  const agents=refreshAgents(user,r);for(const role of ['visual','image','final'])keyOf(user.id,(agents[role]||agents.concept).provider);
   steps.revision.output=plan;
   run("UPDATE generator_runs SET steps=?,caption=?,concept_approved_at=?,draft_touched_at=?,status='queued',updated_at=? WHERE id=? AND status='concept_review'",JSON.stringify(steps),plan.caption,now(),now(),now(),rid);
   return getRun(user,rid);
@@ -716,7 +741,7 @@ export function regenerateSlide(user,rid,body) {
   if(!Number.isInteger(body.slide_index)||body.slide_index<0||body.slide_index>=mids.length||!steps.revision?.output?.slides?.[body.slide_index])throw err(400,'validation_failed',"Concept slide not found.");
   if(typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>3000)throw err(400,'validation_failed',"Revision instructions are required and must not exceed 3,000 characters.");
   if(parseJSON(r.media_versions,[]).length>=30)throw err(409,'revision_limit',"A maximum of 30 slide versions per draft is allowed.");
-  const agents=parseJSON(r.agents,{});for(const role of (steps.visual?.status==='done'?['image','final']:['visual','image','final']))keyOf(user.id,(agents[role]||agents.concept).provider);
+  const agents=refreshAgents(user,r,['image','final']);for(const role of (steps.visual?.status==='done'?['image','final']:['visual','image','final']))keyOf(user.id,(agents[role]||agents.concept).provider);
   steps.image={status:'waiting',redo_index:body.slide_index,redo_prompt:body.instruction,redo_request_id:body.request_id};delete steps.final;
   run("UPDATE generator_runs SET steps=?,concept_approved_at=COALESCE(concept_approved_at,?),draft_touched_at=?,updated_at=?,status='queued' WHERE id=? AND status='review'",JSON.stringify(steps),now(),now(),now(),rid);
   return getRun(user,rid);
