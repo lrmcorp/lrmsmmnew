@@ -28,6 +28,15 @@ handoff is for.
   API & AI panel, reported by the owner ("codex logged in"); not observed by an
   agent. Still unverified: a real model answer, whether each generator stage's
   JSON schema is satisfied, and image generation.
+- **Drafts follow the latest Settings (2026-11-25):** a draft used to keep the
+  agent team copied at creation forever, so moving the Image stage off Gemini
+  never reached 30 queued MANISKY drafts. Retry, Approve concept, Start planned
+  and Regenerate slide now take the Owner's current Settings for every stage
+  that has not run yet (`refreshAgents` in `generator.js`); finished stages keep
+  their record. A draft created with a team that differs from Settings is a
+  deliberate choice and is kept (`generator_runs.agents_pinned`, new column,
+  default 0, so existing drafts follow Settings). Story-created runs follow
+  Settings. Covered in `test/generator.js` (red against the old code).
 - **Fallback for "Your plans" (owner's instruction, 2026-11-24, final
   revision):** a stage set to `lrmplans` that fails is retried on the Owner's
   own saved keys. Every text stage goes to DeepSeek, then Gemini, then OpenAI;

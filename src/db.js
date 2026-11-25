@@ -312,6 +312,13 @@ for(const [column,definition] of [['story_job_id','TEXT'],['story_episode','INTE
  if(!db.prepare('PRAGMA table_info(generator_runs)').all().some(c=>c.name===column))db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
 }
 
+// 1 when a draft was created with an agent team that differs from the Owner's
+// saved Settings (a deliberate per-draft choice). 0 drafts follow Settings for
+// every stage that has not run yet; existing drafts were copies of Settings.
+for(const [column,definition] of [['agents_pinned',"INTEGER NOT NULL DEFAULT 0"]]){
+ if(!db.prepare('PRAGMA table_info(generator_runs)').all().some(c=>c.name===column))db.exec(`ALTER TABLE generator_runs ADD COLUMN ${column} ${definition}`);
+}
+
 // The caption/on-image language a session chose, resolved once at creation.
 // Empty on runs created before this column existed; those fall back to the
 // account's Brand Kit default exactly as they did then.

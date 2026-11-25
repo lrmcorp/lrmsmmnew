@@ -316,6 +316,33 @@ test('personal credentials, provider contracts, durable pipeline and final hando
       assert.equal(r.status, 'review'); assert.equal(r.steps.failure,undefined); assert.equal(r.media_ids[0], first); assert.equal(r.media_ids.length, 2);
       gen.cancelRun(user, r.id);
     });
+    await t.test('a draft copied from Settings follows the latest Settings for stages not yet run; a deliberate team stays', async () => {
+      const before = gen.settings(user).agents;
+      const r0 = make({ slide_count: 1 });
+      gen.runGeneratorTick(); await gen.waitGenerator();
+      assert.equal(gen.getRun(user, r0.id).status, 'concept_review');
+      const conceptProvider = gen.getRun(user, r0.id).agents.concept.provider;
+      // The Owner moves the Image stage after the draft was made.
+      gen.saveSettings(user, { agents: { ...before, image: { ...before.image, provider: 'gemini', model: 'gemini-2.5-flash-image' } } });
+      let start = providerCalls.length;
+      gen.approveConcept(user, r0.id, { confirm_cost: true }); gen.runGeneratorTick(); await gen.waitGenerator();
+      const done = gen.getRun(user, r0.id);
+      assert.equal(done.status, 'review');
+      assert.equal(done.agents.image.provider, 'gemini', 'the stage that had not run took the new setting');
+      assert.equal(done.agents.concept.provider, conceptProvider, 'finished stages keep their record');
+      assert.ok(providerCalls.slice(start).some((c) => c.body?.generationConfig?.responseModalities), 'the image went to Gemini');
+      // A team chosen for one draft on purpose is not overridden.
+      const chosen = structuredClone(gen.settings(user).agents); chosen.image = { ...chosen.image, provider: 'openai', model: 'gpt-image-2.5-sunburst' };
+      const r1 = make({ slide_count: 1, agents: chosen });
+      gen.runGeneratorTick(); await gen.waitGenerator();
+      start = providerCalls.length;
+      gen.approveConcept(user, r1.id, { confirm_cost: true }); gen.runGeneratorTick(); await gen.waitGenerator();
+      const kept = gen.getRun(user, r1.id);
+      assert.equal(kept.agents.image.provider, 'openai');
+      assert.ok(!providerCalls.slice(start).some((c) => c.body?.generationConfig?.responseModalities), 'no Gemini image call for the pinned draft');
+      gen.saveSettings(user, { agents: before });
+      gen.cancelRun(user, r0.id); gen.cancelRun(user, r1.id);
+    });
     await t.test('large account archives do not overflow GPT Image prompts or weaken original-asset protection',async()=>{
       const {buildImagePrompt}=await import('../src/services/image-prompt.js');
       const {ASSET_PRESERVATION}=await import('../src/services/brand-asset-policy.js');
