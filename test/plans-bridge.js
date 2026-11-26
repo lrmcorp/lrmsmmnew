@@ -297,13 +297,24 @@ test('a stage on Your plans falls back to the Owner\'s own keys', async (t) => {
     await assert.rejects(inPlan(() => withPlanFallback(r.call, 'text', () => null, quiet)({ provider: 'lrmplans', model: 'codex', prompt: 'p' })), (e) => e.code === 'codex_failed');
     assert.equal(r.calls.length, 1);
   });
-  await t.test('other providers, connection tests and Owner refusals are never rerouted', async () => {
-    const r = recorder({ gemini: fail('RESOURCE_EXHAUSTED'), lrmplans: fail('plans_owner_only') });
-    await assert.rejects(inPlan(() => withPlanFallback(r.call, 'text', keyFor, quiet)({ provider: 'gemini', model: 'gemini-2.5-flash', key: 'g', prompt: 'p' })));
+  await t.test('any provider falls back along the order; connection tests and Owner refusals do not', async () => {
+    // Gemini as the image stage, refused for quota: OpenAI draws it.
+    const img = recorder({ gemini: fail('RESOURCE_EXHAUSTED'), openai: Buffer.from('png') });
+    const out = await inPlan(() => withPlanFallback(img.call, 'image', keyFor, quiet)({ provider: 'gemini', model: 'gemini-2.5-flash-image', key: 'g', prompt: 'p' }));
+    assert.deepEqual(img.calls, ['gemini/gemini-2.5-flash-image:g', 'openai/gpt-image-2.5-sunburst:o-key']);
+    assert.equal(out.usage.fallback_from, 'gemini/gemini-2.5-flash-image');
+    // Gemini as a text stage continues with what follows it: OpenAI.
+    const txt = recorder({ gemini: fail('RESOURCE_EXHAUSTED'), openai: 'from openai' });
+    assert.equal((await inPlan(() => withPlanFallback(txt.call, 'text', keyFor, quiet)({ provider: 'gemini', model: 'gemini-2.5-flash', key: 'g', prompt: 'p' }))).text, 'from openai');
+    // OpenAI is last: nothing after it, and the plan is never a fallback target.
+    const last = recorder({ openai: fail('insufficient_quota') });
+    await assert.rejects(inPlan(() => withPlanFallback(last.call, 'image', keyFor, quiet)({ provider: 'openai', model: 'gpt-image-2.5-sunburst', key: 'o', prompt: 'p' })), (e) => e.code === 'insufficient_quota');
+    assert.deepEqual(last.calls, ['openai/gpt-image-2.5-sunburst:o']);
+    const r = recorder({ lrmplans: fail('plans_owner_only') });
     await assert.rejects(text(r), (e) => e.code === 'plans_owner_only');
+    assert.deepEqual(r.calls, ['lrmplans/codex:']);
     const r2 = recorder({ lrmplans: fail('codex_failed'), deepseek: 'x' });
     await assert.rejects(text(r2, { noFallback: true }));
-    assert.deepEqual(r.calls, ['gemini/gemini-2.5-flash:g', 'lrmplans/codex:']);
     assert.deepEqual(r2.calls, ['lrmplans/codex:']);
   });
 });

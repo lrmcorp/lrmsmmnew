@@ -54,8 +54,9 @@ const keyOf = (userId, provider) => {
   if (!row) throw err(400, 'provider_key_missing', `Add your personal API key for ${PROVIDERS[provider]?.name || provider}.`);
   return decrypt(row.secret_enc);
 };
-// A stage on "Your plans" falls back to the Owner's own keys when the plan
-// cannot answer: text to Gemini then OpenAI, images to OpenAI.
+// A failing stage continues on the Owner's own keys in the owner's order:
+// text Your plans -> DeepSeek -> Gemini -> OpenAI, images -> OpenAI
+// (see provider-fallback.js).
 const savedKey = (userId, provider) => { try { return keyOf(userId, provider) || null; } catch { return null; } };
 const generateText = withPlanFallback(providerText, 'text', savedKey);
 const generateImage = withPlanFallback(providerImage, 'image', savedKey);
