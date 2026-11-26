@@ -28,6 +28,15 @@ handoff is for.
   API & AI panel, reported by the owner ("codex logged in"); not observed by an
   agent. Still unverified: a real model answer, whether each generator stage's
   JSON schema is satisfied, and image generation.
+- **Fallback extended to every provider (2026-11-26, owner's instruction):** a
+  draft whose Image stage was Gemini still failed with `RESOURCE_EXHAUSTED`,
+  because only `lrmplans` had a fallback. Now any failing stage continues along
+  the owner's order on the Owner's saved keys: text Your plans -> DeepSeek ->
+  Gemini -> OpenAI (from the failing provider onward; providers outside the
+  order, e.g. Anthropic, try the whole list), images -> OpenAI (Gemini is never
+  an image fallback, the plan never a fallback target). `noFallback` and
+  `plans_owner_only` unchanged. `test/storytelling.js` now expects the Gemini
+  Scheduler's OpenAI fallback call on retry.
 - **Drafts follow the latest Settings (2026-11-25):** a draft used to keep the
   agent team copied at creation forever, so moving the Image stage off Gemini
   never reached 30 queued MANISKY drafts. Retry, Approve concept, Start planned
